@@ -1,0 +1,570 @@
+'use client';
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { Product, Category, Setting, Quote, QuoteItem } from '@/types';
+
+// ========== Products ==========
+export function useProducts() {
+  return useQuery<Product[]>({
+    queryKey: ['products'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*, categories(*), brands(*), kit_items(kit_id)')
+        .order('code', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useUpdateProduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (product: Partial<Product> & { id: string, compatible_kits?: string[] }) => {
+      const { id, categories, created_at, compatible_kits, brands, kit_items, ...updateData } = product as any;
+      const { data, error } = await supabase
+        .from('products')
+        .update({ ...updateData, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select('*, categories(*), brands(*), kit_items(kit_id)')
+        .single();
+      if (error) throw error;
+
+      if (compatible_kits) {
+        // Sync kits: delete all current
+        await supabase.from('kit_items').delete().eq('product_id', id);
+        // Insert new ones
+        if (compatible_kits.length > 0) {
+          const insertData = compatible_kits.map((kitId: string) => ({
+            kit_id: kitId,
+            product_id: id,
+            quantity: 1,
+          }));
+          await supabase.from('kit_items').insert(insertData);
+        }
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
+export function useCreateProduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { product: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'categories' | 'brands' | 'kit_items'>, compatible_kits?: string[] }) => {
+      const { data, error } = await supabase
+        .from('products')
+        .insert(payload.product)
+        .select('*, categories(*), brands(*)')
+        .single();
+      if (error) throw error;
+
+      if (payload.compatible_kits && payload.compatible_kits.length > 0) {
+        const insertData = payload.compatible_kits.map((kitId: string) => ({
+          kit_id: kitId,
+          product_id: data.id,
+          quantity: 1,
+        }));
+        await supabase.from('kit_items').insert(insertData);
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
+export function useDeleteProduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
+export function useBulkInsertProducts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (products: any[]) => {
+      // Using upsert to handle existing SKUs gracefully
+      const { data, error } = await supabase
+        .from('products')
+        .upsert(products, { onConflict: 'code' })
+        .select();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
+// ========== Categories ==========
+export function useCategories() {
+  return useQuery<Category[]>({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('section', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useCreateCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (category: Omit<Category, 'id' | 'created_at'>) => {
+      const { data, error } = await supabase
+        .from('categories')
+        .insert(category)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
+}
+
+export function useUpdateCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (category: Partial<Category> & { id: string }) => {
+      const { id, created_at, ...updateData } = category as any;
+      const { data, error } = await supabase
+        .from('categories')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] }); // Products might need updated category names
+    },
+  });
+}
+
+export function useDeleteCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] }); // Refetch products to show unassigned categories
+    },
+  });
+}
+
+// ========== Settings (BCV Rate) ==========
+export function useBcvRate() {
+  return useQuery<number>({
+    queryKey: ['bcv_rate'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'bcv_rate')
+        .single();
+      if (error) throw error;
+      return Number(data.value);
+    },
+  });
+}
+
+export function useUpdateBcvRate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (newRate: number) => {
+      const { error } = await supabase
+        .from('settings')
+        .update({ value: newRate, updated_at: new Date().toISOString() })
+        .eq('key', 'bcv_rate');
+      if (error) throw error;
+      return newRate;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bcv_rate'] });
+    },
+  });
+}
+
+export function useMarginPercentage() {
+  return useQuery<number>({
+    queryKey: ['margin_percentage'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'margin_percentage')
+        .single();
+      // If error (not found), return default 40
+      if (error) return 40;
+      return Number(data.value);
+    },
+  });
+}
+
+export function useUpdateMarginPercentage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (newMargin: number) => {
+      const { error } = await supabase
+        .from('settings')
+        .upsert({ key: 'margin_percentage', value: newMargin, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      return newMargin;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['margin_percentage'] });
+    },
+  });
+}
+
+export function useBcvMultiplier() {
+  return useQuery<number>({
+    queryKey: ['bcv_multiplier'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'bcv_multiplier')
+        .single();
+      if (error) return 1.40;
+      return Number(data.value);
+    },
+  });
+}
+
+export function useUpdateBcvMultiplier() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (newMultiplier: number) => {
+      const { error } = await supabase
+        .from('settings')
+        .upsert({ key: 'bcv_multiplier', value: newMultiplier, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      return newMultiplier;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bcv_multiplier'] });
+    },
+  });
+}
+
+// ========== Quotes ==========
+export function useQuotes() {
+  return useQuery<Quote[]>({
+    queryKey: ['quotes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('quotes')
+        .select('*, quote_items(*)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useCreateQuote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      quote,
+      items,
+    }: {
+      quote: Omit<Quote, 'id' | 'created_at'>;
+      items: Omit<QuoteItem, 'id' | 'quote_id'>[];
+    }) => {
+      const { data: quoteData, error: quoteError } = await supabase
+        .from('quotes')
+        .insert(quote)
+        .select()
+        .single();
+      if (quoteError) throw quoteError;
+
+      const quoteItems = items.map((item) => ({
+        ...item,
+        quote_id: quoteData.id,
+      }));
+      const { error: itemsError } = await supabase
+        .from('quote_items')
+        .insert(quoteItems);
+      if (itemsError) throw itemsError;
+
+      return quoteData;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+    },
+  });
+}
+
+export function useUpdateQuote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { data, error } = await supabase
+        .from('quotes')
+        .update({ status })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+    },
+  });
+}
+
+export function useDeleteQuote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('quotes')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+    },
+  });
+}
+
+// ========== Image Upload ==========
+export function useUploadImage() {
+  return useMutation({
+    mutationFn: async ({ file, productCode }: { file: File; productCode: string }) => {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${productCode}-${Date.now()}.${fileExt}`;
+      const filePath = `products/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file, { upsert: true });
+      if (error) throw error;
+
+      const { data } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    },
+  });
+}
+
+// ========== Kits ==========
+export function useKits(category?: string) {
+  return useQuery<any[]>({
+    queryKey: ['kits', category],
+    queryFn: async () => {
+      let query = supabase.from('kits').select('*, kit_items(*)').order('created_at', { ascending: false });
+      if (category) {
+        query = query.eq('category', category);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useCreateKit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (kit: any) => {
+      const { data, error } = await supabase.from('kits').insert(kit).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kits'] });
+    },
+  });
+}
+
+export function useUpdateKit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (kit: any) => {
+      const { id, ...updateData } = kit;
+      const { data, error } = await supabase.from('kits').update(updateData).eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kits'] });
+    },
+  });
+}
+
+export function useDeleteKit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('kits').delete().eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kits'] });
+    },
+  });
+}
+
+export function useKitItems(kitId: string) {
+  return useQuery<any[]>({
+    queryKey: ['kit_items', kitId],
+    queryFn: async () => {
+      if (!kitId) return [];
+      const { data, error } = await supabase
+        .from('kit_items')
+        .select('*, products(*, categories(*), brands(*))')
+        .eq('kit_id', kitId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!kitId,
+  });
+}
+
+export function useCreateKitItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (kitItem: any) => {
+      const { data, error } = await supabase.from('kit_items').insert(kitItem).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['kits'] });
+      queryClient.invalidateQueries({ queryKey: ['kit_items', variables.kit_id] });
+    },
+  });
+}
+
+export function useDeleteKitItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, kitId }: { id: string; kitId: string }) => {
+      const { error } = await supabase.from('kit_items').delete().eq('id', id);
+      if (error) throw error;
+      return { id, kitId };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['kits'] });
+      queryClient.invalidateQueries({ queryKey: ['kit_items', variables.kitId] });
+    },
+  });
+}
+
+// ========== Brands ==========
+export function useBrands() {
+  return useQuery<any[]>({
+    queryKey: ['brands'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('brands').select('*').order('name', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useCreateBrand() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (brand: any) => {
+      const { data, error } = await supabase.from('brands').insert(brand).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brands'] });
+    },
+  });
+}
+
+export function useUpdateBrand() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (brand: any) => {
+      const { id, ...updateData } = brand;
+      const { data, error } = await supabase.from('brands').update(updateData).eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brands'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
+export function useDeleteBrand() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('brands').delete().eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brands'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
+// ========== Price History ==========
+export function usePriceHistory(productId: string) {
+  return useQuery<any[]>({
+    queryKey: ['price_history', productId],
+    queryFn: async () => {
+      if (!productId) return [];
+      const { data, error } = await supabase
+        .from('product_price_history')
+        .select('*')
+        .eq('product_id', productId)
+        .order('changed_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!productId,
+  });
+}
