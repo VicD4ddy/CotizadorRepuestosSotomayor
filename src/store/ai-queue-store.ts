@@ -32,6 +32,8 @@ export const useAiQueueStore = create<AiQueueState>((set, get) => ({
   processed: 0,
   errors: 0,
 
+  _setCurrentStep: (step) => set({ currentStep: step }),
+
   addToQueue: (item) => {
     const state = get();
     // Don't add duplicates
