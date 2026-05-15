@@ -50,11 +50,11 @@ export default function HomePage() {
       />
 
       {/* Main Area */}
-      <div className="flex flex-1 ml-[96px]">
+      <div className="flex flex-1 md:ml-[96px]">
         {/* Content */}
         <div className="flex flex-col flex-1 min-w-0">
           <Header />
-          <main className="flex-1 overflow-auto p-5 bg-slate-50">
+          <main className="flex-1 overflow-auto p-3 md:p-5 bg-slate-50">
             {activeTab === 'inventory' && <ProductTable key={showRecentImports ? 'recents' : 'normal'} showRecentsOnMount={showRecentImports} />}
             {activeTab === 'categories' && <ClasificacionesContainer />}
             {activeTab === 'quotes' && <QuoteTable />}
@@ -77,8 +77,8 @@ export default function HomePage() {
           </main>
         </div>
 
-        {/* Quote Cart - Fixed Right Panel */}
-        <div className="w-[340px] min-w-[340px] border-l border-slate-200 bg-white">
+        {/* Quote Cart - Fixed Right Panel (Desktop only) */}
+        <div className="hidden lg:block w-[340px] min-w-[340px] border-l border-slate-200 bg-white">
           <QuoteCart />
         </div>
       </div>

@@ -38,7 +38,7 @@ export function Sidebar({ activeItem: controlledActive, onNavigate }: SidebarPro
   };
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-[96px] flex flex-col items-center bg-[#0f172a] py-4">
+    <aside className="hidden md:flex fixed left-0 top-0 z-40 h-screen w-[96px] flex-col items-center bg-[#0f172a] py-4">
       {/* Logo */}
       <div className="flex flex-col items-center justify-center mb-6">
         <div className="w-9 h-9 rounded bg-white flex items-center justify-center text-[#0f172a] font-bold text-[14px] shadow-sm mb-1">

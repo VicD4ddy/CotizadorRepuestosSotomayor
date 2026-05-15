@@ -405,22 +405,23 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[1200px] w-[95vw] h-[90vh] p-0 overflow-hidden flex flex-col bg-slate-50 border-slate-200">
+      <DialogContent className="max-w-[1200px] w-[95vw] md:w-[95vw] w-[calc(100%-1rem)] h-[95vh] md:h-[90vh] p-0 overflow-hidden flex flex-col bg-slate-50 border-slate-200">
         
         {/* Header (Sticky) */}
-        <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 shrink-0 z-10 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-white border-b border-slate-200 shrink-0 z-10 shadow-sm gap-2">
           <div>
-            <DialogTitle className="text-[22px] font-bold text-slate-900">
+            <DialogTitle className="text-[18px] md:text-[22px] font-bold text-slate-900">
               {isEditing ? 'Editar Producto' : 'Añadir Nuevo Producto'}
             </DialogTitle>
-            <p className="text-[13px] text-slate-500 mt-1">
+            <p className="text-[12px] md:text-[13px] text-slate-500 mt-0.5">
               Ingrese los detalles técnicos y de inventario para el repuesto.
             </p>
           </div>
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-2 items-center flex-wrap">
             {isEditing && product && (
               <Button 
                 variant="outline" 
+                size="sm"
                 onClick={() => {
                   if (window.confirm('¿Está seguro de que desea eliminar este repuesto de forma permanente?')) {
                     deleteProduct.mutate(product.id, {
@@ -433,24 +434,24 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
                   }
                 }}
                 disabled={deleteProduct.isPending || isLoading}
-                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 font-medium px-4 mr-2"
+                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 font-medium px-3 text-[12px]"
               >
-                {deleteProduct.isPending ? 'Eliminando...' : 'Eliminar Repuesto'}
+                {deleteProduct.isPending ? 'Eliminando...' : 'Eliminar'}
               </Button>
             )}
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="border-slate-300 text-slate-700 font-medium px-6">
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="border-slate-300 text-slate-700 font-medium px-3 text-[12px]">
               Cancelar
             </Button>
-            <Button onClick={handleSubmit(onSubmit)} disabled={isLoading} className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-6 gap-2">
-              <Save className="w-4 h-4" />
-              {isLoading ? 'Guardando...' : 'Guardar Producto'}
+            <Button size="sm" onClick={handleSubmit(onSubmit)} disabled={isLoading} className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 gap-1.5 text-[12px]">
+              <Save className="w-3.5 h-3.5" />
+              {isLoading ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 items-start">
+        <div className="flex-1 overflow-y-auto p-3 md:p-6">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-4 md:gap-6 items-start">
             
             {/* Left Column */}
             <div className="space-y-6">
@@ -461,7 +462,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
                   <h3 className="font-semibold text-[15px] text-slate-900">Información Principal</h3>
                 </div>
                 <div className="p-5 space-y-5">
-                  <div className="grid grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
                         <label className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
@@ -499,7 +500,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">
                         Categoría y Subcategoría
@@ -653,7 +654,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
                   )}
 
                   {/* Formulario para añadir */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Marca</label>
                       <Input 

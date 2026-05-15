@@ -20,7 +20,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
   const [selectedKitForEdit, setSelectedKitForEdit] = useState<Kit | null>(null);
 
   const filteredKits = useMemo(() => {
-    return kits.filter((k) => {
+    const result = kits.filter((k) => {
       if (!searchQuery) return true;
       const search = searchQuery.toLowerCase();
       return (
@@ -28,6 +28,8 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
         k.description?.toLowerCase().includes(search)
       );
     });
+    
+    return result.sort((a, b) => a.name.localeCompare(b.name));
   }, [kits, searchQuery]);
 
   const handleDelete = async (e: React.MouseEvent, kit: Kit) => {

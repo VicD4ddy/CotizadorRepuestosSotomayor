@@ -36,7 +36,7 @@ export function Header() {
   return (
     <header className="h-[52px] border-b border-slate-200 bg-white flex items-center justify-between px-5 sticky top-0 z-30">
       {/* Left: Title + Search */}
-      <div className="flex items-center gap-5">
+      <div className="flex items-center gap-3 md:gap-5">
         <div className="flex items-center">
           <img 
             src="/LogoRepuestosSotomayor.png" 
@@ -51,7 +51,7 @@ export function Header() {
             Repuestos Sotomayor
           </h1>
         </div>
-        <div className="relative">
+        <div className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
           <input
             placeholder="Búsqueda global..."
@@ -87,9 +87,9 @@ export function Header() {
           </button>
         )}
 
-        <div className="w-px h-5 bg-slate-200" />
+        <div className="w-px h-5 bg-slate-200 hidden md:block" />
 
-        <button className="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
+        <button className="w-8 h-8 rounded-full hidden md:flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
           <RefreshCw className="w-[15px] h-[15px]" />
         </button>
         <NotificationPanel />

@@ -47,19 +47,19 @@ export function ProductHistoryDialog({ open, onOpenChange, product }: ProductHis
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[650px] p-0 overflow-hidden bg-slate-50">
-        <DialogHeader className="p-6 pb-4 border-b border-slate-200 bg-white">
-          <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-3">
+      <DialogContent className="sm:max-w-[650px] w-[calc(100%-1rem)] md:w-full p-0 overflow-hidden bg-slate-50 flex flex-col max-h-[90vh]">
+        <DialogHeader className="p-4 md:p-6 pb-3 md:pb-4 border-b border-slate-200 bg-white shrink-0">
+          <DialogTitle className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2 md:gap-3">
             <History className="w-5 h-5 text-slate-400" />
             Historial de Cambios
           </DialogTitle>
-          <p className="text-sm text-slate-500 mt-1">
-            {product.name} <span className="font-mono text-xs bg-slate-100 px-1 rounded ml-1">{product.code}</span>
+          <p className="text-xs md:text-sm text-slate-500 mt-1 line-clamp-2">
+            {product.name} <span className="font-mono text-[10px] md:text-xs bg-slate-100 px-1 rounded ml-1">{product.code}</span>
           </p>
         </DialogHeader>
 
         {/* Tabs */}
-        <div className="px-6 pt-4">
+        <div className="px-4 md:px-6 pt-3 md:pt-4 shrink-0">
           <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
             {TABS.map((tab) => {
               const count = tab.key === 'prices' ? priceRecords.length : tab.key === 'names' ? nameRecords.length : descRecords.length;
@@ -89,7 +89,7 @@ export function ProductHistoryDialog({ open, onOpenChange, product }: ProductHis
         </div>
 
         {/* Content */}
-        <div className="p-6 pt-4">
+        <div className="p-4 md:p-6 pt-3 md:pt-4 flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex justify-center py-10">
               <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -104,10 +104,11 @@ export function ProductHistoryDialog({ open, onOpenChange, product }: ProductHis
               </p>
             </div>
           ) : (
-            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden flex flex-col">
               {/* === PRICES TAB === */}
               {activeTab === 'prices' && (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[500px]">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-600 uppercase tracking-wider">Fecha</th>
@@ -143,11 +144,13 @@ export function ProductHistoryDialog({ open, onOpenChange, product }: ProductHis
                     })}
                   </tbody>
                 </table>
+                </div>
               )}
 
               {/* === NAMES TAB === */}
               {activeTab === 'names' && (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[400px]">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-600 uppercase tracking-wider">Fecha</th>
@@ -165,11 +168,12 @@ export function ProductHistoryDialog({ open, onOpenChange, product }: ProductHis
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
 
               {/* === DESCRIPTIONS TAB === */}
               {activeTab === 'descriptions' && (
-                <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
+                <div className="divide-y divide-slate-100">
                   {descRecords.map((record) => (
                     <div key={record.id} className="p-4 hover:bg-slate-50">
                       <p className="text-[11px] text-slate-400 mb-2">{formatDate(record.changed_at)}</p>

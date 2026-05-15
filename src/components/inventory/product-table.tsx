@@ -11,11 +11,11 @@ import {
 } from '@tanstack/react-table';
 import Fuse from 'fuse.js';
 import { Product } from '@/types';
-import { useProducts, useBcvRate, useCategories, useBcvMultiplier } from '@/hooks/use-supabase';
+import { useProducts, useBcvRate, useCategories, useBcvMultiplier, useUpdateProduct } from '@/hooks/use-supabase';
 import { useCartStore } from '@/store/cart-store';
 import { Badge } from '@/components/ui/badge';
 import { formatUSD } from '@/lib/utils';
-import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X } from 'lucide-react';
 import { ProductFormDialog } from './product-form-dialog';
 import { ProductHistoryDialog } from './product-history-dialog';
 import { ImageGalleryDialog } from './image-gallery-dialog';
@@ -45,6 +45,11 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [productForHistory, setProductForHistory] = useState<Product | null>(null);
   const [galleryProduct, setGalleryProduct] = useState<Product | null>(null);
+
+  const updateProduct = useUpdateProduct();
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [editCost, setEditCost] = useState('');
+  const [editPrice, setEditPrice] = useState('');
 
   // Listen for open-product events from notification panel
   useEffect(() => {
@@ -301,6 +306,41 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
     setIsDialogOpen(true);
   };
 
+  const handleStartInlineEdit = (e: React.MouseEvent, product: Product) => {
+    e.stopPropagation();
+    setEditingPriceId(product.id);
+    setEditCost(product.cost.toString());
+    setEditPrice(product.price_usd.toString());
+  };
+
+  const handleSaveInlineEdit = async (e: React.MouseEvent, productId: string) => {
+    e.stopPropagation();
+    const newCost = parseFloat(editCost);
+    const newPrice = parseFloat(editPrice);
+    
+    if (isNaN(newCost) || isNaN(newPrice) || newCost < 0 || newPrice < 0) {
+      toast.error('Por favor ingresa valores válidos.');
+      return;
+    }
+
+    try {
+      await updateProduct.mutateAsync({
+        id: productId,
+        cost: newCost,
+        price_usd: newPrice
+      });
+      toast.success('Precios actualizados');
+      setEditingPriceId(null);
+    } catch (error: any) {
+      toast.error('Error al actualizar precios', { description: error.message });
+    }
+  };
+
+  const handleCancelInlineEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingPriceId(null);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -314,10 +354,10 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
 
   return (
     <div className="flex flex-col h-full bg-white rounded-lg border border-slate-200 shadow-sm">
-      {/* Title Bar - like reference */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <h2 className="text-[18px] font-bold text-slate-900">
+      {/* Title Bar */}
+      <div className="flex items-center justify-between p-3 md:p-4 border-b border-slate-200">
+        <div className="flex items-center gap-2 md:gap-3">
+          <h2 className="text-[15px] md:text-[18px] font-bold text-slate-900">
             {categoryFilter !== 'all'
               ? categories.find((c) => c.id === categoryFilter)?.name || 'Lista de Repuestos'
               : 'Catálogo de Repuestos'}
@@ -326,19 +366,19 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
             {filteredProducts.length} ÍTEMS
           </Badge>
         </div>
-        <Button onClick={handleAddProduct} className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2 h-[36px] text-[13px] px-4 rounded-md">
+        <Button onClick={handleAddProduct} className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2 h-[36px] text-[13px] px-3 md:px-4 rounded-md hidden md:flex">
           <Plus className="w-4 h-4" />
           Añadir Producto
         </Button>
       </div>
 
       {/* Search & Filters */}
-      <div className="flex items-center justify-between gap-3 p-4 border-b border-slate-200 bg-white">
-        <div className="flex items-center gap-3 flex-1">
-            <div className="relative flex-1 max-w-[400px]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3 p-3 md:p-4 border-b border-slate-200 bg-white">
+        <div className="flex items-center gap-2 md:gap-3 flex-1">
+            <div className="relative flex-1 md:max-w-[400px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
-                placeholder="Buscar por SKU, Nombre o Aplicación..."
+                placeholder="Buscar por SKU, Nombre..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 h-[36px] rounded bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
@@ -346,18 +386,18 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
             </div>
             <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 h-[36px] px-4 rounded border text-[13px] font-medium transition-all ${
+            className={`flex items-center gap-1.5 h-[36px] px-3 rounded border text-[13px] font-medium transition-all shrink-0 ${
                 showFilters
                 ? 'bg-slate-100 border-slate-300 text-slate-900'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
             >
             <SlidersHorizontal className="w-4 h-4" />
-            Filtros
+            <span className="hidden sm:inline">Filtros</span>
             </button>
             <button
               onClick={() => setRecentsOnly(!recentsOnly)}
-              className={`flex items-center gap-1.5 h-[36px] px-3 rounded border text-[13px] font-medium transition-all ${
+              className={`hidden sm:flex items-center gap-1.5 h-[36px] px-3 rounded border text-[13px] font-medium transition-all shrink-0 ${
                 recentsOnly
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -367,7 +407,7 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
               Últimos Subidos
             </button>
         </div>
-        <span className="text-[13px] text-slate-500 font-medium">
+        <span className="text-[12px] md:text-[13px] text-slate-500 font-medium">
           {filteredProducts.length.toLocaleString()} resultados
         </span>
       </div>
@@ -401,9 +441,9 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
         </div>
       )}
 
-      {/* Table */}
+      {/* Table for Desktop */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm hidden md:table">
           <thead className="bg-slate-50 sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
@@ -435,6 +475,156 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
             ))}
           </tbody>
         </table>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden flex flex-col gap-2.5 p-3 bg-slate-50/50">
+          {filteredProducts.map((p) => {
+            const hasImage = p.image_url || (p.image_urls && p.image_urls.length > 0);
+            const isEditing = editingPriceId === p.id;
+            const priceBs = p.price_usd * bcvMultiplier * bcvRate;
+
+            return (
+              <div 
+                key={p.id} 
+                className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+              >
+                {/* Top: Image + Name + Brand */}
+                <div 
+                  className="flex gap-3 p-3 pb-2"
+                  onClick={() => !isEditing && handleEditProduct(p)}
+                >
+                  <div 
+                    className="w-14 h-14 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shrink-0"
+                    onClick={(e) => {
+                      if (hasImage && !isEditing) {
+                        e.stopPropagation();
+                        setGalleryProduct(p);
+                      }
+                    }}
+                  >
+                    {p.image_url ? (
+                      <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="w-5 h-5 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <p className="font-semibold text-[13px] text-slate-900 leading-tight line-clamp-2">
+                      {p.name}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 overflow-hidden">
+                      <span 
+                        className="font-mono text-[10px] text-slate-500 truncate"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(p.code);
+                          toast.success('SKU copiado');
+                        }}
+                      >
+                        {p.code}
+                      </span>
+                      {p.brands?.logo_url ? (
+                        <img src={p.brands.logo_url} alt={p.brands.name} className="h-3.5 max-w-[40px] object-contain shrink-0" />
+                      ) : p.brands?.name ? (
+                        <span className="text-[8px] font-bold text-slate-400 uppercase shrink-0 truncate max-w-[60px]">
+                          {p.brands.name}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Prices Section */}
+                <div className="mx-3 mb-3 bg-slate-50 rounded-lg p-2.5">
+                  {isEditing ? (
+                    <div className="flex flex-col gap-2.5" onClick={e => e.stopPropagation()}>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Costo ($)</label>
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            value={editCost} 
+                            onChange={(e) => setEditCost(e.target.value)}
+                            className="w-full h-9 mt-1 px-2.5 rounded-md border border-slate-300 text-[14px] font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Precio USD</label>
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            value={editPrice} 
+                            onChange={(e) => setEditPrice(e.target.value)}
+                            className="w-full h-9 mt-1 px-2.5 rounded-md border border-emerald-300 bg-emerald-50 text-[14px] font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-emerald-900"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={handleCancelInlineEdit}
+                          className="h-8 px-3 text-[12px]"
+                        >
+                          <X className="w-3.5 h-3.5 mr-1" /> Cancelar
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={(e) => handleSaveInlineEdit(e, p.id)}
+                          className="h-8 px-3 text-[12px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                          disabled={updateProduct.isPending}
+                        >
+                          <Save className="w-3.5 h-3.5 mr-1" /> 
+                          {updateProduct.isPending ? 'Guardando...' : 'Guardar'}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-0">
+                      <div className="flex-1 flex items-center gap-0">
+                        <div className="flex-1 text-center">
+                          <p className="text-[9px] font-medium text-slate-400 uppercase">Costo</p>
+                          <p className="text-[13px] text-slate-600 font-semibold">{formatUSD(p.cost)}</p>
+                        </div>
+                        <div className="w-px h-7 bg-slate-200"></div>
+                        <div className="flex-1 text-center">
+                          <p className="text-[9px] font-bold text-emerald-600 uppercase">Precio</p>
+                          <p className="text-[15px] font-black text-slate-900">{formatUSD(p.price_usd)}</p>
+                        </div>
+                        <div className="w-px h-7 bg-slate-200"></div>
+                        <div className="flex-1 text-center">
+                          <p className="text-[9px] font-medium text-slate-400 uppercase">Bs</p>
+                          <p className="text-[12px] font-bold text-slate-700">{priceBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 pl-2 shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProductForHistory(p);
+                            setIsHistoryOpen(true);
+                          }}
+                          className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
+                          title="Historial de precios"
+                        >
+                          <History className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleStartInlineEdit(e, p)}
+                          className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 hover:bg-blue-100 transition-colors"
+                          title="Editar precio"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
         {filteredProducts.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-white">
