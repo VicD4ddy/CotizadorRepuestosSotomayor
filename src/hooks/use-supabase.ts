@@ -389,12 +389,35 @@ export function useUploadImage() {
   });
 }
 
+export function useUploadKitImage() {
+  return useMutation({
+    mutationFn: async ({ file, kitId }: { file: File; kitId: string }) => {
+      const fileExt = file.name.split('.').pop();
+      // Use a random string if kitId is not available yet (creating new kit)
+      const prefix = kitId || Math.random().toString(36).substring(7);
+      const fileName = `kit-${prefix}-${Date.now()}.${fileExt}`;
+      const filePath = `kits/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file, { upsert: true });
+      if (error) throw error;
+
+      const { data } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    },
+  });
+}
+
 // ========== Kits ==========
 export function useKits(category?: string) {
   return useQuery<any[]>({
     queryKey: ['kits', category],
     queryFn: async () => {
-      let query = supabase.from('kits').select('*, kit_items(*)').order('created_at', { ascending: false });
+      let query = supabase.from('kits').select('*, kit_items(*), vehicle_brands(*)').order('name', { ascending: true });
       if (category) {
         query = query.eq('category', category);
       }
@@ -547,6 +570,61 @@ export function useDeleteBrand() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brands'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
+// ========== Vehicle Brands ==========
+export function useVehicleBrands() {
+  return useQuery<any[]>({
+    queryKey: ['vehicle_brands'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('vehicle_brands').select('*').order('name', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useCreateVehicleBrand() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (brand: any) => {
+      const { data, error } = await supabase.from('vehicle_brands').insert(brand).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vehicle_brands'] });
+    },
+  });
+}
+
+export function useUpdateVehicleBrand() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (brand: any) => {
+      const { id, ...updateData } = brand;
+      const { data, error } = await supabase.from('vehicle_brands').update(updateData).eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vehicle_brands'] });
+    },
+  });
+}
+
+export function useDeleteVehicleBrand() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('vehicle_brands').delete().eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vehicle_brands'] });
     },
   });
 }

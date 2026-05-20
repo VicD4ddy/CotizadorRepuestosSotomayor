@@ -78,8 +78,11 @@ export interface Kit {
   name: string;
   category: string;
   description?: string;
+  vehicle_brand_id?: string;
+  image_urls?: string[];
   created_at?: string;
   kit_items?: KitItem[];
+  vehicle_brands?: VehicleBrand;
 }
 
 export interface KitItem {
@@ -91,6 +94,13 @@ export interface KitItem {
 }
 
 export interface Brand {
+  id: string;
+  name: string;
+  logo_url?: string;
+  created_at?: string;
+}
+
+export interface VehicleBrand {
   id: string;
   name: string;
   logo_url?: string;

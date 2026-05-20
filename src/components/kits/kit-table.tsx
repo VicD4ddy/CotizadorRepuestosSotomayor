@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useKits, useDeleteKit } from '@/hooks/use-supabase';
 import { Kit } from '@/types';
-import { Search, Plus, Trash2, Edit, Package, ShoppingCart } from 'lucide-react';
+import { Search, Plus, Trash2, Edit, Package, ShoppingCart, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { KitFormDialog } from './kit-form-dialog';
@@ -19,6 +19,24 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedKitForEdit, setSelectedKitForEdit] = useState<Kit | null>(null);
 
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+  const [initialGalleryIndex, setInitialGalleryIndex] = useState(0);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (galleryImages.length === 0) return;
+      if (e.key === 'Escape') {
+        setGalleryImages([]);
+      } else if (e.key === 'ArrowLeft') {
+        setInitialGalleryIndex((prev) => (prev === 0 ? galleryImages.length - 1 : prev - 1));
+      } else if (e.key === 'ArrowRight') {
+        setInitialGalleryIndex((prev) => (prev === galleryImages.length - 1 ? 0 : prev + 1));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [galleryImages]);
+
   const filteredKits = useMemo(() => {
     const result = kits.filter((k) => {
       if (!searchQuery) return true;
@@ -29,7 +47,12 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
       );
     });
     
-    return result.sort((a, b) => a.name.localeCompare(b.name));
+    return result.sort((a, b) => {
+      const brandA = (a.vehicle_brands?.name || 'zzz').trim().toLowerCase();
+      const brandB = (b.vehicle_brands?.name || 'zzz').trim().toLowerCase();
+      if (brandA !== brandB) return brandA.localeCompare(brandB);
+      return a.name.trim().localeCompare(b.name.trim());
+    });
   }, [kits, searchQuery]);
 
   const handleDelete = async (e: React.MouseEvent, kit: Kit) => {
@@ -100,9 +123,13 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
             className="bg-white border border-slate-200 rounded-xl p-5 hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer group flex flex-col"
           >
             <div className="flex justify-between items-start mb-3">
-              <div className="p-2.5 bg-slate-50 text-slate-700 rounded-lg group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
-                <Package className="w-6 h-6" />
-              </div>
+              {kit.vehicle_brands?.logo_url ? (
+                <div className="p-2 bg-slate-50 text-slate-700 rounded-lg group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors h-11 min-w-[44px] max-w-[120px] flex items-center justify-center shrink-0">
+                  <img src={kit.vehicle_brands.logo_url} alt={kit.vehicle_brands.name} className="max-w-full h-full object-contain mix-blend-multiply" />
+                </div>
+              ) : (
+                <div />
+              )}
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={(e) => openEdit(e, kit)}
@@ -123,6 +150,24 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
             <p className="text-[12px] text-slate-500 line-clamp-2 mb-4 flex-1">
               {kit.description || 'Sin descripción'}
             </p>
+
+            {kit.image_urls && kit.image_urls.length > 0 && (
+              <div className="flex gap-2 mb-4">
+                {kit.image_urls.map((url: string, i: number) => (
+                  <div 
+                    key={i} 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setGalleryImages(kit.image_urls || []);
+                      setInitialGalleryIndex(i);
+                    }}
+                    className="w-16 h-12 rounded border border-slate-200 overflow-hidden bg-slate-50 shrink-0 hover:border-emerald-500 transition-colors"
+                  >
+                    <img src={url} alt={`Ref ${i}`} className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex items-center justify-between pt-4 border-t border-slate-100">
               <span className="text-[11px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">
@@ -171,6 +216,72 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
         kit={selectedKitForEdit} 
         category={category} 
       />
+
+      {/* Gallery Modal */}
+      {galleryImages.length > 0 && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setGalleryImages([])}
+        >
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setGalleryImages([]);
+            }}
+            className="absolute top-4 right-4 p-2 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          
+          <div 
+            className="relative w-full max-w-4xl flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {galleryImages.length > 1 && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInitialGalleryIndex((prev) => (prev === 0 ? galleryImages.length - 1 : prev - 1));
+                }}
+                className="absolute left-2 md:-left-12 p-2 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors"
+              >
+                <ChevronLeft className="w-8 h-8" />
+              </button>
+            )}
+            
+            <img 
+              src={galleryImages[initialGalleryIndex]} 
+              alt={`Gallery image ${initialGalleryIndex + 1}`} 
+              className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            />
+            
+            {galleryImages.length > 1 && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInitialGalleryIndex((prev) => (prev === galleryImages.length - 1 ? 0 : prev + 1));
+                }}
+                className="absolute right-2 md:-right-12 p-2 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors"
+              >
+                <ChevronRight className="w-8 h-8" />
+              </button>
+            )}
+          </div>
+          
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+            {galleryImages.map((_, i) => (
+              <button
+                key={i}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInitialGalleryIndex(i);
+                }}
+                className={`w-2 h-2 rounded-full transition-all ${i === initialGalleryIndex ? 'bg-white scale-125' : 'bg-white/40 hover:bg-white/60'}`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
