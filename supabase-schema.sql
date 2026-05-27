@@ -67,8 +67,14 @@ CREATE TABLE IF NOT EXISTS quote_items (
   product_name TEXT DEFAULT '',
   product_code TEXT DEFAULT '',
   quantity INTEGER DEFAULT 1,
-  unit_price_usd DECIMAL(12,2) DEFAULT 0
+  unit_price_usd DECIMAL(12,2) DEFAULT 0,
+  brand_name TEXT DEFAULT '',
+  brand_logo_url TEXT DEFAULT ''
 );
+
+-- Si la tabla ya existe, ejecuta:
+-- ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS brand_name TEXT DEFAULT '';
+-- ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS brand_logo_url TEXT DEFAULT '';
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_products_code ON products(code);

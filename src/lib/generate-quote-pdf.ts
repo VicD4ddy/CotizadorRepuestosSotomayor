@@ -195,11 +195,6 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     doc.setFontSize(16);
     doc.setTextColor(29, 78, 216);
     doc.text(`Bs ${rate.toFixed(2)}`, bcvBoxX + 16, y + 36);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Diferencial: x${bcvMultiplier.toFixed(1)} = USD BCV: ${formatUSD(1 * mult)}`, bcvBoxX + 16, y + 50);
   }
 
   y += clientBoxH + 20;
@@ -209,20 +204,31 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   // ============================================================
   const items = quote.quote_items || [];
 
+  // Pre-load brand logos
+  const brandLogoCache: Record<string, string | null> = {};
+  const uniqueLogoUrls = [...new Set(items.map(i => i.brand_logo_url).filter(Boolean))] as string[];
+  await Promise.all(
+    uniqueLogoUrls.map(async (url) => {
+      brandLogoCache[url] = await loadImageAsBase64(url);
+    })
+  );
+
   // Prepare table data
   const tableHead = isBcv
-    ? [['DESCRIPCIÓN', 'CANT.', 'USD BCV', 'P. UNIT.', 'TOTAL']]
-    : [['DESCRIPCIÓN', 'CANT.', 'P. UNIT.', 'TOTAL']];
+    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'USD BCV', 'P. UNIT.', 'TOTAL']]
+    : [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNIT.', 'TOTAL']];
 
   const tableBody = items.map((item) => {
     const unitUsdBcv = (item.unit_price_usd || 0) * mult;
     const unitBs = unitUsdBcv * rate;
     const totalBs = unitBs * (item.quantity || 1);
     const totalUsd = (item.unit_price_usd || 0) * (item.quantity || 1);
+    const brand = item.brand_name || '—';
 
     if (isBcv) {
       return [
         item.product_name || '',
+        brand,
         String(item.quantity || 1),
         formatUSD(unitUsdBcv),
         formatBsVal(unitBs),
@@ -231,6 +237,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     } else {
       return [
         item.product_name || '',
+        brand,
         String(item.quantity || 1),
         formatUSD(item.unit_price_usd || 0),
         formatUSD(totalUsd),
@@ -241,16 +248,18 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   const colStyles: Record<number, Partial<{ cellWidth: number; halign: 'left' | 'center' | 'right' }>> = isBcv
     ? {
         0: { halign: 'left' },
-        1: { cellWidth: 40, halign: 'center' },
-        2: { cellWidth: 65, halign: 'right' },
-        3: { cellWidth: 80, halign: 'right' },
-        4: { cellWidth: 80, halign: 'right' },
+        1: { cellWidth: 80, halign: 'center' },
+        2: { cellWidth: 35, halign: 'center' },
+        3: { cellWidth: 60, halign: 'right' },
+        4: { cellWidth: 70, halign: 'right' },
+        5: { cellWidth: 70, halign: 'right' },
       }
     : {
         0: { halign: 'left' },
-        1: { cellWidth: 45, halign: 'center' },
-        2: { cellWidth: 80, halign: 'right' },
-        3: { cellWidth: 80, halign: 'right' },
+        1: { cellWidth: 80, halign: 'center' },
+        2: { cellWidth: 40, halign: 'center' },
+        3: { cellWidth: 75, halign: 'right' },
+        4: { cellWidth: 75, halign: 'right' },
       };
 
   autoTable(doc, {
@@ -289,23 +298,49 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
           data.cell.y + data.cell.height
         );
       }
-      // Green text for USD BCV column in BCV mode
-      if (isBcv && data.section === 'body' && data.column.index === 3) {
-        // Already drawn with default color, override via styles
+      // Draw brand logo in brand column
+      if (data.section === 'body' && data.column.index === 1) {
+        const item = items[data.row.index];
+        const logoUrl = item?.brand_logo_url;
+        if (logoUrl && brandLogoCache[logoUrl]) {
+          try {
+            const imgW = 44;
+            const imgH = 22;
+            const imgX = data.cell.x + (data.cell.width - imgW) / 2;
+            const imgY = data.cell.y + (data.cell.height - imgH) / 2;
+            doc.addImage(brandLogoCache[logoUrl]!, 'PNG', imgX, imgY, imgW, imgH);
+          } catch {
+            // Fallback: text already rendered
+          }
+        }
       }
     },
     didParseCell: (data) => {
       // Make USD BCV column green in body
-      if (isBcv && data.section === 'body' && data.column.index === 2) {
+      if (isBcv && data.section === 'body' && data.column.index === 3) {
         data.cell.styles.textColor = hexToRGB('#10b981');
         data.cell.styles.fontStyle = 'bold';
       }
       // Make USD BCV header green
-      if (isBcv && data.section === 'head' && data.column.index === 2) {
+      if (isBcv && data.section === 'head' && data.column.index === 3) {
         data.cell.styles.textColor = hexToRGB('#34d399');
       }
+      // Brand column styling — hide text if logo available, show as fallback
+      if (data.section === 'body' && data.column.index === 1) {
+        const item = items[data.row.index];
+        const logoUrl = item?.brand_logo_url;
+        if (logoUrl && brandLogoCache[logoUrl]) {
+          // Hide text, logo will be drawn in didDrawCell
+          data.cell.styles.textColor = [255, 255, 255];
+          data.cell.styles.fontSize = 1;
+        } else {
+          data.cell.styles.fontSize = 7;
+          data.cell.styles.textColor = [100, 116, 139];
+          data.cell.styles.fontStyle = 'bold';
+        }
+      }
       // Bold the total column
-      const totalColIdx = isBcv ? 4 : 3;
+      const totalColIdx = isBcv ? 5 : 4;
       if (data.section === 'body' && data.column.index === totalColIdx) {
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.textColor = [15, 23, 42];

@@ -49,6 +49,8 @@ export function QuoteSaveDialog({ open, onOpenChange }: QuoteSaveDialogProps) {
           product_code: item.product_code,
           quantity: item.quantity,
           unit_price_usd: item.unit_price_usd,
+          brand_name: item.brand_name,
+          brand_logo_url: item.brand_logo_url,
         })),
       });
       toast.success('Cotización guardada exitosamente en el historial');

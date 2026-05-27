@@ -73,6 +73,8 @@ export function QuoteCart() {
       product_code: item.product_code,
       quantity: item.quantity,
       unit_price_usd: item.unit_price_usd,
+      brand_name: item.brand_name,
+      brand_logo_url: item.brand_logo_url,
     })),
   });
 
@@ -124,13 +126,15 @@ export function QuoteCart() {
       }
 
       // Build WhatsApp message
-      let msg = `*REPUESTOS SOTOMAYOR*\n_Cotización_\n\n`;
+      const currencyLabel = paymentMethod === 'bs' ? '💵 Cotización en *BOLÍVARES*' : '💵 Cotización en *DIVISAS (USD)*';
+      let msg = `*REPUESTOS SOTOMAYOR*\n_${currencyLabel}_\n\n`;
       if (clientName) msg += `*Cliente:* ${clientName}\n`;
       msg += `*Fecha:* ${new Date().toLocaleDateString('es-VE')}\n\n`;
       msg += `*Detalle:*\n`;
       items.forEach((item) => {
         const itemPrice = paymentMethod === 'bs' ? item.unit_price_usd * bcvMultiplier : item.unit_price_usd;
-        msg += `- ${item.quantity}x ${item.product_name} (${formatUSD(itemPrice)})\n`;
+        const brandSuffix = item.brand_name ? ` (${item.brand_name})` : '';
+        msg += `- ${item.quantity}x ${item.product_name}${brandSuffix} — ${formatUSD(itemPrice)}\n`;
       });
       msg += `\n*Total USD:* ${formatUSD(total)}\n`;
       if (paymentMethod === 'bs') {

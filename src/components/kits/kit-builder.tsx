@@ -1,12 +1,14 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Kit, Product, CartItem } from '@/types';
 import { useKitItems, useDeleteKitItem, useProducts, useBcvRate, useBcvMultiplier } from '@/hooks/use-supabase';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
 import { formatUSD } from '@/lib/utils';
-import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
+import { ProductFormDialog } from '@/components/inventory/product-form-dialog';
 
 interface KitBuilderProps {
   kit: Kit;
@@ -19,9 +21,10 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const { addItem } = useCartStore();
   const { data: bcvRate = 36.5 } = useBcvRate();
   const { data: bcvMultiplier = 1.4 } = useBcvMultiplier();
-
+  const queryClient = useQueryClient();
 
   const [galleryProduct, setGalleryProduct] = useState<Product | null>(null);
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
   const [measureFilter, setMeasureFilter] = useState('all');
 
@@ -80,6 +83,40 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     'bombas de aceite', 'bombas de gasolina', 'bombas de agua', 'taquetes',
   ];
 
+  // Categories that should be sorted by measurement size
+  const MEASURE_SORTED_CATEGORIES = ['anillos', 'bielas', 'bancadas', 'pistones'];
+
+  // Extract numeric measurement value from product name/code for sorting
+  // STD = 0, .010 = 10, .020 = 20, .030 = 30, etc.
+  const getMeasureOrder = (productName: string, productCode: string): number => {
+    const upper = productName.toUpperCase();
+    const code = productCode.toUpperCase();
+
+    // Check name for (STD) or code ending with -STD
+    if (upper.includes('(STD)') || upper.includes(' STD ') || upper.endsWith(' STD') || code.includes('-STD') || code.endsWith('STD')) return 0;
+
+    // Check name for measurement in parentheses: (.010), (.020), (010), (020)
+    const matchParen = upper.match(/\(\.?(\d{2,3})\)/);
+    if (matchParen) return parseInt(matchParen[1], 10);
+
+    // Check product code for measurement: 5085-010, 5085-020, 592-060-HAST
+    const matchCode = code.match(/[-](\d{2,3})(?:[-\s]|$)/);
+    if (matchCode) return parseInt(matchCode[1], 10);
+
+    // Check name for trailing number without parentheses: "...BLAZER 262 010"
+    // Look for a standalone 2-3 digit number at the end that looks like a measure
+    const matchTrailing = upper.match(/\s(\d{3})(?:\s|$)/g);
+    if (matchTrailing) {
+      // Take the last standalone 3-digit number that could be a measure (010-060 range)
+      for (let i = matchTrailing.length - 1; i >= 0; i--) {
+        const val = parseInt(matchTrailing[i].trim(), 10);
+        if (val >= 10 && val <= 100) return val;
+      }
+    }
+
+    return 9999;
+  };
+
   const groupedItems = useMemo(() => {
     const groups: Record<string, any[]> = {};
     filteredItems.forEach((item) => {
@@ -126,6 +163,8 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
       quantity: quantity || 1,
       unit_price_usd: product.price_usd || 0,
       image_url: product.image_url,
+      brand_name: product.brands?.name,
+      brand_logo_url: product.brands?.logo_url,
     });
     toast.success('Añadido al carrito');
   };
@@ -151,6 +190,8 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
           quantity: item.quantity || 1,
           unit_price_usd: product.price_usd || 0,
           image_url: product.image_url,
+          brand_name: product.brands?.name,
+          brand_logo_url: product.brands?.logo_url,
         });
         addedCount++;
       }
@@ -262,6 +303,18 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                     const brandEntries = Object.entries(brandGroups).sort((a, b) => a[0].localeCompare(b[0]));
                     const hasManyBrands = brandEntries.length > 1;
 
+                    // Sort items by measurement for relevant categories
+                    const shouldSortByMeasure = MEASURE_SORTED_CATEGORIES.some(c => categoryName.toLowerCase().includes(c));
+                    if (shouldSortByMeasure) {
+                      brandEntries.forEach(([, bItems]) => {
+                        bItems.sort((a: any, b: any) => {
+                          const aOrder = getMeasureOrder(a.products?.name || '', a.products?.code || '');
+                          const bOrder = getMeasureOrder(b.products?.name || '', b.products?.code || '');
+                          return aOrder - bOrder;
+                        });
+                      });
+                    }
+
                     return brandEntries.map(([brandName, brandItems]) => (
                       <div key={brandName}>
                         {hasManyBrands && (
@@ -311,7 +364,14 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                   )}
                                 </div>
                                 <div className="flex-1 min-w-0 pr-4">
-                                  <p className="text-[14px] font-bold text-slate-900 truncate">
+                                  <p 
+                                    className="text-[14px] font-bold text-slate-900 truncate cursor-pointer hover:text-emerald-700 transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (product) setEditProduct(product as Product);
+                                    }}
+                                    title="Editar producto"
+                                  >
                                     {product?.name || 'Producto no encontrado'}
                                   </p>
                                   <div className="flex items-center gap-2 mt-1">
@@ -349,6 +409,13 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                       <Plus className="w-3 h-3 mr-1" /> AÑADIR
                                     </Button>
                                     <button
+                                      onClick={() => product && setEditProduct(product as Product)}
+                                      className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                                      title="Editar producto"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
                                       onClick={() => handleRemoveItem(item.id, product?.name)}
                                       className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                                       title="Desvincular de este motor"
@@ -375,6 +442,18 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
         open={!!galleryProduct}
         onOpenChange={(open) => !open && setGalleryProduct(null)}
         product={galleryProduct}
+      />
+
+      <ProductFormDialog
+        open={!!editProduct}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditProduct(null);
+            // Refresh kit items to reflect any changes
+            queryClient.invalidateQueries({ queryKey: ['kit_items', kit.id] });
+          }
+        }}
+        product={editProduct}
       />
     </div>
   );

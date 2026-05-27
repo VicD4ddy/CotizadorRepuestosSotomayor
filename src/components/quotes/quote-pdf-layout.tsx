@@ -111,9 +111,6 @@ export const QuotePDFLayout = forwardRef<HTMLDivElement, QuotePDFLayoutProps>(
             }}>
               <p style={{ margin: '0 0 4px 0', fontSize: '10px', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '1.5px' }}>Tasa BCV</p>
               <p style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#1d4ed8' }}>Bs {rate.toFixed(2)}</p>
-              <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>
-                Diferencial: ×{bcvMultiplier.toFixed(1)} → <span style={{ fontWeight: 700, color: '#0f172a' }}>USD BCV: {formatUSD(1 * mult)}</span>
-              </p>
             </div>
           )}
         </div>
@@ -123,9 +120,9 @@ export const QuotePDFLayout = forwardRef<HTMLDivElement, QuotePDFLayoutProps>(
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <thead>
               <tr>
-                <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px', borderRadius: '8px 0 0 0', width: '140px' }}>CÓDIGO</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px' }}>DESCRIPCIÓN</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px', width: '55px' }}>CANT.</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px', borderRadius: '8px 0 0 0' }}>DESCRIPCIÓN</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px', width: '90px' }}>MARCA</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px', width: '50px' }}>CANT.</th>
                 {isBcv && (
                   <th style={{ padding: '12px 14px', textAlign: 'right', fontSize: '10px', fontWeight: 700, color: '#34d399', backgroundColor: '#0f172a', letterSpacing: '1px', width: '90px' }}>USD BCV</th>
                 )}
@@ -142,8 +139,14 @@ export const QuotePDFLayout = forwardRef<HTMLDivElement, QuotePDFLayoutProps>(
 
                 return (
                   <tr key={item.id} style={{ backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                    <td style={{ padding: '11px 14px', fontSize: '12px', color: '#64748b', fontFamily: "'Courier New', monospace", borderBottom: '1px solid #f1f5f9' }}>{item.product_code}</td>
-                    <td style={{ padding: '11px 14px', fontSize: '13px', fontWeight: 500, color: '#1e293b', borderBottom: '1px solid #f1f5f9' }}>{item.product_name}</td>
+                    <td style={{ padding: '11px 14px', fontSize: '13px', fontWeight: 500, color: '#1e293b', borderBottom: '1px solid #f1f5f9', textAlign: 'left' }}>{item.product_name}</td>
+                    <td style={{ padding: '11px 14px', fontSize: '10px', textAlign: 'center', color: '#64748b', fontWeight: 700, borderBottom: '1px solid #f1f5f9', textTransform: 'uppercase' as const }}>
+                      {item.brand_logo_url ? (
+                        <img src={item.brand_logo_url} alt={item.brand_name || ''} style={{ width: '48px', height: '24px', objectFit: 'contain', display: 'inline-block' }} />
+                      ) : (
+                        item.brand_name || '—'
+                      )}
+                    </td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', textAlign: 'center', color: '#475569', borderBottom: '1px solid #f1f5f9' }}>{item.quantity}</td>
                     {isBcv && (
                       <td style={{ padding: '11px 14px', fontSize: '12px', textAlign: 'right', color: '#10b981', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>

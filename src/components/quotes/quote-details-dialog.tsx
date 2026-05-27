@@ -65,11 +65,13 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
       }
 
       let message = `*COTIZACIÓN - Repuestos Sotomayor*\n`;
+      message += `💵 Cotización en *DIVISAS (USD)*\n`;
       message += `*Cliente:* ${quote.client_name || 'Mostrador'}\n`;
       message += `*Fecha:* ${date}\n\n`;
       message += `*Detalle:*\n`;
       quote.quote_items?.forEach((item) => {
-        message += `- ${item.quantity}x ${item.product_name} ($${(item.unit_price_usd || 0).toFixed(2)})\n`;
+        const brandSuffix = item.brand_name ? ` (${item.brand_name})` : '';
+        message += `- ${item.quantity}x ${item.product_name}${brandSuffix} — $${(item.unit_price_usd || 0).toFixed(2)}\n`;
       });
       message += `\n*TOTAL USD:* $${quote.total_usd.toFixed(2)}\n`;
       message += `*TOTAL BS:* Bs ${(quote.total_usd * quote.bcv_rate).toFixed(2)}\n\n`;

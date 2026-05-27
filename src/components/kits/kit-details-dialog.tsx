@@ -83,6 +83,8 @@ export function KitDetailsDialog({ open, onOpenChange, kit }: KitDetailsDialogPr
           quantity: item.quantity || 1, // Using the quantity defined in the kit
           unit_price_usd: product.price_usd || 0,
           image_url: product.image_url,
+          brand_name: product.brands?.name,
+          brand_logo_url: product.brands?.logo_url,
         };
         addItem(cartItem);
         addedCount++;

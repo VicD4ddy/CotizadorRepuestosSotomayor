@@ -265,6 +265,8 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
                   quantity: 1,
                   unit_price_usd: p.price_usd,
                   image_url: p.image_url,
+                  brand_name: p.brands?.name,
+                  brand_logo_url: p.brands?.logo_url,
                 });
               }}
             >

@@ -478,7 +478,7 @@ export function useKitItems(kitId: string) {
       if (!kitId) return [];
       const { data, error } = await supabase
         .from('kit_items')
-        .select('*, products(*, categories(*), brands(*))')
+        .select('*, products(*, categories(*), brands(*), kit_items(kit_id))')
         .eq('kit_id', kitId);
       if (error) throw error;
       return data || [];

@@ -61,11 +61,15 @@ export interface QuoteItem {
   product_code: string;
   quantity: number;
   unit_price_usd: number;
+  brand_name?: string;
+  brand_logo_url?: string;
 }
 
 // Cart item extends QuoteItem with product info for display
 export interface CartItem extends QuoteItem {
   image_url?: string;
+  brand_name?: string;
+  brand_logo_url?: string;
 }
 
 // For the product table display
