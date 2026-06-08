@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, ArrowLeft, Loader2, AlertCircle, Pencil, X, RotateCcw } from 'lucide-react';
-import { useBulkInsertProducts, useProducts } from '@/hooks/use-supabase';
+import { useBulkInsertProducts, useProducts, useCategories, useBrands } from '@/hooks/use-supabase';
 import { supabase } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 import { AiProgressBanner } from '@/components/inventory/ai-progress-banner';
@@ -25,6 +25,15 @@ type Step = 'upload' | 'preview' | 'importing' | 'done';
 
 export function ImportExcelDialog({ open, onOpenChange, onImportComplete }: ImportExcelDialogProps) {
   const bulkInsert = useBulkInsertProducts();
+  const { data: categories = [] } = useCategories();
+  const { data: brands = [] } = useBrands();
+
+  // Group categories by section
+  const categoryGroups = categories.reduce<Record<string, typeof categories>>((acc, c) => {
+    if (!acc[c.section]) acc[c.section] = [];
+    acc[c.section].push(c);
+    return acc;
+  }, {});
 
   const [step, setStep] = useState<Step>('upload');
   const [fileName, setFileName] = useState('');
@@ -34,6 +43,8 @@ export function ImportExcelDialog({ open, onOpenChange, onImportComplete }: Impo
   const [importedProductIds, setImportedProductIds] = useState<string[]>([]);
   const [showAiBanner, setShowAiBanner] = useState(true);
   const [excludedIndexes, setExcludedIndexes] = useState<Set<number>>(new Set());
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [selectedBrandId, setSelectedBrandId] = useState<string>('');
 
   // Reset all state when dialog closes
   const handleOpenChange = (newOpen: boolean) => {
@@ -46,6 +57,8 @@ export function ImportExcelDialog({ open, onOpenChange, onImportComplete }: Impo
       setImportedProductIds([]);
       setShowAiBanner(true);
       setExcludedIndexes(new Set());
+      setSelectedCategoryId('');
+      setSelectedBrandId('');
     }
     onOpenChange(newOpen);
   };
@@ -141,6 +154,8 @@ export function ImportExcelDialog({ open, onOpenChange, onImportComplete }: Impo
         name: row.name,
         cost: row.cost,
         price_usd: 0,
+        ...(selectedCategoryId ? { category_id: selectedCategoryId } : {}),
+        ...(selectedBrandId ? { brand_id: selectedBrandId } : {}),
       }));
 
     try {
@@ -176,7 +191,7 @@ export function ImportExcelDialog({ open, onOpenChange, onImportComplete }: Impo
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-white">
+      <DialogContent className="sm:max-w-[800px] p-0 bg-white max-h-[90vh] overflow-y-auto">
         <DialogHeader className="p-6 pb-4 border-b border-slate-200">
           <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
@@ -242,42 +257,108 @@ export function ImportExcelDialog({ open, onOpenChange, onImportComplete }: Impo
 
           {/* ===== STEP: PREVIEW ===== */}
           {step === 'preview' && (
-            <div>
-              <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 mb-4 flex items-center gap-3">
-                <FileSpreadsheet className="w-5 h-5 text-emerald-600 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-[13px] font-bold text-slate-800 truncate">{fileName}</p>
-                  <p className="text-[11px] text-slate-500">
-                    <span className="font-bold text-emerald-600">{rawRows.length}</span> productos detectados
-                  </p>
+            <div className="space-y-4">
+              {/* File info card */}
+              <div className="bg-gradient-to-r from-slate-50 to-emerald-50/30 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                    <FileSpreadsheet className="w-4.5 h-4.5 text-emerald-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-slate-800 truncate">{fileName}</p>
+                    <p className="text-[11px] text-slate-500">
+                      <span className="font-bold text-emerald-600">{rawRows.length}</span> productos detectados
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {newCount > 0 && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full">{newCount} nuevos</span>
+                  )}
+                  {updateCount > 0 && (
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">{updateCount} existentes</span>
+                  )}
                 </div>
               </div>
 
               {/* Duplicate warning */}
               {updateCount > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-[13px] font-bold text-amber-800">
-                      {updateCount} producto{updateCount > 1 ? 's' : ''} ya existe{updateCount > 1 ? 'n' : ''} en el inventario
-                    </p>
-                    <p className="text-[11px] text-amber-600 mt-0.5">
-                      Se actualizarán con los nuevos datos del Excel. Los {newCount} restantes se crearán como nuevos.
-                    </p>
-                  </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 flex items-center gap-3">
+                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                  <p className="text-[11px] text-amber-700">
+                    Los <strong>{updateCount}</strong> productos existentes se actualizarán con los datos del Excel.
+                  </p>
                 </div>
               )}
 
-              <div className="overflow-auto max-h-[250px] border border-slate-200 rounded-lg">
+              {/* Assign Brand & Category */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">Asignar a todos los productos</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="relative">
+                    <select
+                      value={selectedCategoryId}
+                      onChange={(e) => setSelectedCategoryId(e.target.value)}
+                      className="w-full h-9 pl-3 pr-8 text-[12px] rounded-lg bg-white border border-slate-200 text-slate-700 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all appearance-none font-medium"
+                    >
+                      <option value="">— Clasificación —</option>
+                      {Object.entries(categoryGroups).map(([section, cats]) => (
+                        <optgroup key={section} label={section}>
+                          {cats.map((c: any) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <select
+                      value={selectedBrandId}
+                      onChange={(e) => setSelectedBrandId(e.target.value)}
+                      className="w-full h-9 pl-3 pr-8 text-[12px] rounded-lg bg-white border border-slate-200 text-slate-700 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all appearance-none font-medium"
+                    >
+                      <option value="">— Marca —</option>
+                      {brands.map((b: any) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                  </div>
+                </div>
+                {(selectedCategoryId || selectedBrandId) && (
+                  <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                    {selectedCategoryId && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                        📂 {categories.find(c => c.id === selectedCategoryId)?.name}
+                        <button onClick={() => setSelectedCategoryId('')} className="ml-0.5 hover:text-red-500 transition-colors">×</button>
+                      </span>
+                    )}
+                    {selectedBrandId && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                        🏷️ {(brands as any[]).find(b => b.id === selectedBrandId)?.name}
+                        <button onClick={() => setSelectedBrandId('')} className="ml-0.5 hover:text-red-500 transition-colors">×</button>
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Products table */}
+              <div className="overflow-y-auto overflow-x-hidden max-h-[220px] border border-slate-200 rounded-xl shadow-sm">
                 <table className="w-full text-[12px]">
-                  <thead className="bg-slate-50 sticky top-0">
+                  <thead className="bg-slate-800 sticky top-0 z-10">
                     <tr>
-                      <th className="px-3 py-2 text-left font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 w-8">#</th>
-                      <th className="px-3 py-2 text-left font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Código</th>
-                      <th className="px-3 py-2 text-left font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Nombre</th>
-                      <th className="px-3 py-2 text-right font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Costo</th>
-                      <th className="px-3 py-2 text-center font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 w-16">Estado</th>
-                      <th className="px-3 py-2 text-center border-b border-slate-200 w-8"></th>
+                      <th className="px-3 py-2 text-left text-[10px] font-bold text-white/70 uppercase tracking-wider w-8">#</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-bold text-white/70 uppercase tracking-wider">Código</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-bold text-white/70 uppercase tracking-wider">Nombre</th>
+                      <th className="px-3 py-2 text-right text-[10px] font-bold text-white/70 uppercase tracking-wider">Costo</th>
+                      <th className="px-3 py-2 text-center text-[10px] font-bold text-white/70 uppercase tracking-wider w-16">Estado</th>
+                      <th className="px-3 py-2 text-center w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -286,19 +367,19 @@ export function ImportExcelDialog({ open, onOpenChange, onImportComplete }: Impo
                       const isExcluded = excludedIndexes.has(i);
                       return (
                         <tr key={i} className={`border-b border-slate-100 transition-colors ${
-                          isExcluded ? 'opacity-40 bg-slate-50' : isExisting ? 'bg-amber-50/50' : ''
+                          isExcluded ? 'opacity-40 bg-slate-50' : isExisting ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-slate-50'
                         }`}>
-                          <td className="px-3 py-1.5 text-slate-400">{i + 1}</td>
-                          <td className={`px-3 py-1.5 text-slate-700 font-mono text-[11px] ${isExcluded ? 'line-through' : ''}`}>{row.code}</td>
+                          <td className="px-3 py-1.5 text-slate-400 text-[11px]">{i + 1}</td>
+                          <td className={`px-3 py-1.5 text-slate-600 font-mono text-[11px] ${isExcluded ? 'line-through' : ''}`}>{row.code}</td>
                           <td className={`px-3 py-1.5 text-slate-800 font-medium max-w-[220px] truncate ${isExcluded ? 'line-through' : ''}`}>{row.name}</td>
-                          <td className={`px-3 py-1.5 text-slate-700 text-right ${isExcluded ? 'line-through' : ''}`}>${row.cost.toFixed(2)}</td>
+                          <td className={`px-3 py-1.5 text-slate-700 text-right tabular-nums ${isExcluded ? 'line-through' : ''}`}>${row.cost.toFixed(2)}</td>
                           <td className="px-3 py-1.5 text-center">
                             {isExcluded ? (
-                              <span className="text-[9px] font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded">EXCLUIDO</span>
+                              <span className="text-[9px] font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded-full">EXCLUIDO</span>
                             ) : isExisting ? (
-                              <span className="text-[9px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">EXISTE</span>
+                              <span className="text-[9px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">EXISTE</span>
                             ) : (
-                              <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">NUEVO</span>
+                              <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full">NUEVO</span>
                             )}
                           </td>
                           <td className="px-3 py-1.5 text-center">
@@ -309,7 +390,7 @@ export function ImportExcelDialog({ open, onOpenChange, onImportComplete }: Impo
                                   next.delete(i);
                                   setExcludedIndexes(next);
                                 }}
-                                className="w-5 h-5 rounded flex items-center justify-center text-emerald-500 hover:bg-emerald-50 transition-colors"
+                                className="w-5 h-5 rounded-full flex items-center justify-center text-emerald-500 hover:bg-emerald-50 transition-colors"
                                 title="Restaurar producto"
                               >
                                 <RotateCcw className="w-3 h-3" />
@@ -321,7 +402,7 @@ export function ImportExcelDialog({ open, onOpenChange, onImportComplete }: Impo
                                   next.add(i);
                                   setExcludedIndexes(next);
                                 }}
-                                className="w-5 h-5 rounded flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                className="w-5 h-5 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                                 title="Descartar producto"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -336,13 +417,14 @@ export function ImportExcelDialog({ open, onOpenChange, onImportComplete }: Impo
                 </table>
               </div>
 
-              <div className="flex justify-between mt-5 pt-4 border-t border-slate-100">
-                <Button variant="outline" onClick={() => { setStep('upload'); setRawRows([]); setExistingCodes(new Set()); }} className="gap-2 text-[13px]">
+              {/* Footer actions */}
+              <div className="flex justify-between items-center pt-2">
+                <Button variant="outline" onClick={() => { setStep('upload'); setRawRows([]); setExistingCodes(new Set()); }} className="gap-2 text-[13px] h-9 rounded-lg">
                   <ArrowLeft className="w-4 h-4" /> Cambiar Archivo
                 </Button>
                 <Button
                   onClick={handleImport}
-                  className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px]"
+                  className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] h-10 px-5 rounded-lg shadow-sm shadow-emerald-200"
                 >
                   <Upload className="w-4 h-4" />
                   Importar {activeRows.length} Producto{activeRows.length !== 1 ? 's' : ''}

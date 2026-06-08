@@ -9,12 +9,28 @@ export function useProducts() {
   return useQuery<Product[]>({
     queryKey: ['products'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*, categories(*), brands(*), kit_items(kit_id)')
-        .order('code', { ascending: true });
-      if (error) throw error;
-      return data || [];
+      const allProducts: Product[] = [];
+      const pageSize = 1000;
+      let from = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*, categories(*), brands(*), kit_items(kit_id)')
+          .order('code', { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allProducts.push(...data);
+          from += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      return allProducts;
     },
   });
 }
@@ -89,6 +105,20 @@ export function useDeleteProduct() {
       const { error } = await supabase.from('products').delete().eq('id', id);
       if (error) throw error;
       return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
+export function useBulkDeleteProducts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from('products').delete().in('id', ids);
+      if (error) throw error;
+      return ids;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });

@@ -36,9 +36,10 @@ interface ProductFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product: Product | null;
+  initialCompatibleKitId?: string;
 }
 
-export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDialogProps) {
+export function ProductFormDialog({ open, onOpenChange, product, initialCompatibleKitId }: ProductFormDialogProps) {
   const isEditing = !!product;
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -130,7 +131,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
           image_urls: [],
           location: '',
           fitment: [],
-          compatible_kits: [],
+          compatible_kits: initialCompatibleKitId ? [initialCompatibleKitId] : [],
         });
         setPreviewUrl('');
       }
@@ -140,7 +141,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
       setIsGeneratingDesc(false);
       setIsSearchingImages(false);
     }
-  }, [open, product, reset]);
+  }, [open, product, reset, initialCompatibleKitId]);
 
   const handleApplyMargin = () => {
     const cost = watchCost || 0;
@@ -405,7 +406,10 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[1200px] w-[95vw] md:w-[95vw] w-[calc(100%-1rem)] h-[95vh] md:h-[90vh] p-0 overflow-hidden flex flex-col bg-slate-50 border-slate-200">
+      <DialogContent 
+        className="max-w-[1200px] w-[95vw] md:w-[95vw] w-[calc(100%-1rem)] h-[95vh] md:h-[90vh] p-0 overflow-hidden flex flex-col bg-slate-50 border-slate-200"
+        onEscapeKeyDown={(e) => e.stopPropagation()}
+      >
         
         {/* Header (Sticky) */}
         <div className="flex flex-col md:flex-row md:items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-white border-b border-slate-200 shrink-0 z-10 shadow-sm gap-2">

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Kit, Product, CartItem } from '@/types';
-import { useKitItems, useDeleteKitItem, useProducts, useBcvRate, useBcvMultiplier } from '@/hooks/use-supabase';
+import { useKitItems, useCreateKitItem, useDeleteKitItem, useProducts, useBcvRate, useBcvMultiplier } from '@/hooks/use-supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
 import { formatUSD } from '@/lib/utils';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
 import { ProductFormDialog } from '@/components/inventory/product-form-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface KitBuilderProps {
   kit: Kit;
@@ -18,6 +19,8 @@ interface KitBuilderProps {
 export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const { data: kitItems = [], isLoading } = useKitItems(kit.id);
   const deleteKitItem = useDeleteKitItem();
+  const createKitItem = useCreateKitItem();
+  const { data: products = [] } = useProducts();
   const { addItem } = useCartStore();
   const { data: bcvRate = 36.5 } = useBcvRate();
   const { data: bcvMultiplier = 1.4 } = useBcvMultiplier();
@@ -27,6 +30,40 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
   const [measureFilter, setMeasureFilter] = useState('all');
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [linkSearchQuery, setLinkSearchQuery] = useState('');
+
+  // Search results for linking existing products
+  const linkSearchResults = useMemo(() => {
+    if (!linkSearchQuery || linkSearchQuery.length < 2) return [];
+    const lowerQuery = linkSearchQuery.toLowerCase();
+    
+    // Filter out products already in the kit
+    const existingProductIds = new Set(kitItems.map((item) => item.product_id));
+    
+    return products
+      .filter((p) => !existingProductIds.has(p.id))
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(lowerQuery) ||
+          p.code.toLowerCase().includes(lowerQuery)
+      )
+      .slice(0, 15); // Show max 15 results
+  }, [linkSearchQuery, products, kitItems]);
+
+  const handleLinkProduct = async (product: Product) => {
+    try {
+      await createKitItem.mutateAsync({
+        kit_id: kit.id,
+        product_id: product.id,
+        quantity: 1,
+      });
+      toast.success(`${product.name} vinculado al cotizador`);
+    } catch (error: any) {
+      toast.error('Error al vincular repuesto', { description: error.message });
+    }
+  };
 
   // Escape key to go back
   useEffect(() => {
@@ -38,6 +75,13 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onBack, galleryProduct]);
+
+  // Reset search query when closing the dialog
+  useEffect(() => {
+    if (!isLinkDialogOpen) {
+      setLinkSearchQuery('');
+    }
+  }, [isLinkDialogOpen]);
 
   const MEASURE_OPTIONS = [
     { value: 'all', label: 'Todas las Medidas' },
@@ -257,6 +301,14 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             </select>
           </div>
           <Button 
+            onClick={() => setIsLinkDialogOpen(true)}
+            variant="outline"
+            className="gap-2 border-slate-300 text-slate-700 font-semibold"
+          >
+            <Plus className="w-4 h-4" />
+            Vincular Repuesto
+          </Button>
+          <Button 
             onClick={handleAddAllToCart}
             disabled={filteredItems.length === 0}
             className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
@@ -276,8 +328,17 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             </div>
             <h3 className="text-[16px] font-bold text-slate-900 mb-2">Este cotizador está vacío</h3>
             <p className="text-[13px] text-slate-500 mb-6">
-              Vincula repuestos a este motor desde el formulario de cada producto en el inventario.
+              Vincula repuestos a este cotizador desde el formulario de cada producto en el inventario o agrégalos directamente ahora.
             </p>
+            <div className="flex justify-center gap-3">
+              <Button 
+                onClick={() => setIsLinkDialogOpen(true)}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Vincular Repuesto
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="max-w-5xl mx-auto space-y-8">
@@ -454,6 +515,114 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
           }
         }}
         product={editProduct}
+      />
+
+      {/* Dialog for linking existing products or creating and linking a new one */}
+      <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-slate-50">
+          <DialogHeader className="p-6 pb-4 border-b border-slate-200 bg-white">
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Package className="w-5 h-5 text-emerald-600" />
+              Vincular Repuesto a {kit.name}
+            </DialogTitle>
+            <p className="text-xs text-slate-500">
+              Busca un repuesto existente en el inventario o crea uno nuevo para vincularlo a este cotizador.
+            </p>
+          </DialogHeader>
+
+          <div className="p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre o SKU..."
+                  value={linkSearchQuery}
+                  onChange={(e) => setLinkSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 h-[40px] rounded-lg bg-white border border-slate-200 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+              </div>
+              <Button
+                onClick={() => {
+                  setIsLinkDialogOpen(false);
+                  setIsCreateDialogOpen(true);
+                }}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold h-[40px]"
+              >
+                <Plus className="w-4 h-4 mr-1.5" />
+                Crear Nuevo
+              </Button>
+            </div>
+
+            <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
+              {linkSearchQuery.length >= 2 && linkSearchResults.length === 0 && (
+                <div className="text-center py-8 text-slate-400">
+                  <p className="text-xs">No se encontraron productos para vincular.</p>
+                </div>
+              )}
+
+              {linkSearchResults.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Resultados de Búsqueda ({linkSearchResults.length})
+                  </p>
+                  {linkSearchResults.map((product) => (
+                    <div 
+                      key={product.id}
+                      className="bg-white border border-slate-200 rounded-lg p-3 hover:border-emerald-500 hover:shadow-sm transition-all flex items-center justify-between gap-4"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-900 truncate">
+                          {product.name}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                            {product.code}
+                          </span>
+                          {product.brands?.name && (
+                            <span className="text-[9px] font-bold text-slate-400 uppercase">
+                              {product.brands.name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs font-bold text-slate-700">
+                          {formatUSD(product.price_usd)}
+                        </span>
+                        <Button
+                          size="sm"
+                          onClick={() => handleLinkProduct(product)}
+                          className="h-7 text-[11px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                        >
+                          Vincular
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : !linkSearchQuery ? (
+                <div className="text-center py-8 text-slate-400">
+                  <p className="text-xs">Escribe al menos 2 letras para buscar repuestos...</p>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog to create a brand new product and automatically pre-link to current kit */}
+      <ProductFormDialog
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open) {
+            // Refresh kit items to reflect the new creation
+            queryClient.invalidateQueries({ queryKey: ['kit_items', kit.id] });
+          }
+        }}
+        product={null}
+        initialCompatibleKitId={kit.id}
       />
     </div>
   );

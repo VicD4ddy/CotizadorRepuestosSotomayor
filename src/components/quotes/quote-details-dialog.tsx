@@ -38,23 +38,19 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
 
   const handleWhatsApp = async () => {
     if (!quote) return;
+
+    const phone = quote.client_phone?.replace(/[^0-9]/g, '') || '';
+    if (!phone) {
+      toast.error('Esta cotización no tiene número de teléfono');
+      return;
+    }
+
     setIsGeneratingPDF(true);
-    
     try {
-      const { blob, fileName } = await generateQuotePDF({ quote, currency: 'usd', bcvMultiplier, returnBlob: true });
+      // Generate and download PDF first
+      const currency = 'usd';
+      const { blob, fileName } = await generateQuotePDF({ quote, currency, bcvMultiplier, returnBlob: true });
 
-      if (blob && navigator.share && navigator.canShare) {
-        const file = new File([blob], fileName, { type: 'application/pdf' });
-        const shareData = { files: [file] };
-
-        if (navigator.canShare(shareData)) {
-          await navigator.share(shareData);
-          toast.success('PDF compartido exitosamente');
-          return;
-        }
-      }
-
-      // Fallback: download PDF and open WhatsApp with text
       if (blob) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -64,32 +60,26 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
         URL.revokeObjectURL(url);
       }
 
-      let message = `*COTIZACIÓN - Repuestos Sotomayor*\n`;
-      message += `💵 Cotización en *DIVISAS (USD)*\n`;
-      message += `*Cliente:* ${quote.client_name || 'Mostrador'}\n`;
-      message += `*Fecha:* ${date}\n\n`;
-      message += `*Detalle:*\n`;
+      // Build WhatsApp message matching the main cart format
+      const totalBs = (quote.total_usd || 0) * (quote.bcv_rate || 1);
+      let msg = `*REPUESTOS SOTOMAYOR*\n_💵 Cotización en *DIVISAS (USD)*_\n\n`;
+      if (quote.client_name) msg += `*Cliente:* ${quote.client_name}\n`;
+      msg += `*Fecha:* ${date}\n\n`;
+      msg += `*Detalle:*\n`;
       quote.quote_items?.forEach((item) => {
         const brandSuffix = item.brand_name ? ` (${item.brand_name})` : '';
-        message += `- ${item.quantity}x ${item.product_name}${brandSuffix} — $${(item.unit_price_usd || 0).toFixed(2)}\n`;
+        msg += `- ${item.quantity}x ${item.product_name}${brandSuffix} — ${formatUSD(item.unit_price_usd || 0)}\n`;
       });
-      message += `\n*TOTAL USD:* $${quote.total_usd.toFixed(2)}\n`;
-      message += `*TOTAL BS:* Bs ${(quote.total_usd * quote.bcv_rate).toFixed(2)}\n\n`;
-      message += `_📎 El PDF fue descargado. Adjúntalo a este chat._`;
+      msg += `\n*Total USD:* ${formatUSD(quote.total_usd || 0)}\n`;
+      msg += `*Total Bs:* Bs ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      msg += `\n_📎 El PDF fue descargado. Adjúntalo a este chat._`;
 
-      const encodedMessage = encodeURIComponent(message);
-      let whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
-      if (quote.client_phone) {
-        const cleanPhone = quote.client_phone.replace(/\D/g, '');
-        if (cleanPhone) {
-          whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
-        }
-      }
-      window.open(whatsappUrl, '_blank');
-      toast.success('PDF descargado. Adjúntalo en WhatsApp.');
+      const encoded = encodeURIComponent(msg);
+      window.open(`https://wa.me/${phone}?text=${encoded}`, '_blank');
+      toast.success('PDF descargado. Adjunta el archivo en el chat de WhatsApp.');
     } catch (err: any) {
       if (err?.name !== 'AbortError') {
-        toast.error('Error al compartir');
+        toast.error('Error al enviar por WhatsApp');
       }
     } finally {
       setIsGeneratingPDF(false);

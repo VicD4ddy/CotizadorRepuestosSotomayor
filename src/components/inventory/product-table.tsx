@@ -11,11 +11,11 @@ import {
 } from '@tanstack/react-table';
 import Fuse from 'fuse.js';
 import { Product } from '@/types';
-import { useProducts, useBcvRate, useCategories, useBcvMultiplier, useUpdateProduct } from '@/hooks/use-supabase';
+import { useProducts, useBcvRate, useCategories, useBcvMultiplier, useUpdateProduct, useBrands, useBulkDeleteProducts } from '@/hooks/use-supabase';
 import { useCartStore } from '@/store/cart-store';
 import { Badge } from '@/components/ui/badge';
 import { formatUSD } from '@/lib/utils';
-import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare } from 'lucide-react';
 import { ProductFormDialog } from './product-form-dialog';
 import { ProductHistoryDialog } from './product-history-dialog';
 import { ImageGalleryDialog } from './image-gallery-dialog';
@@ -33,10 +33,14 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
   const { data: bcvRate = 36.5 } = useBcvRate();
   const { data: bcvMultiplier = 1.4 } = useBcvMultiplier();
   const { data: categories = [] } = useCategories();
+  const { data: brands = [] } = useBrands();
   const addItem = useCartStore((s) => s.addItem);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(100);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [brandFilter, setBrandFilter] = useState<string>('all');
   const [recentsOnly, setRecentsOnly] = useState(!!showRecentsOnMount);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -45,8 +49,11 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [productForHistory, setProductForHistory] = useState<Product | null>(null);
   const [galleryProduct, setGalleryProduct] = useState<Product | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const updateProduct = useUpdateProduct();
+  const bulkDelete = useBulkDeleteProducts();
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [editCost, setEditCost] = useState('');
   const [editPrice, setEditPrice] = useState('');
@@ -78,6 +85,8 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
     [products]
   );
 
+  const isFiltering = searchQuery || categoryFilter !== 'all' || brandFilter !== 'all' || recentsOnly;
+
   const filteredProducts = useMemo(() => {
     let result = searchQuery
       ? fuse.search(searchQuery).map((r) => r.item)
@@ -87,6 +96,10 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
       result = result.filter((p) => p.category_id === categoryFilter);
     }
 
+    if (brandFilter !== 'all') {
+      result = result.filter((p) => p.brand_id === brandFilter);
+    }
+
     if (recentsOnly) {
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       result = result.filter((p) => p.created_at && p.created_at >= oneDayAgo);
@@ -94,19 +107,91 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
     }
 
     return result;
-  }, [products, searchQuery, categoryFilter, recentsOnly, fuse]);
+  }, [products, searchQuery, categoryFilter, brandFilter, recentsOnly, fuse]);
+
+  // Limit displayed products: show all when filtering/searching, otherwise show latest 100
+  const displayProducts = useMemo(() => {
+    if (isFiltering) return filteredProducts;
+    // Sort by most recently updated/created first for the default view
+    const sorted = [...filteredProducts].sort((a, b) => {
+      const dateA = a.updated_at || a.created_at || '';
+      const dateB = b.updated_at || b.created_at || '';
+      return dateB.localeCompare(dateA);
+    });
+    return sorted.slice(0, displayLimit);
+  }, [filteredProducts, displayLimit, isFiltering]);
+
+  const hasMore = !isFiltering && displayLimit < filteredProducts.length;
+  const remainingCount = filteredProducts.length - displayLimit;
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (selectedIds.size === displayProducts.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(displayProducts.map(p => p.id)));
+    }
+  }, [displayProducts, selectedIds.size]);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    const confirmed = window.confirm(`¿Estás seguro de eliminar ${selectedIds.size} producto${selectedIds.size > 1 ? 's' : ''}? Esta acción no se puede deshacer.`);
+    if (!confirmed) return;
+    setIsDeleting(true);
+    try {
+      await bulkDelete.mutateAsync(Array.from(selectedIds));
+      toast.success(`${selectedIds.size} producto${selectedIds.size > 1 ? 's' : ''} eliminado${selectedIds.size > 1 ? 's' : ''}`);
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      toast.error(`Error al eliminar: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [selectedIds, bulkDelete]);
 
   const columns = useMemo(
     () => [
       columnHelper.display({
+        id: 'select',
+        header: () => (
+          <input
+            type="checkbox"
+            checked={displayProducts.length > 0 && selectedIds.size === displayProducts.length}
+            onChange={toggleSelectAll}
+            className="w-4 h-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+          />
+        ),
+        size: 36,
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            checked={selectedIds.has(row.original.id)}
+            onChange={(e) => {
+              e.stopPropagation();
+              toggleSelect(row.original.id);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-4 h-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+          />
+        ),
+      }),
+      columnHelper.display({
         id: 'image',
         header: 'IMG',
-        size: 48,
+        size: 70,
         cell: ({ row }) => {
           const hasImage = row.original.image_url || (row.original.image_urls && row.original.image_urls.length > 0);
           return (
             <div 
-              className={`w-8 h-8 rounded bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 transition-colors ${hasImage ? 'cursor-pointer hover:border-emerald-500' : ''}`}
+              className={`w-full aspect-square rounded bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 transition-colors ${hasImage ? 'cursor-pointer hover:border-emerald-500' : ''}`}
               onClick={(e) => {
                 if (hasImage) {
                   e.stopPropagation();
@@ -276,11 +361,11 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
         ),
       }),
     ],
-    [bcvRate, bcvMultiplier, addItem]
+    [bcvRate, bcvMultiplier, addItem, selectedIds, displayProducts, toggleSelect, toggleSelectAll]
   );
 
   const table = useReactTable({
-    data: filteredProducts,
+    data: displayProducts,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
@@ -374,15 +459,48 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
         </Button>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between px-4 py-2.5 bg-red-50 border-b border-red-200 animate-in slide-in-from-top-1">
+          <div className="flex items-center gap-2">
+            <CheckSquare className="w-4 h-4 text-red-500" />
+            <span className="text-[13px] font-bold text-red-700">
+              {selectedIds.size} producto{selectedIds.size > 1 ? 's' : ''} seleccionado{selectedIds.size > 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-[11px] text-red-500 hover:text-red-700 underline ml-1"
+            >
+              Deseleccionar
+            </button>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleBulkDelete}
+            disabled={isDeleting}
+            className="gap-1.5 h-8 text-[12px] bg-red-500 hover:bg-red-600"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {isDeleting ? 'Eliminando...' : `Eliminar ${selectedIds.size}`}
+          </Button>
+        </div>
+      )}
+
       {/* Search & Filters */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3 p-3 md:p-4 border-b border-slate-200 bg-white">
         <div className="flex items-center gap-2 md:gap-3 flex-1">
             <div className="relative flex-1 md:max-w-[400px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
-                placeholder="Buscar por SKU, Nombre..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar por SKU, Nombre... (Enter para buscar)"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setSearchQuery(searchInput);
+                  }
+                }}
                 className="w-full pl-9 pr-3 h-[36px] rounded bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
             />
             </div>
@@ -434,8 +552,21 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
               ))}
             </select>
           </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] text-slate-600 font-medium">Marca:</span>
+            <select
+              value={brandFilter}
+              onChange={(e) => setBrandFilter(e.target.value)}
+              className="h-8 px-2 text-[12px] rounded-md bg-white border border-slate-200 text-slate-700"
+            >
+              <option value="all">Todas</option>
+              {brands.map((b: any) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
           <button
-            onClick={() => { setCategoryFilter('all'); setSearchQuery(''); setRecentsOnly(false); }}
+            onClick={() => { setCategoryFilter('all'); setBrandFilter('all'); setSearchQuery(''); setSearchInput(''); setRecentsOnly(false); }}
             className="text-[12px] text-slate-500 hover:text-slate-900 transition-colors ml-auto font-medium"
           >
             Limpiar filtros
@@ -480,7 +611,7 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
 
         {/* Mobile Card View */}
         <div className="md:hidden flex flex-col gap-2.5 p-3 bg-slate-50/50">
-          {filteredProducts.map((p) => {
+          {displayProducts.map((p) => {
             const hasImage = p.image_url || (p.image_urls && p.image_urls.length > 0);
             const isEditing = editingPriceId === p.id;
             const priceBs = p.price_usd * bcvMultiplier * bcvRate;
@@ -628,7 +759,19 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
           })}
         </div>
 
-        {filteredProducts.length === 0 && (
+        {/* Load more button */}
+        {hasMore && (
+          <div className="flex items-center justify-center py-4 bg-white border-t border-slate-100">
+            <button
+              onClick={() => setDisplayLimit((prev) => prev + 100)}
+              className="px-5 py-2 text-[13px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+            >
+              Cargar {Math.min(remainingCount, 100)} más de {remainingCount} restantes
+            </button>
+          </div>
+        )}
+
+        {displayProducts.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-white">
             <Search className="w-10 h-10 mb-3 opacity-20" />
             <p className="text-sm text-slate-600">No se encontraron productos</p>

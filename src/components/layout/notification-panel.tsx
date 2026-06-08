@@ -40,6 +40,8 @@ export function NotificationPanel() {
   const zeroPrice = products.filter(p => !p.price_usd || p.price_usd === 0);
   const noCategory = products.filter(p => !p.category_id);
   const noKit = products.filter(p => !p.kit_items || p.kit_items.length === 0);
+  const costEqualsPrice = products.filter(p => p.cost > 0 && p.price_usd > 0 && p.cost === p.price_usd);
+  const costGreaterThanPrice = products.filter(p => p.cost > 0 && p.price_usd > 0 && p.cost > p.price_usd);
 
   const notifications: NotificationItem[] = [];
 
@@ -64,6 +66,30 @@ export function NotificationPanel() {
       bgColor: 'bg-orange-50',
       severity: 'critical',
       products: zeroPrice,
+    });
+  }
+
+  if (costGreaterThanPrice.length > 0) {
+    notifications.push({
+      icon: <AlertTriangle className="w-4 h-4" />,
+      label: 'Margen negativo (Costo > Precio)',
+      count: costGreaterThanPrice.length,
+      color: 'text-red-600',
+      bgColor: 'bg-red-50',
+      severity: 'critical',
+      products: costGreaterThanPrice,
+    });
+  }
+
+  if (costEqualsPrice.length > 0) {
+    notifications.push({
+      icon: <AlertTriangle className="w-4 h-4" />,
+      label: 'Costo igual al precio (Sin margen)',
+      count: costEqualsPrice.length,
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-50',
+      severity: 'warning',
+      products: costEqualsPrice,
     });
   }
 
@@ -180,7 +206,10 @@ export function NotificationPanel() {
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1 rounded">{p.code}</span>
                       {p.cost !== undefined && p.cost > 0 && (
-                        <span className="text-[10px] text-slate-400">${p.cost.toFixed(2)}</span>
+                        <span className="text-[10px] text-slate-400">Costo: ${p.cost.toFixed(2)}</span>
+                      )}
+                      {p.price_usd !== undefined && p.price_usd > 0 && (
+                        <span className="text-[10px] text-slate-400">| Venta: ${p.price_usd.toFixed(2)}</span>
                       )}
                     </div>
                   </button>
