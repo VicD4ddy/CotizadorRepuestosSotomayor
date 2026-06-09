@@ -111,7 +111,7 @@ export function CategoryFormDialog({ open, onOpenChange, category }: CategoryFor
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] p-0 bg-slate-50">
+      <DialogContent className="sm:max-w-[425px] p-0 bg-slate-50 overflow-visible">
         <DialogHeader className="p-6 pb-4 border-b border-slate-200 bg-white">
           <DialogTitle className="text-xl font-bold text-slate-900 flex items-center justify-between">
             {category ? 'Editar Categoría' : 'Añadir Nueva Categoría'}
@@ -121,7 +121,7 @@ export function CategoryFormDialog({ open, onOpenChange, category }: CategoryFor
           </p>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 overflow-visible">
           <div>
             <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">
               Nombre de la Categoría *
