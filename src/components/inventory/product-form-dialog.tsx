@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Product, Category } from '@/types';
+import { Product, Category, Brand } from '@/types';
 import { productSchema, ProductFormValues } from '@/lib/schemas';
 import {
   useUpdateProduct,
@@ -65,6 +65,11 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Dropdown states for custom brand select
+  const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
+  const [brandSearchQuery, setBrandSearchQuery] = useState('');
+  const brandDropdownRef = useRef<HTMLDivElement>(null);
 
   // Temporary state for the fitment inputs before adding to array
   const [fitmentInput, setFitmentInput] = useState({ make: '', model: '', year: '' });
@@ -191,6 +196,32 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
     });
     return sortedGroups;
   }, [filteredCategories]);
+
+  const watchBrandId = watch('brand_id');
+  const selectedBrand = brands.find((b) => b.id === watchBrandId);
+
+  // Handle click outside to close brand dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (brandDropdownRef.current && !brandDropdownRef.current.contains(event.target as Node)) {
+        setIsBrandDropdownOpen(false);
+      }
+    }
+    if (isBrandDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isBrandDropdownOpen]);
+
+  // Filter brands by query and sort alphabetically
+  const filteredBrands = useMemo(() => {
+    let result = brands;
+    if (brandSearchQuery) {
+      const lowerQuery = brandSearchQuery.toLowerCase();
+      result = brands.filter((b) => b.name.toLowerCase().includes(lowerQuery));
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }, [brands, brandSearchQuery]);
 
   const handleApplyMargin = () => {
     const cost = watchCost || 0;
@@ -647,17 +678,76 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                       <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">
                         Marca del Repuesto
                       </label>
-                      <select
-                        {...register('brand_id')}
-                        className="flex h-[36px] w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 text-[14px]"
-                      >
-                        <option value="">Seleccionar marca...</option>
-                        {brands.map((brand) => (
-                          <option key={brand.id} value={brand.id}>
-                            {brand.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative" ref={brandDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsBrandDropdownOpen(!isBrandDropdownOpen);
+                            setBrandSearchQuery('');
+                          }}
+                          className="flex h-[36px] w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-sm shadow-sm transition-all focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 text-[14px] items-center justify-between hover:bg-slate-100/70"
+                        >
+                          {selectedBrand ? (
+                            <span className="font-semibold text-slate-800">{selectedBrand.name}</span>
+                          ) : (
+                            <span className="text-slate-400">Seleccionar marca...</span>
+                          )}
+                          <ChevronDown className="w-4 h-4 text-slate-400 transition-transform duration-200" style={{ transform: isBrandDropdownOpen ? 'rotate(180deg)' : 'none' }} />
+                        </button>
+
+                        {isBrandDropdownOpen && (
+                          <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 overflow-hidden flex flex-col max-h-[350px]">
+                            {/* Dropdown Search Bar */}
+                            <div className="p-2 border-b border-slate-100 bg-slate-50 flex items-center gap-1.5 shrink-0">
+                              <SearchIcon className="w-3.5 h-3.5 text-slate-400" />
+                              <input
+                                type="text"
+                                placeholder="Buscar marca..."
+                                value={brandSearchQuery}
+                                onChange={(e) => setBrandSearchQuery(e.target.value)}
+                                className="w-full bg-transparent text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none border-none ring-0 focus:ring-0"
+                                autoFocus
+                              />
+                              {brandSearchQuery && (
+                                <button type="button" onClick={() => setBrandSearchQuery('')} className="text-slate-400 hover:text-slate-600">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Dropdown List */}
+                            <div className="overflow-y-auto p-1.5 space-y-0.5 flex-1">
+                              {filteredBrands.length === 0 ? (
+                                <p className="text-center text-xs text-slate-400 py-6">No se encontraron marcas</p>
+                              ) : (
+                                filteredBrands.map((brand: Brand) => {
+                                  const isSelected = brand.id === watchBrandId;
+                                  return (
+                                    <button
+                                      key={brand.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setValue('brand_id', brand.id, { shouldDirty: true, shouldValidate: true });
+                                        setIsBrandDropdownOpen(false);
+                                      }}
+                                      className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded text-xs transition-colors text-left ${
+                                        isSelected
+                                          ? 'bg-emerald-50 text-emerald-800 font-semibold'
+                                          : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                                      }`}
+                                    >
+                                      <span>{brand.name}</span>
+                                      {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {/* Hidden input for RHF validation and submit compatibility */}
+                        <input type="hidden" {...register('brand_id')} />
+                      </div>
                     </div>
                   </div>
 
