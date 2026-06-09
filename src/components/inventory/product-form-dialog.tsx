@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Product } from '@/types';
+import { Product, Category } from '@/types';
 import { productSchema, ProductFormValues } from '@/lib/schemas';
 import {
   useUpdateProduct,
@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Upload, X, Plus, Image as ImageIcon, Save, RefreshCw, Sparkles, Search as SearchIcon, ListPlus } from 'lucide-react';
+import { Upload, X, Plus, Image as ImageIcon, Save, RefreshCw, Sparkles, Search as SearchIcon, ListPlus, ChevronDown, Check } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useAiQueueStore } from '@/store/ai-queue-store';
 
@@ -60,6 +60,11 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
   const [isSearchingImages, setIsSearchingImages] = useState(false);
   const [imageSearchResults, setImageSearchResults] = useState<string[]>([]);
   const [customImageQuery, setCustomImageQuery] = useState('');
+
+  // Dropdown states for custom category select
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
 
   // Temporary state for the fitment inputs before adding to array
   const [fitmentInput, setFitmentInput] = useState({ make: '', model: '', year: '' });
@@ -142,6 +147,50 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
       setIsSearchingImages(false);
     }
   }, [open, product, reset, initialCompatibleKitId]);
+
+  const watchCategoryId = watch('category_id');
+  const selectedCategory = categories.find((cat) => cat.id === watchCategoryId);
+
+  // Handle click outside to close category dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
+        setIsCategoryDropdownOpen(false);
+      }
+    }
+    if (isCategoryDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isCategoryDropdownOpen]);
+
+  // Filter categories by query
+  const filteredCategories = useMemo(() => {
+    if (!categorySearchQuery) return categories;
+    const lowerQuery = categorySearchQuery.toLowerCase();
+    return categories.filter(
+      (cat: Category) =>
+        cat.name.toLowerCase().includes(lowerQuery) ||
+        cat.section.toLowerCase().includes(lowerQuery)
+    );
+  }, [categories, categorySearchQuery]);
+
+  // Group filtered categories by section
+  const groupedCategories = useMemo(() => {
+    const groups: Record<string, Category[]> = {};
+    filteredCategories.forEach((cat: Category) => {
+      if (!groups[cat.section]) {
+        groups[cat.section] = [];
+      }
+      groups[cat.section].push(cat);
+    });
+    // Sort sections alphabetically
+    const sortedGroups: Record<string, Category[]> = {};
+    Object.keys(groups).sort().forEach((key) => {
+      sortedGroups[key] = groups[key].sort((a, b) => a.name.localeCompare(b.name));
+    });
+    return sortedGroups;
+  }, [filteredCategories]);
 
   const handleApplyMargin = () => {
     const cost = watchCost || 0;
@@ -509,17 +558,90 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                       <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">
                         Categoría y Subcategoría
                       </label>
-                      <select
-                        {...register('category_id')}
-                        className="flex h-[36px] w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 text-[14px]"
-                      >
-                        <option value="">Seleccionar categoría...</option>
-                        {categories.map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.section} — {cat.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative" ref={categoryDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
+                            setCategorySearchQuery('');
+                          }}
+                          className="flex h-[36px] w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-sm shadow-sm transition-all focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 text-[14px] items-center justify-between hover:bg-slate-100/70"
+                        >
+                          {selectedCategory ? (
+                            <span className="flex items-center gap-1 text-[13px] text-slate-800">
+                              <span className="text-slate-400 font-normal">{selectedCategory.section}</span>
+                              <span className="text-slate-300">/</span>
+                              <span className="font-semibold text-emerald-700">{selectedCategory.name}</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">Seleccionar categoría...</span>
+                          )}
+                          <ChevronDown className="w-4 h-4 text-slate-400 transition-transform duration-200" style={{ transform: isCategoryDropdownOpen ? 'rotate(180deg)' : 'none' }} />
+                        </button>
+
+                        {isCategoryDropdownOpen && (
+                          <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 overflow-hidden flex flex-col max-h-[350px]">
+                            {/* Dropdown Search Bar */}
+                            <div className="p-2 border-b border-slate-100 bg-slate-50 flex items-center gap-1.5 shrink-0">
+                              <SearchIcon className="w-3.5 h-3.5 text-slate-400" />
+                              <input
+                                type="text"
+                                placeholder="Buscar categoría..."
+                                value={categorySearchQuery}
+                                onChange={(e) => setCategorySearchQuery(e.target.value)}
+                                className="w-full bg-transparent text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none border-none ring-0 focus:ring-0"
+                                autoFocus
+                              />
+                              {categorySearchQuery && (
+                                <button type="button" onClick={() => setCategorySearchQuery('')} className="text-slate-400 hover:text-slate-600">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Dropdown List */}
+                            <div className="overflow-y-auto p-1.5 space-y-3 flex-1">
+                              {Object.keys(groupedCategories).length === 0 ? (
+                                <p className="text-center text-xs text-slate-400 py-6">No se encontraron categorías</p>
+                              ) : (
+                                Object.entries(groupedCategories).map(([section, items]) => (
+                                  <div key={section} className="space-y-1">
+                                    <div className="flex items-center gap-2 px-2 py-0.5">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{section}</span>
+                                      <div className="h-[1px] bg-slate-100 flex-1" />
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-0.5">
+                                      {items.map((cat: Category) => {
+                                        const isSelected = cat.id === watchCategoryId;
+                                        return (
+                                          <button
+                                            key={cat.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setValue('category_id', cat.id, { shouldDirty: true, shouldValidate: true });
+                                              setIsCategoryDropdownOpen(false);
+                                            }}
+                                            className={`flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors text-left ${
+                                              isSelected
+                                                ? 'bg-emerald-50 text-emerald-800 font-semibold'
+                                                : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                                            }`}
+                                          >
+                                            <span>{cat.name}</span>
+                                            {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {/* Hidden input for RHF validation and submit compatibility */}
+                        <input type="hidden" {...register('category_id')} />
+                      </div>
                     </div>
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">
