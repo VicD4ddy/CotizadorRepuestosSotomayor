@@ -510,7 +510,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
             <div className="space-y-6">
               
               {/* Información Principal */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
                 <div className="px-5 py-4 border-b border-slate-100">
                   <h3 className="font-semibold text-[15px] text-slate-900">Información Principal</h3>
                 </div>
