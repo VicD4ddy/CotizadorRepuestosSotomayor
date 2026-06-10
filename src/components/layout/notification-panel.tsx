@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Bell, ImageOff, FileText, DollarSign, Tag, AlertTriangle, X, ChevronRight, ArrowLeft, Unlink } from 'lucide-react';
-import { useProducts } from '@/hooks/use-supabase';
-import { Product } from '@/types';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Bell, ImageOff, FileText, DollarSign, Tag, AlertTriangle, X, ChevronRight, ArrowLeft, Unlink, Sparkles } from 'lucide-react';
+import { useProducts, useKits } from '@/hooks/use-supabase';
+import { Product, Kit } from '@/types';
 
 interface NotificationItem {
   icon: React.ReactNode;
@@ -20,6 +20,63 @@ export function NotificationPanel() {
   const [expandedAlert, setExpandedAlert] = useState<NotificationItem | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const { data: products = [] } = useProducts();
+  const { data: kits = [] } = useKits();
+
+  // Find products that have suggested kits that have not been selected
+  const suggestedNotSelected = useMemo(() => {
+    if (products.length === 0 || kits.length === 0) return [];
+
+    return products.filter((p) => {
+      if (!p.name || p.name.trim().length < 3) return false;
+      const prodLower = p.name.toLowerCase();
+      
+      // Get the set of currently selected kit IDs for this product
+      const selectedKitIds = new Set(p.kit_items?.map((item) => item.kit_id) || []);
+
+      // Check if there is any kit that is suggested but NOT in selectedKitIds
+      return kits.some((kit: Kit) => {
+        // If already selected, skip
+        if (selectedKitIds.has(kit.id)) return false;
+
+        const kitLower = kit.name.toLowerCase();
+        
+        // 1. Direct inclusion
+        if (prodLower.includes(kitLower)) {
+          return true;
+        }
+
+        // 2. Splitting and matching brand + key number/model
+        const words = kitLower.replace(/[()]/g, ' ').split(/[\s/-]+/).filter(Boolean);
+        if (words.length === 0) return false;
+
+        const brand = words[0];
+        let brandMatches = prodLower.includes(brand);
+        if (brand === 'chevrolet' && !brandMatches) {
+          brandMatches = prodLower.includes('chevy');
+        }
+
+        const hasSpecificModel = words.some((w: string) => ['spark', 'aveo', 'optra', 'dmax'].includes(w));
+        const modelMatches = hasSpecificModel && words.some((w: string) => ['spark', 'aveo', 'optra', 'dmax'].includes(w) && prodLower.includes(w));
+
+        if (!brandMatches && !modelMatches) return false;
+
+        const identifiers = words.slice(1).filter((w: string) => {
+          if (/\d/.test(w)) return true;
+          if (['spark', 'aveo', 'optra', 'dmax', 'explorer', 'bronco', 'f150', 'blazer', 'grand cherokee'].includes(w)) return true;
+          return false;
+        });
+
+        if (identifiers.length === 0) return false;
+
+        const hasIdMatch = identifiers.some((id: string) => {
+          const cleanId = id.replace(/l$/, '');
+          return prodLower.includes(id) || prodLower.includes(cleanId);
+        });
+
+        return hasIdMatch;
+      });
+    });
+  }, [products, kits]);
 
   // Close on click outside
   useEffect(() => {
@@ -138,6 +195,18 @@ export function NotificationPanel() {
       bgColor: 'bg-purple-50',
       severity: 'info',
       products: noKit,
+    });
+  }
+
+  if (suggestedNotSelected.length > 0) {
+    notifications.push({
+      icon: <Sparkles className="w-4 h-4" />,
+      label: 'Sugeridos sin seleccionar',
+      count: suggestedNotSelected.length,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
+      severity: 'info',
+      products: suggestedNotSelected,
     });
   }
 
