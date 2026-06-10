@@ -225,6 +225,29 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
 
   const watchProductName = watch('name');
 
+  const suggestedCategories = useMemo(() => {
+    if (!watchProductName || watchProductName.trim().length < 3) return [];
+    const prodLower = watchProductName.toLowerCase();
+    const stopwords = new Set(['de', 'y', 'o', 'a', 'para', 'del', 'la', 'el', 'con', 'en']);
+
+    return categories.filter((cat: Category) => {
+      const catLower = cat.name.toLowerCase();
+      if (prodLower.includes(catLower)) return true;
+
+      const catWords = catLower
+        .replace(/[^\w\s]/g, '')
+        .split(/\s+/)
+        .filter((w) => w.length > 1 && !stopwords.has(w));
+
+      if (catWords.length === 0) return false;
+
+      return catWords.every((word) => {
+        const stem = word.length > 4 ? word.replace(/(es|s)$/, '') : word;
+        return prodLower.includes(word) || prodLower.includes(stem);
+      });
+    }).slice(0, 3);
+  }, [categories, watchProductName]);
+
   const suggestedKitIds = useMemo(() => {
     if (!watchProductName || watchProductName.trim().length < 3) return new Set<string>();
     const prodLower = watchProductName.toLowerCase();
@@ -758,6 +781,22 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                         {/* Hidden input for RHF validation and submit compatibility */}
                         <input type="hidden" {...register('category_id')} />
                       </div>
+                      {suggestedCategories.length > 0 && !watchCategoryId && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">¿Sugerir?:</span>
+                          {suggestedCategories.map((cat) => (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => setValue('category_id', cat.id, { shouldDirty: true, shouldValidate: true })}
+                              className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded transition-all flex items-center gap-1"
+                            >
+                              <Sparkles className="w-2.5 h-2.5 text-emerald-500" />
+                              {cat.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">
