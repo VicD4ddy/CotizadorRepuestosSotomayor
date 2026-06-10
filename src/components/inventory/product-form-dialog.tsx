@@ -223,6 +223,69 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
     return result.sort((a, b) => a.name.localeCompare(b.name));
   }, [brands, brandSearchQuery]);
 
+  const watchProductName = watch('name');
+
+  const suggestedKitIds = useMemo(() => {
+    if (!watchProductName || watchProductName.trim().length < 3) return new Set<string>();
+    const prodLower = watchProductName.toLowerCase();
+    const suggested = new Set<string>();
+
+    kits.forEach((kit) => {
+      const kitLower = kit.name.toLowerCase();
+      // 1. Direct inclusion
+      if (prodLower.includes(kitLower)) {
+        suggested.add(kit.id);
+        return;
+      }
+
+      // 2. Splitting and matching brand + key number/model
+      const words = kitLower.replace(/[()]/g, ' ').split(/[\s/-]+/).filter(Boolean);
+      if (words.length === 0) return;
+
+      const brand = words[0]; // e.g. "chevrolet", "ford", "jeep"
+      let brandMatches = prodLower.includes(brand);
+      if (brand === 'chevrolet' && !brandMatches) {
+        brandMatches = prodLower.includes('chevy');
+      }
+
+      // If brand doesn't match, check if a highly specific model name matches
+      const hasSpecificModel = words.some((w: string) => ['spark', 'aveo', 'optra', 'dmax'].includes(w));
+      const modelMatches = hasSpecificModel && words.some((w: string) => ['spark', 'aveo', 'optra', 'dmax'].includes(w) && prodLower.includes(w));
+
+      if (!brandMatches && !modelMatches) return;
+
+      // Find other key identifiers (numbers like 350, 262, 5.3, 4.0, or specific words)
+      const identifiers = words.slice(1).filter((w: string) => {
+        if (/\d/.test(w)) return true;
+        if (['spark', 'aveo', 'optra', 'dmax', 'explorer', 'bronco', 'f150', 'blazer', 'grand cherokee'].includes(w)) return true;
+        return false;
+      });
+
+      if (identifiers.length === 0) {
+        return;
+      }
+
+      // Check if at least one key identifier is in the product name
+      const hasIdMatch = identifiers.some((id: string) => {
+        const cleanId = id.replace(/l$/, ''); // e.g., "4.0l" -> "4.0"
+        return prodLower.includes(id) || prodLower.includes(cleanId);
+      });
+
+      if (hasIdMatch) {
+        suggested.add(kit.id);
+      }
+    });
+
+    return suggested;
+  }, [kits, watchProductName]);
+
+  const handleSelectSuggestedKits = () => {
+    const currentKits = watch('compatible_kits') || [];
+    const newKits = Array.from(new Set([...currentKits, ...Array.from(suggestedKitIds)]));
+    setValue('compatible_kits', newKits, { shouldDirty: true });
+    toast.success('Cotizadores sugeridos seleccionados');
+  };
+
   const handleApplyMargin = () => {
     const cost = watchCost || 0;
     const suggested = calculateMargin(cost, marginPercentage / 100);
@@ -791,8 +854,18 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
 
               {/* Compatibilidad con Cotizadores (Kits) */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-100">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                   <h3 className="font-semibold text-[15px] text-slate-900">Cotizadores (Motores / T. Delantero)</h3>
+                  {suggestedKitIds.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleSelectSuggestedKits}
+                      className="text-[10px] text-emerald-600 font-bold hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 border border-emerald-200"
+                    >
+                      <Sparkles className="w-3 h-3 text-emerald-500" />
+                      Marcar sugeridos ({suggestedKitIds.size})
+                    </button>
+                  )}
                 </div>
                 <div className="p-5 space-y-5">
                   <p className="text-[12px] text-slate-500">
@@ -812,7 +885,14 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                               {...register('compatible_kits')}
                               className="mt-1 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                             />
-                            <p className="text-[13px] font-semibold text-slate-900 truncate">{kit.name}</p>
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <p className="text-[13px] font-semibold text-slate-900 truncate">{kit.name}</p>
+                              {suggestedKitIds.has(kit.id) && (
+                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 py-0.25 rounded shrink-0">
+                                  Sugerido
+                                </span>
+                              )}
+                            </div>
                           </label>
                         ))}
                       </div>
@@ -832,7 +912,14 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                               {...register('compatible_kits')}
                               className="mt-1 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                             />
-                            <p className="text-[13px] font-semibold text-slate-900 truncate">{kit.name}</p>
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <p className="text-[13px] font-semibold text-slate-900 truncate">{kit.name}</p>
+                              {suggestedKitIds.has(kit.id) && (
+                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 py-0.25 rounded shrink-0">
+                                  Sugerido
+                                </span>
+                              )}
+                            </div>
                           </label>
                         ))}
                       </div>
