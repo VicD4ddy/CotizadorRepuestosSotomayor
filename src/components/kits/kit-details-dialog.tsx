@@ -106,7 +106,14 @@ export function KitDetailsDialog({ open, onOpenChange, kit }: KitDetailsDialogPr
           <DialogTitle className="text-xl font-bold text-slate-900 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Package className="w-6 h-6 text-emerald-600" />
-              {kit.name}
+              <div className="flex items-center gap-2.5">
+                <span>{kit.name}</span>
+                {kit.description && (
+                  <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    {kit.description}
+                  </span>
+                )}
+              </div>
             </div>
             </DialogTitle>
           <p className="text-sm text-slate-500 mt-1">
