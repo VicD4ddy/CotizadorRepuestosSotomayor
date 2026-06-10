@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Product, Category, Brand } from '@/types';
+import { Product, Category, Brand, Kit } from '@/types';
 import { productSchema, ProductFormValues } from '@/lib/schemas';
 import {
   useUpdateProduct,
@@ -278,6 +278,28 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
 
     return suggested;
   }, [kits, watchProductName]);
+
+  const sortedMotorKits = useMemo(() => {
+    const motorKits = kits.filter((k: Kit) => k.category === 'Motor');
+    return [...motorKits].sort((a: Kit, b: Kit) => {
+      const aSuggested = suggestedKitIds.has(a.id);
+      const bSuggested = suggestedKitIds.has(b.id);
+      if (aSuggested && !bSuggested) return -1;
+      if (!aSuggested && bSuggested) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [kits, suggestedKitIds]);
+
+  const sortedTrenKits = useMemo(() => {
+    const trenKits = kits.filter((k: Kit) => k.category === 'Tren Delantero');
+    return [...trenKits].sort((a: Kit, b: Kit) => {
+      const aSuggested = suggestedKitIds.has(a.id);
+      const bSuggested = suggestedKitIds.has(b.id);
+      if (aSuggested && !bSuggested) return -1;
+      if (!aSuggested && bSuggested) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [kits, suggestedKitIds]);
 
   const handleSelectSuggestedKits = () => {
     const currentKits = watch('compatible_kits') || [];
@@ -873,11 +895,11 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                   </p>
 
                   {/* Motores */}
-                  {kits.filter(k => k.category === 'Motor').length > 0 && (
+                  {sortedMotorKits.length > 0 && (
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Motores</p>
                       <div className="grid grid-cols-2 gap-2">
-                        {kits.filter(k => k.category === 'Motor').map((kit) => (
+                        {sortedMotorKits.map((kit) => (
                           <label key={kit.id} className="flex items-start gap-2 p-2 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
                             <input
                               type="checkbox"
@@ -900,11 +922,11 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                   )}
 
                   {/* Tren Delantero */}
-                  {kits.filter(k => k.category === 'Tren Delantero').length > 0 && (
+                  {sortedTrenKits.length > 0 && (
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Tren Delantero</p>
                       <div className="grid grid-cols-2 gap-2">
-                        {kits.filter(k => k.category === 'Tren Delantero').map((kit) => (
+                        {sortedTrenKits.map((kit) => (
                           <label key={kit.id} className="flex items-start gap-2 p-2 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
                             <input
                               type="checkbox"
