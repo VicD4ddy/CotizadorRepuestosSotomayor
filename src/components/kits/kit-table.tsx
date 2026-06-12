@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useKits, useDeleteKit } from '@/hooks/use-supabase';
+import { useKits, useDeleteKit, useUpdateKit } from '@/hooks/use-supabase';
 import { Kit } from '@/types';
-import { Search, Plus, Trash2, Edit, Package, ShoppingCart, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, Trash2, Edit, Package, ShoppingCart, X, ChevronLeft, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { KitFormDialog } from './kit-form-dialog';
@@ -14,6 +14,7 @@ interface KitTableProps {
 export function KitTable({ category, onSelectKit }: KitTableProps) {
   const { data: kits = [], isLoading } = useKits(category);
   const deleteKit = useDeleteKit();
+  const updateKit = useUpdateKit();
   const [searchQuery, setSearchQuery] = useState('');
   
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -71,6 +72,21 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
     e.stopPropagation();
     setSelectedKitForEdit(kit);
     setIsFormOpen(true);
+  };
+
+  const handleToggleVerified = async (e: React.MouseEvent, kit: Kit) => {
+    e.stopPropagation();
+    const newValue = !kit.price_verified;
+    try {
+      await updateKit.mutateAsync({
+        id: kit.id,
+        price_verified: newValue,
+        price_verified_at: newValue ? new Date().toISOString() : null,
+      });
+      toast.success(newValue ? 'Precios verificados ✓' : 'Verificación removida');
+    } catch (error: any) {
+      toast.error('Error al actualizar', { description: error.message });
+    }
   };
 
   if (isLoading) {
@@ -170,9 +186,30 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
             )}
 
             <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-              <span className="text-[11px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">
-                {kit.kit_items?.length || 0} REPUESTOS
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">
+                  {kit.kit_items?.length || 0} REPUESTOS
+                </span>
+                <button
+                  onClick={(e) => handleToggleVerified(e, kit)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold transition-all border ${
+                    kit.price_verified
+                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                      : 'text-slate-400 bg-slate-50 border-slate-200 hover:bg-slate-100 hover:text-slate-600'
+                  }`}
+                  title={kit.price_verified
+                    ? `Verificado el ${kit.price_verified_at ? new Date(kit.price_verified_at).toLocaleDateString('es-VE') : '—'}`
+                    : 'Marcar precios como verificados'
+                  }
+                >
+                  {kit.price_verified ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <Circle className="w-3.5 h-3.5" />
+                  )}
+                  {kit.price_verified ? 'Verificado' : 'Verificar'}
+                </button>
+              </div>
               
               <Button 
                 onClick={(e) => {

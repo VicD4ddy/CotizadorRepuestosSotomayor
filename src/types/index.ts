@@ -84,6 +84,8 @@ export interface Kit {
   description?: string;
   vehicle_brand_id?: string;
   image_urls?: string[];
+  price_verified?: boolean;
+  price_verified_at?: string;
   created_at?: string;
   kit_items?: KitItem[];
   vehicle_brands?: VehicleBrand;
