@@ -12,6 +12,7 @@ import { SettingsDialog } from '@/components/layout/settings-dialog';
 import { KitTable } from '@/components/kits/kit-table';
 import { KitBuilder } from '@/components/kits/kit-builder';
 import { ChangeHistoryPage } from '@/components/inventory/change-history-page';
+import { StockDashboard } from '@/components/inventory/stock-dashboard';
 import { AiQueueBanner } from '@/components/inventory/ai-queue-banner';
 import { Kit } from '@/types';
 
@@ -56,6 +57,7 @@ export default function HomePage() {
           <Header />
           <main className="flex-1 overflow-auto p-3 md:p-5 bg-slate-50">
             {activeTab === 'inventory' && <ProductTable key={showRecentImports ? 'recents' : 'normal'} showRecentsOnMount={showRecentImports} />}
+            {activeTab === 'stock' && <StockDashboard />}
             {activeTab === 'categories' && <ClasificacionesContainer />}
             {activeTab === 'quotes' && <QuoteTable />}
             {activeTab === 'sales' && <SalesDashboard />}
