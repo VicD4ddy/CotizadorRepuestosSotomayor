@@ -10,13 +10,11 @@ import {
   Cog,
   Wrench,
   History,
-  Boxes,
 } from 'lucide-react';
 import { useState } from 'react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Inventario', id: 'inventory' },
-  { icon: Boxes, label: 'Stock', id: 'stock' },
   { icon: FolderOpen, label: 'Clasificaciones', id: 'categories' },
   { icon: FileText, label: 'Cotizaciones', id: 'quotes' },
   { icon: ShoppingCart, label: 'Ventas', id: 'sales' },
