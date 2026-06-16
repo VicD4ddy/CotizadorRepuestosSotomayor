@@ -443,6 +443,11 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                     >
                                       {product?.code || '---'}
                                     </span>
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                      (product?.stock ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                                    }`}>
+                                      Stock: {product?.stock ?? 0}
+                                    </span>
                                     {product?.brands?.name && (
                                       <span className="text-[10px] font-bold text-slate-400 uppercase">
                                         {product.brands.name}
@@ -578,6 +583,11 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                             {product.code}
+                          </span>
+                          <span className={`text-[9px] font-bold px-1 py-0.2 rounded shrink-0 ${
+                            (product.stock ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                          }`}>
+                            Stock: {product.stock ?? 0}
                           </span>
                           {product.brands?.name && (
                             <span className="text-[9px] font-bold text-slate-400 uppercase">
