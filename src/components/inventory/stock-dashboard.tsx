@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useProducts, useUpdateProduct, useBrands } from '@/hooks/use-supabase';
+import { useProducts, useUpdateProduct, useBrands, useMarginPercentage } from '@/hooks/use-supabase';
 import { Product } from '@/types';
 import { formatUSD } from '@/lib/utils';
 import { 
@@ -24,6 +24,7 @@ export function StockDashboard() {
   const { data: products = [], isLoading } = useProducts();
   const updateProduct = useUpdateProduct();
   const { data: brands = [] } = useBrands();
+  const { data: marginPercentage = 40 } = useMarginPercentage();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [quickAdjustId, setQuickAdjustId] = useState<string | null>(null);
@@ -41,7 +42,12 @@ export function StockDashboard() {
       const stock = p.stock || 0;
       totalStock += stock;
       totalValueCost += (p.cost || 0) * stock;
-      totalValuePrice += (p.price_usd || 0) * stock;
+      
+      const estimatedPrice = p.price_usd > 0
+        ? p.price_usd
+        : (p.cost || 0) * (1 + marginPercentage / 100);
+
+      totalValuePrice += estimatedPrice * stock;
       if (stock === 0) {
         outOfStockCount++;
       }
@@ -54,7 +60,7 @@ export function StockDashboard() {
       totalValuePrice,
       outOfStockCount
     };
-  }, [products]);
+  }, [products, marginPercentage]);
 
   // ===== FILTERED OUT-OF-STOCK PRODUCTS =====
   const outOfStockProducts = useMemo(() => {
@@ -173,7 +179,9 @@ export function StockDashboard() {
           <div>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Valor Estimado de Venta</p>
             <p className="text-2xl font-extrabold text-slate-900 mt-0.5">{formatUSD(metrics.totalValuePrice)}</p>
-            <p className="text-xs text-emerald-600 font-semibold mt-1">
+            <p className={`text-xs font-semibold mt-1 ${
+              metrics.totalValuePrice - metrics.totalValueCost >= 0 ? 'text-emerald-600' : 'text-red-600'
+            }`}>
               Margen de ganancia: {formatUSD(metrics.totalValuePrice - metrics.totalValueCost)}
             </p>
           </div>
@@ -208,7 +216,7 @@ export function StockDashboard() {
                   <th className="px-5 py-3 text-left">Marca</th>
                   <th className="px-5 py-3 text-right">Costo</th>
                   <th className="px-5 py-3 text-left">Ubicación</th>
-                  <th className="px-5 py-3 text-center w-[160px]">Existencias</th>
+                  <th className="px-5 py-3 text-center w-[185px] min-w-[185px]">Existencias</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -234,7 +242,7 @@ export function StockDashboard() {
                       </td>
                       <td className="px-5 py-3 text-right font-medium text-slate-500">{formatUSD(p.cost)}</td>
                       <td className="px-5 py-3 text-slate-500 text-xs">{p.location || '---'}</td>
-                      <td className="px-5 py-3 text-center">
+                      <td className="px-5 py-3 text-center w-[185px] min-w-[185px] whitespace-nowrap">
                         {quickAdjustId === p.id ? (
                           <div className="flex items-center gap-1 justify-center" onClick={(e) => e.stopPropagation()}>
                             <input
@@ -247,13 +255,13 @@ export function StockDashboard() {
                             />
                             <button
                               onClick={() => handleCustomAdjust(p)}
-                              className="h-7 px-2 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded transition-colors"
+                              className="h-7 px-2 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded transition-colors shrink-0"
                             >
                               Fijar
                             </button>
                             <button
                               onClick={() => { setQuickAdjustId(null); setAdjustVal(''); }}
-                              className="h-7 px-1.5 text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded transition-colors"
+                              className="h-7 px-1.5 text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded transition-colors shrink-0"
                             >
                               X
                             </button>
@@ -265,14 +273,14 @@ export function StockDashboard() {
                             </span>
                             <button
                               onClick={() => handleQuickAdd(p, 5)}
-                              className="h-7 w-7 text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 rounded flex items-center justify-center transition-all active:scale-95"
+                              className="h-7 w-7 text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 rounded flex items-center justify-center transition-all active:scale-95 shrink-0"
                               title="+5 Unidades"
                             >
                               +5
                             </button>
                             <button
                               onClick={() => setQuickAdjustId(p.id)}
-                              className="h-7 px-2 text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 border border-transparent rounded transition-colors"
+                              className="h-7 px-2.5 text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 border border-transparent rounded transition-colors shrink-0"
                               title="Establecer cantidad específica"
                             >
                               Editar
