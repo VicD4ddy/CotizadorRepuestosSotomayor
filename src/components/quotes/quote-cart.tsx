@@ -1,7 +1,7 @@
 'use client';
 
 import { useCartStore } from '@/store/cart-store';
-import { useBcvRate, useCreateQuote, useBcvMultiplier } from '@/hooks/use-supabase';
+import { useBcvRate, useCreateQuote, useBcvMultiplier, useProducts } from '@/hooks/use-supabase';
 import { formatUSD, formatBs } from '@/lib/utils';
 import {
   ShoppingCart,
@@ -39,6 +39,7 @@ export function QuoteCart() {
   } = useCartStore();
   const { data: bcvRate = 36.5 } = useBcvRate();
   const { data: bcvMultiplier = 1.4 } = useBcvMultiplier();
+  const { data: products = [] } = useProducts();
   const createQuote = useCreateQuote();
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
@@ -235,6 +236,8 @@ export function QuoteCart() {
         ) : (
           <div className="p-4 space-y-3">
             {items.map((item) => {
+              const dbProduct = products.find((p) => p.id === item.product_id);
+              const activeStock = dbProduct ? (dbProduct.stock ?? 0) : (item.stock ?? 0);
               const itemPrice = paymentMethod === 'bs' ? item.unit_price_usd * bcvMultiplier : item.unit_price_usd;
               const itemBs = itemPrice * bcvRate;
               return (
@@ -259,15 +262,15 @@ export function QuoteCart() {
                       <div className="mt-1">
                         <span className={cn(
                           "text-[10px] font-bold px-1.5 py-0.5 rounded",
-                          (item.stock ?? 0) === 0 
+                          activeStock === 0 
                             ? "bg-red-50 text-red-600" 
-                            : item.quantity > (item.stock ?? 0)
+                            : item.quantity > activeStock
                             ? "bg-amber-50 text-amber-700 font-bold"
                             : "bg-slate-100 text-slate-600"
                         )}>
-                          Disp: {item.stock ?? 0}
+                          Disp: {activeStock}
                         </span>
-                        {item.quantity > (item.stock ?? 0) && (item.stock ?? 0) > 0 && (
+                        {item.quantity > activeStock && activeStock > 0 && (
                           <span className="text-[9px] text-amber-600 font-medium ml-1.5">Excede stock</span>
                         )}
                       </div>

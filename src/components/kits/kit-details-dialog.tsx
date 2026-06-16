@@ -85,6 +85,7 @@ export function KitDetailsDialog({ open, onOpenChange, kit }: KitDetailsDialogPr
           image_url: product.image_url,
           brand_name: product.brands?.name,
           brand_logo_url: product.brands?.logo_url,
+          stock: product.stock,
         };
         addItem(cartItem);
         addedCount++;

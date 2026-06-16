@@ -31,16 +31,17 @@ export const useCartStore = create<CartStore>()(
       setPaymentMethod: (method) => set({ paymentMethod: method }),
       addItem: (item) => {
         const existing = get().items.find((i) => i.product_id === item.product_id);
+        const qtyToAdd = item.quantity || 1;
         if (existing) {
           set({
             items: get().items.map((i) =>
               i.product_id === item.product_id
-                ? { ...i, quantity: i.quantity + 1 }
+                ? { ...i, quantity: i.quantity + qtyToAdd }
                 : i
             ),
           });
         } else {
-          set({ items: [...get().items, { ...item, quantity: 1 }] });
+          set({ items: [...get().items, { ...item, quantity: qtyToAdd }] });
         }
       },
       removeItem: (productId) => {

@@ -209,6 +209,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
       image_url: product.image_url,
       brand_name: product.brands?.name,
       brand_logo_url: product.brands?.logo_url,
+      stock: product.stock,
     });
     toast.success('Añadido al carrito');
   };
@@ -236,6 +237,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
           image_url: product.image_url,
           brand_name: product.brands?.name,
           brand_logo_url: product.brands?.logo_url,
+          stock: product.stock,
         });
         addedCount++;
       }
