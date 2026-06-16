@@ -256,6 +256,21 @@ export function QuoteCart() {
                       >
                         {item.product_code}
                       </button>
+                      <div className="mt-1">
+                        <span className={cn(
+                          "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                          (item.stock ?? 0) === 0 
+                            ? "bg-red-50 text-red-600" 
+                            : item.quantity > (item.stock ?? 0)
+                            ? "bg-amber-50 text-amber-700 font-bold"
+                            : "bg-slate-100 text-slate-600"
+                        )}>
+                          Disp: {item.stock ?? 0}
+                        </span>
+                        {item.quantity > (item.stock ?? 0) && (item.stock ?? 0) > 0 && (
+                          <span className="text-[9px] text-amber-600 font-medium ml-1.5">Excede stock</span>
+                        )}
+                      </div>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-[13px] font-bold text-slate-900">{formatUSD(itemPrice)}</p>

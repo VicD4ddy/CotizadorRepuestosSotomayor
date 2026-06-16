@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS products (
   image_urls TEXT[] DEFAULT '{}',
   location TEXT DEFAULT '',
   fitment JSONB DEFAULT '[]'::jsonb,
+  stock INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS products (
 -- Ejecuta esto en Supabase SQL Editor si ya creaste la tabla antes:
 -- ALTER TABLE products ADD COLUMN IF NOT EXISTS location TEXT DEFAULT '';
 -- ALTER TABLE products ADD COLUMN IF NOT EXISTS fitment JSONB DEFAULT '[]'::jsonb;
+-- ALTER TABLE products ADD COLUMN IF NOT EXISTS stock INTEGER DEFAULT 0;
 -- ==========================================
 
 -- Settings (key-value for BCV rate etc.)

@@ -28,6 +28,7 @@ export interface Product {
   image_urls?: string[];
   location?: string;
   fitment?: Fitment[];
+  stock?: number;
   created_at?: string;
   updated_at?: string;
   // Joined fields
@@ -70,6 +71,7 @@ export interface CartItem extends QuoteItem {
   image_url?: string;
   brand_name?: string;
   brand_logo_url?: string;
+  stock?: number;
 }
 
 // For the product table display

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ImportExcelDialog } from '@/components/settings/import-excel-dialog';
+import { ImportStockDialog } from '@/components/settings/import-stock-dialog';
 import { FileSpreadsheet, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -33,6 +34,7 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
   const [localMargin, setLocalMargin] = useState('');
   const [localMultiplier, setLocalMultiplier] = useState('');
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isImportStockOpen, setIsImportStockOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -120,15 +122,23 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
 
           {/* Separator */}
           <div className="border-t border-slate-200 pt-4 mt-2">
-            <label className="text-sm font-medium text-slate-700 mb-2 block">Gestión de Datos</label>
-            <div className="flex gap-2">
+            <label className="text-sm font-medium text-slate-700 mb-2.5 block">Gestión de Datos</label>
+            <div className="grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
                 onClick={() => setIsImportOpen(true)}
-                className="flex-1 gap-2 border-slate-300 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 justify-start h-10"
+                className="gap-2 border-slate-300 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 justify-center h-10 text-[13px]"
               >
-                <FileSpreadsheet className="w-4 h-4" />
-                Importar desde Excel
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                Importar Productos
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsImportStockOpen(true)}
+                className="gap-2 border-slate-300 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 justify-center h-10 text-[13px]"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-teal-600" />
+                Subir Existencias
               </Button>
               <Button
                 variant="outline"
@@ -179,14 +189,14 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
                   XLSXStyle.writeFile(wb, 'Plantilla_Inventario_Sotomayor.xlsx');
                   toast.success('Plantilla descargada');
                 }}
-                className="gap-2 border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 h-10"
+                className="col-span-2 gap-2 border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 h-10 text-[13px] justify-center"
               >
-                <Download className="w-4 h-4" />
-                Plantilla
+                <Download className="w-4 h-4 text-blue-600" />
+                Descargar Plantilla de Productos
               </Button>
             </div>
             <p className="text-xs text-slate-500 mt-1.5">
-              Carga masiva de productos desde un archivo .xlsx o .csv.
+              Carga masiva de catálogo de productos o actualización rápida de existencias.
             </p>
           </div>
         </div>
@@ -199,6 +209,12 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
 
         <ImportExcelDialog open={isImportOpen} onOpenChange={setIsImportOpen} onImportComplete={() => {
           setIsImportOpen(false);
+          onOpenChange(false);
+          onImportComplete?.();
+        }} />
+
+        <ImportStockDialog open={isImportStockOpen} onOpenChange={setIsImportStockOpen} onImportComplete={() => {
+          setIsImportStockOpen(false);
           onOpenChange(false);
           onImportComplete?.();
         }} />

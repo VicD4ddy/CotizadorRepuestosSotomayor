@@ -144,6 +144,23 @@ export function useBulkInsertProducts() {
   });
 }
 
+export function useBulkUpdateStock() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: { code: string; stock: number }[]) => {
+      const { data, error } = await supabase
+        .from('products')
+        .upsert(updates, { onConflict: 'code' })
+        .select('id, code, stock');
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
 // ========== Categories ==========
 export function useCategories() {
   return useQuery<Category[]>({

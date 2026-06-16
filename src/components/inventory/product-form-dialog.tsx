@@ -96,6 +96,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
       location: '',
       fitment: [],
       compatible_kits: [],
+      stock: 0,
     },
   });
 
@@ -126,6 +127,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
           location: product.location || '',
           fitment: product.fitment || [],
           compatible_kits: product.kit_items?.map(k => k.kit_id) || [],
+          stock: product.stock || 0,
         });
         setPreviewUrl(product.image_url || '');
       } else {
@@ -142,6 +144,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
           location: '',
           fitment: [],
           compatible_kits: initialCompatibleKitId ? [initialCompatibleKitId] : [],
+          stock: 0,
         });
         setPreviewUrl('');
       }
@@ -1068,7 +1071,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
               {/* Precios e Inventario */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-100">
-                  <h3 className="font-semibold text-[15px] text-slate-900">Precios (Sin Stock)</h3>
+                  <h3 className="font-semibold text-[15px] text-slate-900">Precios y Existencia</h3>
                 </div>
                 <div className="p-5 space-y-5">
                   <div className="grid gap-5">
@@ -1130,6 +1133,20 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                         />
                       </div>
                       {errors.price_usd && <p className="text-xs text-red-500 mt-1">{errors.price_usd.message}</p>}
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">
+                        Existencia (Stock)
+                      </label>
+                      <Input
+                        {...register('stock')}
+                        type="number"
+                        step="1"
+                        placeholder="Ej. 10"
+                        className="bg-slate-50 border-slate-200 text-[14px] font-mono text-slate-900"
+                      />
+                      {errors.stock && <p className="text-xs text-red-500 mt-1">{errors.stock.message}</p>}
                     </div>
 
                     <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">

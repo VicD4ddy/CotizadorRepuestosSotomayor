@@ -268,6 +268,23 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
           );
         },
       }),
+      columnHelper.accessor('stock', {
+        header: ({ column }) => (
+          <button className="flex items-center gap-1 hover:text-slate-900 transition-colors" onClick={() => column.toggleSorting()}>
+            CANT
+            <ArrowUpDown className="w-3 h-3" />
+          </button>
+        ),
+        size: 65,
+        cell: (info) => {
+          const val = info.getValue() ?? 0;
+          return (
+            <span className={`text-[13px] font-bold ${val > 0 ? 'text-slate-900' : 'text-red-500 font-medium'}`}>
+              {val}
+            </span>
+          );
+        },
+      }),
       columnHelper.accessor('cost', {
         header: 'COSTO',
         size: 75,
@@ -352,6 +369,7 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
                   image_url: p.image_url,
                   brand_name: p.brands?.name,
                   brand_logo_url: p.brands?.logo_url,
+                  stock: p.stock,
                 });
               }}
             >
@@ -655,6 +673,11 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
                         }}
                       >
                         {p.code}
+                      </span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                        (p.stock ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                      }`}>
+                        Stock: {p.stock ?? 0}
                       </span>
                       {p.brands?.logo_url ? (
                         <img src={p.brands.logo_url} alt={p.brands.name} className="h-3.5 max-w-[40px] object-contain shrink-0" />
