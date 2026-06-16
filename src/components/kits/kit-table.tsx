@@ -185,44 +185,42 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
               </div>
             )}
 
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">
-                  {kit.kit_items?.length || 0} REPUESTOS
-                </span>
-                <button
-                  onClick={(e) => handleToggleVerified(e, kit)}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold transition-all border ${
-                    kit.price_verified
-                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
-                      : 'text-slate-400 bg-slate-50 border-slate-200 hover:bg-slate-100 hover:text-slate-600'
-                  }`}
-                  title={kit.price_verified
-                    ? `Verificado el ${kit.price_verified_at ? new Date(kit.price_verified_at).toLocaleDateString('es-VE') : '—'}`
-                    : 'Marcar precios como verificados'
-                  }
-                >
-                  {kit.price_verified ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  ) : (
-                    <Circle className="w-3.5 h-3.5" />
-                  )}
-                  {kit.price_verified ? 'Verificado' : 'Verificar'}
-                </button>
-              </div>
-              
-              <Button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectKit(kit);
-                }}
-                variant="ghost" 
-                size="sm" 
-                className="h-8 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+            <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto mb-3">
+              <span className="text-[11px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">
+                {kit.kit_items?.length || 0} REPUESTOS
+              </span>
+              <button
+                onClick={(e) => handleToggleVerified(e, kit)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all border ${
+                  kit.price_verified
+                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                    : 'text-slate-400 bg-slate-50 border-slate-200 hover:bg-slate-100 hover:text-slate-600'
+                }`}
+                title={kit.price_verified
+                  ? `Verificado el ${kit.price_verified_at ? new Date(kit.price_verified_at).toLocaleDateString('es-VE') : '—'}`
+                  : 'Marcar precios como verificados'
+                }
               >
-                ENTRAR <ShoppingCart className="w-3 h-3 ml-1" />
-              </Button>
+                {kit.price_verified ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <Circle className="w-3.5 h-3.5" />
+                )}
+                {kit.price_verified ? 'Verificado' : 'Verificar'}
+              </button>
             </div>
+            
+            <Button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectKit(kit);
+              }}
+              variant="outline" 
+              size="sm" 
+              className="w-full h-9 text-[11px] font-bold text-emerald-600 border-emerald-100 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all rounded-lg flex items-center justify-center gap-1.5"
+            >
+              ENTRAR <ShoppingCart className="w-3.5 h-3.5" />
+            </Button>
           </div>
         ))}
       </div>
