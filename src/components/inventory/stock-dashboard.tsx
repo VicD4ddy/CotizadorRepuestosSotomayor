@@ -188,8 +188,8 @@ export function StockDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-start">
-        {/* Left Column: Missing Products Table */}
+      <div className="w-full">
+        {/* Missing Products Table */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
           <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -293,53 +293,6 @@ export function StockDashboard() {
                 )}
               </tbody>
             </table>
-          </div>
-        </div>
-
-        {/* Right Column: Suggested Functions / Recommendations */}
-        <div className="space-y-6">
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl border border-slate-700 p-5 shadow-sm">
-            <h3 className="font-bold text-[15px] text-emerald-400 mb-2 flex items-center gap-1.5">
-              💡 Funciones Recomendadas
-            </h3>
-            <p className="text-[12px] text-slate-300 leading-relaxed mb-4">
-              Hemos estructurado la sección de stock. A continuación te sugiero funciones inteligentes para optimizar el inventario:
-            </p>
-            
-            <div className="space-y-4">
-              {/* Feature 1 */}
-              <div className="space-y-1">
-                <h4 className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
-                  <Bell className="w-3.5 h-3.5 text-amber-400" />
-                  1. Alertas de Stock Mínimo
-                </h4>
-                <p className="text-[11px] text-slate-400 leading-snug">
-                  Establecer un "Stock Mínimo" por producto (Ej: avisar si quedan menos de 3 correas). El sistema notificará qué ítems están próximos a agotarse.
-                </p>
-              </div>
-
-              {/* Feature 2 */}
-              <div className="space-y-1">
-                <h4 className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-blue-400" />
-                  2. Reporte PDF de Pedido sugerido
-                </h4>
-                <p className="text-[11px] text-slate-400 leading-snug">
-                  Un botón para exportar un PDF consolidado con los códigos y marcas de todos los productos agotados, listo para enviar a tus proveedores.
-                </p>
-              </div>
-
-              {/* Feature 3 */}
-              <div className="space-y-1">
-                <h4 className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
-                  <History className="w-3.5 h-3.5 text-teal-400" />
-                  3. Historial de Entradas/Salidas
-                </h4>
-                <p className="text-[11px] text-slate-400 leading-snug">
-                  Auditar los movimientos físicos de stock (Ej: saber exactamente quién, cuándo y cuántas unidades subió de cada SKU).
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
