@@ -171,6 +171,7 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
 
     const updates = activeRows.map((row) => ({
       code: row.code,
+      name: row.dbName || row.excelName || '',
       stock: row.stock,
     }));
 

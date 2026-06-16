@@ -147,7 +147,7 @@ export function useBulkInsertProducts() {
 export function useBulkUpdateStock() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (updates: { code: string; stock: number }[]) => {
+    mutationFn: async (updates: { code: string; name: string; stock: number }[]) => {
       const { data, error } = await supabase
         .from('products')
         .upsert(updates, { onConflict: 'code' })
