@@ -1,66 +1,23 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useProducts, useUpdateProduct, useBrands, useMarginPercentage } from '@/hooks/use-supabase';
+import { useProducts, useUpdateProduct, useBrands } from '@/hooks/use-supabase';
 import { Product } from '@/types';
 import { formatUSD } from '@/lib/utils';
 import { 
   Boxes, 
-  AlertTriangle, 
-  TrendingUp, 
-  Coins, 
-  Search, 
-  Plus, 
-  Minus, 
-  History, 
-  FileSpreadsheet, 
-  Bell, 
-  ArrowUpDown 
+  Search 
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 export function StockDashboard() {
   const { data: products = [], isLoading } = useProducts();
   const updateProduct = useUpdateProduct();
   const { data: brands = [] } = useBrands();
-  const { data: marginPercentage = 40 } = useMarginPercentage();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [quickAdjustId, setQuickAdjustId] = useState<string | null>(null);
   const [adjustVal, setAdjustVal] = useState('');
-
-  // ===== METRICS CALCULATIONS =====
-  const metrics = useMemo(() => {
-    let totalItems = products.length;
-    let totalStock = 0;
-    let totalValueCost = 0;
-    let totalValuePrice = 0;
-    let outOfStockCount = 0;
-
-    products.forEach((p) => {
-      const stock = p.stock || 0;
-      totalStock += stock;
-      totalValueCost += (p.cost || 0) * stock;
-      
-      const estimatedPrice = p.price_usd > 0
-        ? p.price_usd
-        : (p.cost || 0) * (1 + marginPercentage / 100);
-
-      totalValuePrice += estimatedPrice * stock;
-      if (stock === 0) {
-        outOfStockCount++;
-      }
-    });
-
-    return {
-      totalItems,
-      totalStock,
-      totalValueCost,
-      totalValuePrice,
-      outOfStockCount
-    };
-  }, [products, marginPercentage]);
 
   // ===== FILTERED OUT-OF-STOCK PRODUCTS =====
   const outOfStockProducts = useMemo(() => {
@@ -114,7 +71,7 @@ export function StockDashboard() {
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3 text-slate-400">
           <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm">Cargando métricas de stock...</span>
+          <span className="text-sm">Cargando control de stock...</span>
         </div>
       </div>
     );
@@ -125,67 +82,7 @@ export function StockDashboard() {
       {/* Title */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Control de Stock y Alertas</h2>
-        <p className="text-sm text-slate-500 mt-1">Supervisa las existencias totales, valor del inventario y productos agotados.</p>
-      </div>
-
-      {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Stock */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <Boxes className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Unidades Totales</p>
-            <p className="text-2xl font-extrabold text-slate-900 mt-0.5">{metrics.totalStock.toLocaleString()}</p>
-            <p className="text-xs text-slate-500 mt-1">{metrics.totalItems.toLocaleString()} repuestos en catálogo</p>
-          </div>
-        </div>
-
-        {/* Card 2: Out of stock */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Productos Agotados</p>
-            <p className="text-2xl font-extrabold text-slate-900 mt-0.5">{metrics.outOfStockCount.toLocaleString()}</p>
-            <p className="text-xs text-red-600 mt-1 font-semibold">
-              {metrics.totalItems > 0 
-                ? `${((metrics.outOfStockCount / metrics.totalItems) * 100).toFixed(1)}% del catálogo`
-                : '0%'
-              }
-            </p>
-          </div>
-        </div>
-
-        {/* Card 3: Capital Invested (Cost) */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Coins className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Capital de Compra (Costo)</p>
-            <p className="text-2xl font-extrabold text-slate-900 mt-0.5">{formatUSD(metrics.totalValueCost)}</p>
-            <p className="text-xs text-slate-500 mt-1">Valor invertido en almacén</p>
-          </div>
-        </div>
-
-        {/* Card 4: Inventory Revenue Valuation (Sale Price) */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Valor Estimado de Venta</p>
-            <p className="text-2xl font-extrabold text-slate-900 mt-0.5">{formatUSD(metrics.totalValuePrice)}</p>
-            <p className={`text-xs font-semibold mt-1 ${
-              metrics.totalValuePrice - metrics.totalValueCost >= 0 ? 'text-emerald-600' : 'text-red-600'
-            }`}>
-              Margen de ganancia: {formatUSD(metrics.totalValuePrice - metrics.totalValueCost)}
-            </p>
-          </div>
-        </div>
+        <p className="text-sm text-slate-500 mt-1">Supervisa y gestiona las alertas de productos agotados en tiempo real.</p>
       </div>
 
       <div className="w-full">
