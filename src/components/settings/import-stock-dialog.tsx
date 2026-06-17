@@ -108,7 +108,10 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
 
         if (dbError) throw dbError;
 
-        const existingMap = new Map((existingProducts || []).map(p => [p.code, p.name]));
+        // Build a case-insensitive lookup: uppercase code -> { dbCode, name }
+        const existingMap = new Map(
+          (existingProducts || []).map(p => [p.code.toUpperCase(), { dbCode: p.code, name: p.name }])
+        );
         const parsed: ParsedStockRow[] = [];
 
         for (let i = 1; i < aoa.length; i++) {
@@ -124,13 +127,13 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
           const stockRaw = String(row[stockIndex] || '').replace(/[^0-9]/g, '');
           const stock = parseInt(stockRaw, 10);
 
-          const exists = existingMap.has(code);
+          const match = existingMap.get(code.toUpperCase());
           parsed.push({
-            code,
+            code: match ? match.dbCode : code, // Use the exact DB code for upsert
             stock: isNaN(stock) ? 0 : stock,
             excelName: name,
-            dbName: existingMap.get(code),
-            exists
+            dbName: match?.name,
+            exists: !!match
           });
         }
 
