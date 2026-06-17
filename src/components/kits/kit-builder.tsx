@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
 import { ProductFormDialog } from '@/components/inventory/product-form-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { LoadComboDialog } from './load-combo-dialog';
 
 interface KitBuilderProps {
   kit: Kit;
@@ -33,6 +34,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [linkSearchQuery, setLinkSearchQuery] = useState('');
+  const [isComboDialogOpen, setIsComboDialogOpen] = useState(false);
 
   // Search results for linking existing products
   const linkSearchResults = useMemo(() => {
@@ -219,31 +221,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     toast.success('SKU copiado al portapapeles', { duration: 2000 });
   };
 
-  const handleAddAllToCart = () => {
-    if (!filteredItems || filteredItems.length === 0) {
-      toast.error('No hay repuestos para añadir');
-      return;
-    }
-    let addedCount = 0;
-    filteredItems.forEach((item) => {
-      if (item.products) {
-        const product = item.products;
-        addItem({
-          product_id: product.id,
-          product_name: product.name,
-          product_code: product.code,
-          quantity: item.quantity || 1,
-          unit_price_usd: product.price_usd || 0,
-          image_url: product.image_url,
-          brand_name: product.brands?.name,
-          brand_logo_url: product.brands?.logo_url,
-          stock: product.stock,
-        });
-        addedCount++;
-      }
-    });
-    toast.success(`${addedCount} repuestos añadidos al carrito`);
-  };
+
 
   if (isLoading) {
     return (
@@ -311,12 +289,12 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             Vincular Repuesto
           </Button>
           <Button 
-            onClick={handleAddAllToCart}
-            disabled={filteredItems.length === 0}
-            className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
+            onClick={() => setIsComboDialogOpen(true)}
+            disabled={kitItems.length === 0}
+            className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm font-semibold"
           >
             <ShoppingCart className="w-4 h-4" />
-            Cargar Todo al Carrito
+            Cargar Combo
           </Button>
         </div>
       </div>
@@ -510,6 +488,15 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
         open={!!galleryProduct}
         onOpenChange={(open) => !open && setGalleryProduct(null)}
         product={galleryProduct}
+      />
+
+      <LoadComboDialog
+        open={isComboDialogOpen}
+        onOpenChange={setIsComboDialogOpen}
+        kit={kit}
+        kitItems={kitItems}
+        bcvRate={bcvRate}
+        bcvMultiplier={bcvMultiplier}
       />
 
       <ProductFormDialog
