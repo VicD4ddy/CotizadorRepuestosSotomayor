@@ -64,11 +64,9 @@ export function LoadComboDialog({
       const initialProductIds: Record<string, string> = {};
       const initialQuantities: Record<string, number> = {};
       categoriesWithProducts.forEach((cat) => {
-        if (cat.items.length > 0) {
-          // Select the first product by default
-          initialProductIds[cat.categoryName] = cat.items[0].products.id;
-          initialQuantities[cat.categoryName] = cat.items[0].quantity || 1;
-        }
+        // Do not preselect any product by default (set to 'none')
+        initialProductIds[cat.categoryName] = 'none';
+        initialQuantities[cat.categoryName] = 1;
       });
       setSelectedProductIds(initialProductIds);
       setQuantities(initialQuantities);
