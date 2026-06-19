@@ -18,16 +18,61 @@ function hexToRGB(hex: string): [number, number, number] {
   return [r, g, b];
 }
 
-// Load image as base64
-async function loadImageAsBase64(url: string): Promise<string | null> {
+// Load image as base64 and resize using Canvas
+async function loadImageAsBase64(
+  url: string,
+  maxWidth?: number,
+  maxHeight?: number
+): Promise<string | null> {
   try {
     const response = await fetch(url);
     const blob = await response.blob();
+    
+    // If no dimensions are given, convert directly to base64
+    if (!maxWidth && !maxHeight) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    }
+
     return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
+      const img = new Image();
+      img.src = URL.createObjectURL(blob);
+      img.onload = () => {
+        URL.revokeObjectURL(img.src);
+        
+        let width = img.width;
+        let height = img.height;
+        
+        if (maxWidth && width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        if (maxHeight && height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        // Use PNG to preserve transparency
+        const base64 = canvas.toDataURL('image/png');
+        resolve(base64);
+      };
+      img.onerror = () => {
+        resolve(null);
+      };
     });
   } catch {
     return null;
@@ -79,6 +124,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     orientation: 'portrait',
     unit: 'pt',
     format: 'a4',
+    compress: true,
   });
 
   let y = 0;
@@ -101,10 +147,10 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   y += 28;
 
   // Try to load logo (larger, no text)
-  const logoBase64 = await loadImageAsBase64('/LogoRepuestosSotomayor.png');
+  const logoBase64 = await loadImageAsBase64('/LogoRepuestosSotomayor.png', 320, 120);
   if (logoBase64) {
     try {
-      doc.addImage(logoBase64, 'PNG', margin + 15, y - 4, 160, 52);
+      doc.addImage(logoBase64, 'PNG', margin + 15, y - 4, 160, 52, undefined, 'FAST');
     } catch {
       // Logo failed to load, skip
     }
@@ -209,7 +255,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   const uniqueLogoUrls = [...new Set(items.map(i => i.brand_logo_url).filter(Boolean))] as string[];
   await Promise.all(
     uniqueLogoUrls.map(async (url) => {
-      brandLogoCache[url] = await loadImageAsBase64(url);
+      brandLogoCache[url] = await loadImageAsBase64(url, 100, 50);
     })
   );
 
@@ -308,7 +354,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
             const imgH = 22;
             const imgX = data.cell.x + (data.cell.width - imgW) / 2;
             const imgY = data.cell.y + (data.cell.height - imgH) / 2;
-            doc.addImage(brandLogoCache[logoUrl]!, 'PNG', imgX, imgY, imgW, imgH);
+            doc.addImage(brandLogoCache[logoUrl]!, 'PNG', imgX, imgY, imgW, imgH, undefined, 'FAST');
           } catch {
             // Fallback: text already rendered
           }
