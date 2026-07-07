@@ -81,38 +81,56 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
 
         // Find index matching Code and Stock / Existencia in header titles
         headers.forEach((h, idx) => {
-          const lowerH = h.toLowerCase();
+          const lowerH = String(h || '').toLowerCase().trim();
           if (
-            lowerH.includes('código') ||
-            lowerH.includes('codigo') ||
-            lowerH.includes('code') ||
+            lowerH === 'código' ||
+            lowerH === 'codigo' ||
+            lowerH === 'code' ||
             lowerH === 'sku' ||
-            lowerH === 'cod'
+            lowerH === 'cod' ||
+            ((lowerH.includes('código') || lowerH.includes('codigo') || lowerH.includes('sku')) && !lowerH.includes('barras') && !lowerH.includes('fabricante'))
           ) {
             codeIndex = idx;
           }
           if (
-            lowerH.includes('existencia') ||
-            lowerH.includes('stock') ||
-            lowerH.includes('cantidad') ||
-            lowerH.includes('cant')
+            lowerH === 'existencia' ||
+            lowerH === 'stock' ||
+            lowerH === 'cantidad' ||
+            lowerH === 'cant' ||
+            lowerH === 'existencia actual' ||
+            ((lowerH.includes('existencia') || lowerH.includes('stock') || lowerH.includes('cantidad') || lowerH.includes('cant')) && !lowerH.includes('caja') && !lowerH.includes('min') && !lowerH.includes('max') && !lowerH.includes('barras'))
           ) {
             stockIndex = idx;
           }
         });
 
-        // Fetch all existing product codes and names from database to match and preview names
-        const { data: existingProducts, error: dbError } = await supabase
-          .from('products')
-          .select('code, name');
+        // Fetch all existing product codes and names from database with pagination (overcoming 1000 limit)
+        const existingProducts: { code: string; name: string }[] = [];
+        const pageSize = 1000;
+        let from = 0;
+        let hasMore = true;
 
-        if (dbError) throw dbError;
+        while (hasMore) {
+          const { data, error: dbError } = await supabase
+            .from('products')
+            .select('code, name')
+            .range(from, from + pageSize - 1);
+
+          if (dbError) throw dbError;
+          if (data && data.length > 0) {
+            existingProducts.push(...data);
+            from += pageSize;
+            hasMore = data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
 
         // Build a case-insensitive lookup: uppercase code -> { dbCode, name }
         const existingMap = new Map(
-          (existingProducts || []).map(p => [p.code.toUpperCase(), { dbCode: p.code, name: p.name }])
+          existingProducts.map(p => [p.code.toUpperCase(), { dbCode: p.code, name: p.name }])
         );
-        const parsed: ParsedStockRow[] = [];
+        const parsedMap = new Map<string, ParsedStockRow>();
 
         for (let i = 1; i < aoa.length; i++) {
           const row = aoa[i];
@@ -123,24 +141,60 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
           
           if (!code) continue;
 
-          // Parse Stock quantity
-          const stockRaw = String(row[stockIndex] || '').replace(/[^0-9]/g, '');
-          const stock = parseInt(stockRaw, 10);
+          // Parse Stock quantity de forma segura evitando códigos de barras gigantes o desbordamiento de enteros (overflow) en PostgreSQL
+          let stock = 0;
+          const rawVal = row[stockIndex];
+          if (typeof rawVal === 'number') {
+            stock = Math.round(rawVal);
+          } else {
+            // Solo convertimos si tiene 7 dígitos o menos; un número de 16 dígitos como un código de barras causaría error out of range para integer
+            const stockRaw = String(rawVal || '').replace(/[^0-9]/g, '');
+            if (stockRaw.length <= 7 && stockRaw.length > 0) {
+              stock = parseInt(stockRaw, 10);
+            } else {
+              stock = 0;
+            }
+          }
+          
+          let validStock = isNaN(stock) || stock < 0 ? 0 : stock;
+          // El límite máximo de integer en PostgreSQL es ~2.14 mil millones. Cualquier existencia > 999,999 es un valor inválido o código de barras por error
+          if (validStock > 999999) {
+            validStock = 0;
+          }
 
-          const match = existingMap.get(code.toUpperCase());
-          parsed.push({
-            code: match ? match.dbCode : code, // Use the exact DB code for upsert
-            stock: isNaN(stock) ? 0 : stock,
-            excelName: name,
-            dbName: match?.name,
-            exists: !!match
-          });
+          const upperCode = code.toUpperCase();
+          const match = existingMap.get(upperCode);
+
+          if (parsedMap.has(upperCode)) {
+            // Si hay un código duplicado en el Excel, actualizamos con la existencia más reciente leída
+            const existing = parsedMap.get(upperCode)!;
+            existing.stock = validStock;
+            if (!existing.excelName && name) existing.excelName = name;
+          } else {
+            parsedMap.set(upperCode, {
+              code: match ? match.dbCode : code, // Use the exact DB code for upsert
+              stock: validStock,
+              excelName: name,
+              dbName: match?.name,
+              exists: !!match
+            });
+          }
         }
+
+        const parsed = Array.from(parsedMap.values());
 
         if (parsed.length === 0) {
           toast.error('No se encontraron filas con códigos válidos en el archivo.');
           return;
         }
+
+        // Ordenar: primero los que existen en el catálogo (para actualizar), luego los no encontrados
+        parsed.sort((a, b) => {
+          if (a.exists === b.exists) {
+            return a.code.localeCompare(b.code);
+          }
+          return a.exists ? -1 : 1;
+        });
 
         setParsedRows(parsed);
         setStep('preview');
@@ -178,6 +232,8 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
       stock: row.stock,
     }));
 
+    let actualUpdatedCount = 0;
+
     try {
       const batchSize = 100;
       const totalRows = updates.length;
@@ -195,7 +251,12 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
 
       for (let i = 0; i < totalRows; i += batchSize) {
         const batch = updates.slice(i, i + batchSize);
-        await bulkUpdateStock.mutateAsync(batch);
+        const res = await bulkUpdateStock.mutateAsync(batch);
+        if (Array.isArray(res)) {
+          actualUpdatedCount += res.length;
+        } else {
+          actualUpdatedCount += batch.length;
+        }
         
         const progress = Math.min(Math.round(((i + batch.length) / totalRows) * 100), 100);
         setImportProgress(progress);
@@ -203,7 +264,7 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
 
       setImportResult({
         total: parsedRows.length,
-        updated: totalRows,
+        updated: actualUpdatedCount,
         ignored: ignoredCount + excludedIndexes.size,
         errors: [],
       });
@@ -211,7 +272,7 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
       onImportComplete?.();
     } catch (err: any) {
       toast.error(`Error durante la actualización: ${err.message}`);
-      setImportResult({ total: parsedRows.length, updated: 0, ignored: ignoredCount, errors: [err.message] });
+      setImportResult({ total: parsedRows.length, updated: actualUpdatedCount, ignored: ignoredCount, errors: [err.message] });
       setStep('done');
     }
   };
