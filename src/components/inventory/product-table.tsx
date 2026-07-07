@@ -458,7 +458,7 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg border border-slate-200 shadow-sm">
+    <div className="flex flex-col h-full bg-white rounded-lg border border-slate-200 shadow-sm min-w-0 overflow-hidden">
       {/* Title Bar */}
       <div className="flex items-center justify-between p-3 md:p-4 border-b border-slate-200">
         <div className="flex items-center gap-2 md:gap-3">
@@ -506,10 +506,10 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
       )}
 
       {/* Search & Filters */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3 p-3 md:p-4 border-b border-slate-200 bg-white">
-        <div className="flex items-center gap-2 md:gap-3 flex-1">
-            <div className="relative flex-1 md:max-w-[400px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 md:p-4 border-b border-slate-200 bg-white min-w-0">
+        <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+            <div className="relative flex-1 min-w-0 md:max-w-[400px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 shrink-0" />
             <input
                 placeholder="Buscar por SKU, Nombre... (Enter para buscar)"
                 value={searchInput}
@@ -593,8 +593,8 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
       )}
 
       {/* Table for Desktop */}
-      <div className="flex-1 overflow-auto">
-        <table className="w-full text-sm hidden md:table">
+      <div className="flex-1 overflow-auto min-w-0">
+        <table className="w-full text-sm hidden md:table min-w-[880px]">
           <thead className="bg-slate-50 sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>

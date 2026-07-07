@@ -131,7 +131,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
       </div>
 
       {/* Grid of Kits */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 min-w-0">
         {filteredKits.map((kit) => (
           <div 
             key={kit.id}

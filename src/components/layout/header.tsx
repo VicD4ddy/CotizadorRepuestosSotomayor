@@ -34,34 +34,34 @@ export function Header() {
   };
 
   return (
-    <header className="h-[52px] border-b border-slate-200 bg-white flex items-center justify-between px-5 sticky top-0 z-30">
+    <header className="h-[52px] border-b border-slate-200 bg-white flex items-center justify-between px-3 md:px-5 sticky top-0 z-30 min-w-0">
       {/* Left: Title + Search */}
-      <div className="flex items-center gap-3 md:gap-5">
-        <div className="flex items-center">
+      <div className="flex items-center gap-2 md:gap-5 min-w-0">
+        <div className="flex items-center shrink-0">
           <img 
             src="/LogoRepuestosSotomayor.png" 
             alt="Repuestos Sotomayor" 
-            className="h-7 w-auto object-contain"
+            className="h-6 md:h-7 w-auto object-contain"
             onError={(e) => {
               e.currentTarget.style.display = 'none';
               e.currentTarget.nextElementSibling?.classList.remove('hidden');
             }}
           />
-          <h1 className="hidden text-[13px] font-bold tracking-wider uppercase text-slate-900 whitespace-nowrap">
+          <h1 className="hidden sm:block text-[12px] md:text-[13px] font-bold tracking-wider uppercase text-slate-900 whitespace-nowrap ml-2">
             Repuestos Sotomayor
           </h1>
         </div>
-        <div className="relative hidden md:block">
+        <div className="relative hidden md:block shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
           <input
             placeholder="Búsqueda global..."
-            className="pl-9 pr-3 w-[240px] h-[32px] rounded-md bg-slate-100 border-none text-[12px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
+            className="pl-9 pr-3 w-[180px] lg:w-[240px] h-[32px] rounded-md bg-slate-100 border-none text-[12px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
           />
         </div>
       </div>
 
       {/* Right: BCV Rate + Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3 shrink-0">
         {/* BCV Rate */}
         {isEditing ? (
           <div className="flex items-center gap-1.5">

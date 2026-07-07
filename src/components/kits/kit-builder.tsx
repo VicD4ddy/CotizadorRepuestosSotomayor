@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Kit, Product, CartItem } from '@/types';
-import { useKitItems, useCreateKitItem, useDeleteKitItem, useProducts, useBcvRate, useBcvMultiplier } from '@/hooks/use-supabase';
+import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useProducts, useBcvRate, useBcvMultiplier } from '@/hooks/use-supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
 import { formatUSD } from '@/lib/utils';
-import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
@@ -20,6 +20,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const { data: kitItems = [], isLoading } = useKitItems(kit.id);
   const deleteKitItem = useDeleteKitItem();
   const createKitItem = useCreateKitItem();
+  const deleteProduct = useDeleteProduct();
   const { data: products = [] } = useProducts();
   const { addItem } = useCartStore();
   const { data: bcvRate = 36.5 } = useBcvRate();
@@ -30,6 +31,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
   const [measureFilter, setMeasureFilter] = useState('all');
+  const [hideZeroStock, setHideZeroStock] = useState(false);
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [linkSearchQuery, setLinkSearchQuery] = useState('');
@@ -93,11 +95,16 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     { value: '.060', label: '(.060)' },
   ];
 
-  // Filter items by query and measurement
+  // Filter items by query, measurement, and stock
   const filteredItems = useMemo(() => {
     return kitItems.filter((item) => {
       const product = item.products;
       if (!product) return false;
+
+      // Zero stock filter
+      if (hideZeroStock && (product.stock ?? 0) <= 0) {
+        return false;
+      }
 
       // Text filter
       if (filterQuery) {
@@ -119,7 +126,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
 
       return true;
     });
-  }, [kitItems, filterQuery, measureFilter]);
+  }, [kitItems, filterQuery, measureFilter, hideZeroStock]);
 
   // Group items by subcategory (category.name)
   const CATEGORY_ORDER = [
@@ -189,12 +196,25 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   }, [filteredItems]);
 
   const handleRemoveItem = async (itemId: string, productName: string) => {
-    if (confirm(`¿Quitar ${productName} de este cotizador?`)) {
+    if (confirm(`¿Desvincular "${productName}" de este cotizador?\n\n(El repuesto seguirá existiendo en tu inventario general).`)) {
       try {
         await deleteKitItem.mutateAsync({ id: itemId, kitId: kit.id });
-        toast.success(`${productName} removido`);
+        toast.success(`"${productName}" desvinculado del cotizador`);
       } catch (error: any) {
-        toast.error('Error al remover repuesto', { description: error.message });
+        toast.error('Error al desvincular repuesto', { description: error.message });
+      }
+    }
+  };
+
+  const handleDeleteProduct = async (product: Product) => {
+    if (confirm(`⚠️ ¡ATENCIÓN! ¿Estás seguro de ELIMINAR COMPLETAMENTE el repuesto "${product.name}" del sistema y del inventario general?\n\nEsta acción es irreversible y no se podrá deshacer.`)) {
+      try {
+        await deleteProduct.mutateAsync(product.id);
+        queryClient.invalidateQueries({ queryKey: ['kit-items', kit.id] });
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+        toast.success(`"${product.name}" eliminado del sistema exitosamente`);
+      } catch (error: any) {
+        toast.error('Error al eliminar repuesto del sistema', { description: error.message });
       }
     }
   };
@@ -259,8 +279,8 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   return (
     <div className="flex flex-col h-full bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 shrink-0 shadow-sm flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-4 shrink-0 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div className="flex items-center gap-4 shrink-0">
           <button 
             onClick={onBack}
             className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
@@ -275,7 +295,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             <p className="text-sm text-slate-500">{kit.description || `Cotizador para ${kit.category}`}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <div className="relative hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -283,7 +303,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
               placeholder="Buscar en el motor..."
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
-              className="w-[220px] pl-9 pr-3 h-[36px] rounded bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
+              className="w-[200px] pl-9 pr-3 h-[36px] rounded bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
             />
           </div>
           <div className="relative">
@@ -302,10 +322,28 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
               ))}
             </select>
           </div>
+          <button
+            onClick={() => setHideZeroStock(!hideZeroStock)}
+            className={`flex items-center gap-2 px-3 h-[36px] rounded border text-[13px] font-medium transition-all shrink-0 select-none cursor-pointer ${
+              hideZeroStock
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-semibold shadow-sm'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+            title="Ocultar los repuestos que tengan stock igual a cero"
+          >
+            <div className={`w-8 h-4 rounded-full transition-colors relative flex items-center p-0.5 shrink-0 ${
+              hideZeroStock ? 'bg-emerald-500' : 'bg-slate-300'
+            }`}>
+              <div className={`w-3 h-3 rounded-full bg-white transition-transform ${
+                hideZeroStock ? 'translate-x-4' : 'translate-x-0'
+              }`} />
+            </div>
+            <span>Ocultar los repuestos con stock 0</span>
+          </button>
           <Button 
             onClick={() => setIsLinkDialogOpen(true)}
             variant="outline"
-            className="gap-2 border-slate-300 text-slate-700 font-semibold"
+            className="gap-2 border-slate-300 text-slate-700 font-semibold h-[36px]"
           >
             <Plus className="w-4 h-4" />
             Vincular Repuesto
@@ -313,7 +351,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
           <Button 
             onClick={handleAddAllToCart}
             disabled={filteredItems.length === 0}
-            className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
+            className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm h-[36px]"
           >
             <ShoppingCart className="w-4 h-4" />
             Cargar Todo al Carrito
@@ -341,6 +379,27 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                 Vincular Repuesto
               </Button>
             </div>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="max-w-md mx-auto text-center py-20">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Package className="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 className="text-[16px] font-bold text-slate-900 mb-2">No se encontraron repuestos</h3>
+            <p className="text-[13px] text-slate-500 mb-6">
+              {hideZeroStock ? 'Todos los repuestos coinciden con stock 0 o no cumplen con los filtros de medida/búsqueda.' : 'No hay repuestos que coincidan con la búsqueda o la medida seleccionada.'}
+            </p>
+            <Button 
+              onClick={() => {
+                setFilterQuery('');
+                setMeasureFilter('all');
+                setHideZeroStock(false);
+              }}
+              variant="outline"
+              className="font-semibold"
+            >
+              Limpiar Filtros
+            </Button>
           </div>
         ) : (
           <div className="max-w-5xl mx-auto space-y-8">
@@ -479,14 +538,21 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                     <button
                                       onClick={() => product && setEditProduct(product as Product)}
                                       className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-                                      title="Editar producto"
+                                      title="Editar repuesto"
                                     >
                                       <Pencil className="w-4 h-4" />
                                     </button>
                                     <button
                                       onClick={() => handleRemoveItem(item.id, product?.name)}
-                                      className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                                      title="Desvincular de este motor"
+                                      className="w-8 h-8 flex items-center justify-center rounded text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+                                      title="Desvincular repuesto de esta cotización (se mantiene en el inventario)"
+                                    >
+                                      <Unlink className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => product && handleDeleteProduct(product as Product)}
+                                      className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                      title="Eliminar repuesto definitivamente del sistema"
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </button>
@@ -537,9 +603,9 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             </p>
           </DialogHeader>
 
-          <div className="p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+          <div className="p-6 space-y-4 w-full overflow-hidden">
+            <div className="flex items-center gap-2 w-full">
+              <div className="relative flex-1 min-w-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
@@ -554,14 +620,14 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                   setIsLinkDialogOpen(false);
                   setIsCreateDialogOpen(true);
                 }}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold h-[40px]"
+                className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold h-[40px] shrink-0"
               >
                 <Plus className="w-4 h-4 mr-1.5" />
                 Crear Nuevo
               </Button>
             </div>
 
-            <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
+            <div className="max-h-[300px] overflow-y-auto overflow-x-hidden space-y-2 pr-1 w-full">
               {linkSearchQuery.length >= 2 && linkSearchResults.length === 0 && (
                 <div className="text-center py-8 text-slate-400">
                   <p className="text-xs">No se encontraron productos para vincular.</p>
@@ -569,14 +635,14 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
               )}
 
               {linkSearchResults.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-2 w-full">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     Resultados de Búsqueda ({linkSearchResults.length})
                   </p>
                   {linkSearchResults.map((product) => (
                     <div 
                       key={product.id}
-                      className="bg-white border border-slate-200 rounded-lg p-3 hover:border-emerald-500 hover:shadow-sm transition-all flex items-center justify-between gap-4"
+                      className="w-full bg-white border border-slate-200 rounded-lg p-3 hover:border-emerald-500 hover:shadow-sm transition-all flex items-center justify-between gap-4"
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-slate-900 truncate">

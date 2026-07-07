@@ -169,7 +169,7 @@ export function QuoteTable() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg border border-slate-200 shadow-sm">
+    <div className="flex flex-col h-full bg-white rounded-lg border border-slate-200 shadow-sm min-w-0 overflow-hidden">
       {/* Title Bar */}
       <div className="flex items-center justify-between p-4 border-b border-slate-200">
         <div className="flex items-center gap-3">
@@ -194,8 +194,8 @@ export function QuoteTable() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto">
-        <table className="w-full text-sm">
+      <div className="flex-1 overflow-auto min-w-0">
+        <table className="w-full text-sm min-w-[700px]">
           <thead className="bg-slate-50 sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>

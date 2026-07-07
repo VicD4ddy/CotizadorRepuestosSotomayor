@@ -177,11 +177,11 @@ export function QuoteCart() {
         </div>
         
         {/* Payment Method Switch */}
-        <div className="flex p-1 bg-slate-100 rounded-lg">
+        <div className="flex p-1 bg-slate-100 rounded-lg gap-1">
           <button
             onClick={() => setPaymentMethod('divisas')}
             className={cn(
-              "flex-1 py-1.5 text-[12px] font-medium rounded-md transition-all",
+              "flex-1 py-1.5 text-[11px] font-medium rounded-md transition-all truncate px-1",
               paymentMethod === 'divisas' 
                 ? "bg-white text-slate-900 shadow-sm" 
                 : "text-slate-500 hover:text-slate-700"
@@ -192,7 +192,7 @@ export function QuoteCart() {
           <button
             onClick={() => setPaymentMethod('bs')}
             className={cn(
-              "flex-1 py-1.5 text-[12px] font-medium rounded-md transition-all",
+              "flex-1 py-1.5 text-[11px] font-medium rounded-md transition-all truncate px-1",
               paymentMethod === 'bs' 
                 ? "bg-white text-slate-900 shadow-sm" 
                 : "text-slate-500 hover:text-slate-700"
@@ -337,18 +337,18 @@ export function QuoteCart() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-2 mt-5">
+          <div className="flex gap-2 mt-4">
             <button
               onClick={handleOpenSaveDialog}
-              className="flex-1 h-[42px] rounded border border-slate-900 bg-[#0f172a] hover:bg-[#1e293b] text-white font-semibold text-[13px] flex items-center justify-center gap-2 transition-colors active:scale-[0.98] disabled:opacity-50"
+              className="flex-1 min-w-0 h-[40px] px-2 rounded border border-slate-900 bg-[#0f172a] hover:bg-[#1e293b] text-white font-semibold text-[12px] flex items-center justify-center gap-1.5 transition-colors active:scale-[0.98] disabled:opacity-50 truncate"
             >
-              <CheckCircle className="w-4 h-4" />
-              Guardar Cotización
+              <CheckCircle className="w-4 h-4 shrink-0" />
+              <span className="truncate">Guardar</span>
             </button>
             <button
               onClick={handleWhatsApp}
               title="Enviar por WhatsApp"
-              className="w-[42px] h-[42px] rounded border border-slate-200 bg-[#25D366] hover:bg-[#20b858] text-white flex items-center justify-center transition-colors shadow-sm"
+              className="w-[40px] h-[40px] shrink-0 rounded border border-slate-200 bg-[#25D366] hover:bg-[#20b858] text-white flex items-center justify-center transition-colors shadow-sm"
             >
               <MessageCircle className="w-4 h-4" />
             </button>
@@ -356,7 +356,7 @@ export function QuoteCart() {
               onClick={handleExportPdf}
               disabled={isGeneratingPdf}
               title="Exportar PDF"
-              className="w-[42px] h-[42px] rounded border border-slate-200 bg-white flex items-center justify-center text-slate-800 hover:bg-slate-50 transition-colors"
+              className="w-[40px] h-[40px] shrink-0 rounded border border-slate-200 bg-white flex items-center justify-center text-slate-800 hover:bg-slate-50 transition-colors"
             >
               <Save className="w-4 h-4" />
             </button>
