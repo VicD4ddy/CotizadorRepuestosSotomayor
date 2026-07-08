@@ -788,22 +788,29 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
 
       {/* Bulk Price Edit Dialog */}
       <Dialog open={!!bulkPriceTarget} onOpenChange={(open) => { if (!open) { setBulkPriceTarget(null); setBulkPriceValue(''); setBulkPriceCostValue(''); } }}>
-        <DialogContent className="sm:max-w-[520px] p-0 bg-white overflow-hidden">
-          <DialogHeader className="px-5 pt-5 pb-4 border-b border-slate-200">
-            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-emerald-600 shrink-0" />
-              <span>Editar Precio — {bulkPriceTarget?.brand}</span>
+        <DialogContent
+          style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
+          className="sm:max-w-[540px] w-[95vw] p-0 bg-white overflow-hidden shadow-2xl rounded-xl border border-slate-200"
+        >
+          <DialogHeader className="px-6 pt-5 pb-4 border-b border-slate-200 bg-slate-50/50">
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                <DollarSign className="w-5 h-5 text-emerald-600" />
+              </div>
+              <span className="truncate">Editar Precio — {bulkPriceTarget?.brand}</span>
             </DialogTitle>
-            <p className="text-xs text-slate-500 mt-1">
-              Se aplicará a <strong>los {bulkPriceTarget?.items?.length || 0} repuestos</strong> de <strong>{bulkPriceTarget?.brand}</strong> en {bulkPriceTarget?.category}.
+            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+              El nuevo precio y costo se aplicarán a <strong className="text-slate-700">los {bulkPriceTarget?.items?.length || 0} repuestos</strong> de <strong className="text-slate-700">{bulkPriceTarget?.brand}</strong> en {bulkPriceTarget?.category}.
             </p>
           </DialogHeader>
-          <div className="px-5 py-4 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="p-6 space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Costo (USD)</label>
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">
+                  Costo (USD)
+                </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
                   <input
                     type="number"
                     min="0"
@@ -811,15 +818,17 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                     value={bulkPriceCostValue}
                     onChange={(e) => setBulkPriceCostValue(e.target.value)}
                     placeholder="Opcional"
-                    className="w-full pl-7 pr-3 h-[40px] rounded-lg border border-slate-200 text-[14px] font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    className="w-full pl-8 pr-3 h-[42px] rounded-lg border border-slate-200 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   />
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">Vacío = no modificar.</p>
+                <p className="text-[11px] text-slate-400 mt-1">Vacío = no modificar.</p>
               </div>
               <div>
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Precio Venta (USD)</label>
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">
+                  Precio Venta (USD)
+                </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
                   <input
                     type="number"
                     min="0"
@@ -827,28 +836,30 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                     value={bulkPriceValue}
                     onChange={(e) => setBulkPriceValue(e.target.value)}
                     placeholder="Ej: 35.00"
-                    className="w-full pl-7 pr-3 h-[40px] rounded-lg border border-slate-200 text-[14px] font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    className="w-full pl-8 pr-3 h-[42px] rounded-lg border border-slate-200 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     autoFocus
                   />
                 </div>
                 {bulkPriceValue && !isNaN(parseFloat(bulkPriceValue)) ? (
-                  <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">
+                  <p className="text-[11px] text-emerald-600 font-semibold mt-1">
                     BCV: {formatUSD(parseFloat(bulkPriceValue) * bcvMultiplier)}
                   </p>
                 ) : (
-                  <p className="text-[10px] text-slate-400 mt-0.5">&nbsp;</p>
+                  <p className="text-[11px] text-transparent mt-1">&nbsp;</p>
                 )}
               </div>
             </div>
 
             {/* Preview of affected products */}
-            <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 max-h-[180px] overflow-y-auto">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Repuestos afectados ({bulkPriceTarget?.items?.length || 0}):</p>
-              <div className="space-y-1.5">
+            <div className="bg-slate-50 rounded-lg border border-slate-200 p-3.5 max-h-[180px] overflow-y-auto">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Repuestos afectados ({bulkPriceTarget?.items?.length || 0}):
+              </p>
+              <div className="space-y-1.5 divide-y divide-slate-100">
                 {(bulkPriceTarget?.items || []).map((item: any) => (
-                  <div key={item.id} className="flex items-center justify-between text-[11px] gap-2">
-                    <span className="text-slate-700 truncate flex-1 min-w-0">{item.products?.name}</span>
-                    <div className="flex items-center gap-1 shrink-0 font-mono text-[10px]">
+                  <div key={item.id} className="flex items-center justify-between text-xs pt-1.5 first:pt-0 gap-3">
+                    <span className="text-slate-700 truncate flex-1 font-medium">{item.products?.name}</span>
+                    <div className="flex items-center gap-1.5 shrink-0 font-mono text-[11px]">
                       <span className="text-slate-400">{formatUSD(item.products?.price_usd || 0)}</span>
                       <span className="text-slate-300">→</span>
                       <span className="text-emerald-700 font-bold">{bulkPriceValue ? formatUSD(parseFloat(bulkPriceValue)) : '—'}</span>
@@ -862,7 +873,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
               <Button
                 variant="outline"
                 onClick={() => { setBulkPriceTarget(null); setBulkPriceValue(''); setBulkPriceCostValue(''); }}
-                className="flex-1 h-[40px] text-[13px] font-semibold"
+                className="flex-1 h-[42px] text-sm font-semibold"
                 disabled={isBulkUpdating}
               >
                 Cancelar
@@ -870,7 +881,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
               <Button
                 onClick={handleBulkPriceUpdate}
                 disabled={!bulkPriceValue || isBulkUpdating}
-                className="flex-1 h-[40px] bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold gap-2"
+                className="flex-1 h-[42px] bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold gap-2 shadow-sm"
               >
                 {isBulkUpdating ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Actualizando...</>
