@@ -38,7 +38,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const [linkSearchQuery, setLinkSearchQuery] = useState('');
 
   // Bulk price editing state
-  const [bulkPriceCategory, setBulkPriceCategory] = useState<string | null>(null);
+  const [bulkPriceTarget, setBulkPriceTarget] = useState<{ category: string; brand: string; items: any[] } | null>(null);
   const [bulkPriceValue, setBulkPriceValue] = useState('');
   const [bulkPriceCostValue, setBulkPriceCostValue] = useState('');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
@@ -276,8 +276,8 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const BULK_PRICE_CATEGORIES = ['bielas', 'bancadas', 'anillos'];
 
   const handleBulkPriceUpdate = async () => {
-    if (!bulkPriceCategory) return;
-    const items = groupedItems[bulkPriceCategory];
+    if (!bulkPriceTarget) return;
+    const items = bulkPriceTarget.items;
     if (!items || items.length === 0) return;
 
     const newPrice = parseFloat(bulkPriceValue);
@@ -304,8 +304,8 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
         updatedCount++;
       }
       queryClient.invalidateQueries({ queryKey: ['kit_items', kit.id] });
-      toast.success(`Precio actualizado en ${updatedCount} repuestos de "${bulkPriceCategory}"`);
-      setBulkPriceCategory(null);
+      toast.success(`Precio actualizado en ${updatedCount} repuestos de ${bulkPriceTarget.brand}`);
+      setBulkPriceTarget(null);
       setBulkPriceValue('');
       setBulkPriceCostValue('');
     } catch (error: any) {
@@ -459,38 +459,9 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                   <h3 className="font-bold text-[14px] text-slate-800 uppercase tracking-wider">
                     {categoryName}
                   </h3>
-                  <div className="flex items-center gap-2">
-                    {BULK_PRICE_CATEGORIES.some(c => categoryName.toLowerCase().includes(c)) && (
-                      <button
-                        onClick={() => {
-                          setBulkPriceCategory(categoryName);
-                          // Pre-fill with the most common price in the group
-                          const prices = items.map((it: any) => it.products?.price_usd || 0).filter((p: number) => p > 0);
-                          if (prices.length > 0) {
-                            const mostCommon = prices.sort((a: number, b: number) =>
-                              prices.filter((v: number) => v === a).length - prices.filter((v: number) => v === b).length
-                            ).pop();
-                            setBulkPriceValue(String(mostCommon || ''));
-                          }
-                          const costs = items.map((it: any) => it.products?.cost || 0).filter((c: number) => c > 0);
-                          if (costs.length > 0) {
-                            const mostCommonCost = costs.sort((a: number, b: number) =>
-                              costs.filter((v: number) => v === a).length - costs.filter((v: number) => v === b).length
-                            ).pop();
-                            setBulkPriceCostValue(String(mostCommonCost || ''));
-                          }
-                        }}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                        title={`Editar precio de todos los repuestos en ${categoryName}`}
-                      >
-                        <DollarSign className="w-3.5 h-3.5" />
-                        Editar Precio
-                      </button>
-                    )}
-                    <span className="text-[11px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
-                      {items.length} ÍTEMS
-                    </span>
-                  </div>
+                  <span className="text-[11px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
+                    {items.length} ÍTEMS
+                  </span>
                 </div>
                 <div className="divide-y divide-slate-100">
                   {(() => {
@@ -519,20 +490,53 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                     return brandEntries.map(([brandName, brandItems]) => (
                       <div key={brandName}>
                         {hasManyBrands && (
-                          <div className="flex items-center gap-2 px-5 py-2 bg-slate-50/80 border-b border-slate-100">
-                            {brandItems[0]?.products?.brands?.logo_url && (
-                              <img 
-                                src={brandItems[0].products.brands.logo_url} 
-                                alt={brandName} 
-                                className="h-5 max-w-[50px] object-contain"
-                              />
+                          <div className="flex items-center justify-between px-5 py-2 bg-slate-50/80 border-b border-slate-100">
+                            <div className="flex items-center gap-2">
+                              {brandItems[0]?.products?.brands?.logo_url && (
+                                <img 
+                                  src={brandItems[0].products.brands.logo_url} 
+                                  alt={brandName} 
+                                  className="h-5 max-w-[50px] object-contain"
+                                />
+                              )}
+                              <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
+                                {brandName}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                ({brandItems.length})
+                              </span>
+                            </div>
+                            {BULK_PRICE_CATEGORIES.some(c => categoryName.toLowerCase().includes(c)) && (
+                              <button
+                                onClick={() => {
+                                  // Pre-fill with the most common price in the brand group
+                                  const prices = brandItems.map((it: any) => it.products?.price_usd || 0).filter((p: number) => p > 0);
+                                  if (prices.length > 0) {
+                                    const mostCommon = prices.sort((a: number, b: number) =>
+                                      prices.filter((v: number) => v === a).length - prices.filter((v: number) => v === b).length
+                                    ).pop();
+                                    setBulkPriceValue(String(mostCommon || ''));
+                                  } else {
+                                    setBulkPriceValue('');
+                                  }
+                                  const costs = brandItems.map((it: any) => it.products?.cost || 0).filter((c: number) => c > 0);
+                                  if (costs.length > 0) {
+                                    const mostCommonCost = costs.sort((a: number, b: number) =>
+                                      costs.filter((v: number) => v === a).length - costs.filter((v: number) => v === b).length
+                                    ).pop();
+                                    setBulkPriceCostValue(String(mostCommonCost || ''));
+                                  } else {
+                                    setBulkPriceCostValue('');
+                                  }
+                                  setBulkPriceTarget({ category: categoryName, brand: brandName, items: brandItems });
+                                }}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                                title={`Editar precio de todos los ${brandName} en ${categoryName}`}
+                              >
+                                <DollarSign className="w-3.5 h-3.5" />
+                                Editar Precio
+                              </button>
                             )}
-                            <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
-                              {brandName}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-medium">
-                              ({brandItems.length})
-                            </span>
                           </div>
                         )}
                         <div className="divide-y divide-slate-100">
@@ -783,74 +787,82 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
       />
 
       {/* Bulk Price Edit Dialog */}
-      <Dialog open={!!bulkPriceCategory} onOpenChange={(open) => { if (!open) { setBulkPriceCategory(null); setBulkPriceValue(''); setBulkPriceCostValue(''); } }}>
-        <DialogContent className="sm:max-w-[420px] p-0 overflow-hidden bg-white">
-          <DialogHeader className="p-6 pb-4 border-b border-slate-200">
+      <Dialog open={!!bulkPriceTarget} onOpenChange={(open) => { if (!open) { setBulkPriceTarget(null); setBulkPriceValue(''); setBulkPriceCostValue(''); } }}>
+        <DialogContent className="sm:max-w-[520px] p-0 bg-white overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-4 border-b border-slate-200">
             <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-emerald-600" />
-              Editar Precio — {bulkPriceCategory}
+              <DollarSign className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>Editar Precio — {bulkPriceTarget?.brand}</span>
             </DialogTitle>
             <p className="text-xs text-slate-500 mt-1">
-              El nuevo precio y costo se aplicarán a <strong>todos los {groupedItems[bulkPriceCategory || '']?.length || 0} repuestos</strong> de esta categoría.
+              Se aplicará a <strong>los {bulkPriceTarget?.items?.length || 0} repuestos</strong> de <strong>{bulkPriceTarget?.brand}</strong> en {bulkPriceTarget?.category}.
             </p>
           </DialogHeader>
-          <div className="p-6 space-y-4">
-            <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Nuevo Costo (USD)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={bulkPriceCostValue}
-                  onChange={(e) => setBulkPriceCostValue(e.target.value)}
-                  placeholder="Ej: 8.00 (opcional)"
-                  className="w-full pl-7 pr-3 h-[42px] rounded-lg border border-slate-200 text-[14px] font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                />
+          <div className="px-5 py-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Costo (USD)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={bulkPriceCostValue}
+                    onChange={(e) => setBulkPriceCostValue(e.target.value)}
+                    placeholder="Opcional"
+                    className="w-full pl-7 pr-3 h-[40px] rounded-lg border border-slate-200 text-[14px] font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-0.5">Vacío = no modificar.</p>
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">Dejar vacío para no modificar el costo actual.</p>
-            </div>
-            <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Nuevo Precio de Venta (USD)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={bulkPriceValue}
-                  onChange={(e) => setBulkPriceValue(e.target.value)}
-                  placeholder="Ej: 35.00"
-                  className="w-full pl-7 pr-3 h-[42px] rounded-lg border border-slate-200 text-[14px] font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                  autoFocus
-                />
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Precio Venta (USD)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={bulkPriceValue}
+                    onChange={(e) => setBulkPriceValue(e.target.value)}
+                    placeholder="Ej: 35.00"
+                    className="w-full pl-7 pr-3 h-[40px] rounded-lg border border-slate-200 text-[14px] font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    autoFocus
+                  />
+                </div>
+                {bulkPriceValue && !isNaN(parseFloat(bulkPriceValue)) ? (
+                  <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">
+                    BCV: {formatUSD(parseFloat(bulkPriceValue) * bcvMultiplier)}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 mt-0.5">&nbsp;</p>
+                )}
               </div>
-              {bulkPriceValue && !isNaN(parseFloat(bulkPriceValue)) && (
-                <p className="text-[11px] text-emerald-600 font-semibold mt-1">
-                  Precio BCV: {formatUSD(parseFloat(bulkPriceValue) * bcvMultiplier)}
-                </p>
-              )}
             </div>
 
             {/* Preview of affected products */}
-            <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 max-h-[140px] overflow-y-auto">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Repuestos afectados:</p>
-              <div className="space-y-1">
-                {(groupedItems[bulkPriceCategory || ''] || []).map((item: any) => (
-                  <div key={item.id} className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-700 truncate flex-1 mr-2">{item.products?.name}</span>
-                    <span className="text-slate-400 font-mono shrink-0">{formatUSD(item.products?.price_usd || 0)} → <span className="text-emerald-700 font-bold">{bulkPriceValue ? formatUSD(parseFloat(bulkPriceValue)) : '—'}</span></span>
+            <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 max-h-[180px] overflow-y-auto">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Repuestos afectados ({bulkPriceTarget?.items?.length || 0}):</p>
+              <div className="space-y-1.5">
+                {(bulkPriceTarget?.items || []).map((item: any) => (
+                  <div key={item.id} className="flex items-center justify-between text-[11px] gap-2">
+                    <span className="text-slate-700 truncate flex-1 min-w-0">{item.products?.name}</span>
+                    <div className="flex items-center gap-1 shrink-0 font-mono text-[10px]">
+                      <span className="text-slate-400">{formatUSD(item.products?.price_usd || 0)}</span>
+                      <span className="text-slate-300">→</span>
+                      <span className="text-emerald-700 font-bold">{bulkPriceValue ? formatUSD(parseFloat(bulkPriceValue)) : '—'}</span>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-3 pt-1">
               <Button
                 variant="outline"
-                onClick={() => { setBulkPriceCategory(null); setBulkPriceValue(''); setBulkPriceCostValue(''); }}
-                className="flex-1 h-[42px] text-[13px] font-semibold"
+                onClick={() => { setBulkPriceTarget(null); setBulkPriceValue(''); setBulkPriceCostValue(''); }}
+                className="flex-1 h-[40px] text-[13px] font-semibold"
                 disabled={isBulkUpdating}
               >
                 Cancelar
@@ -858,7 +870,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
               <Button
                 onClick={handleBulkPriceUpdate}
                 disabled={!bulkPriceValue || isBulkUpdating}
-                className="flex-1 h-[42px] bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold gap-2"
+                className="flex-1 h-[40px] bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold gap-2"
               >
                 {isBulkUpdating ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Actualizando...</>
