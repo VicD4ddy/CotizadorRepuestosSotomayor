@@ -453,42 +453,76 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
           </div>
         ) : (
           <div className="max-w-5xl mx-auto space-y-8">
-            {Object.entries(groupedItems).map(([categoryName, items]) => (
+            {Object.entries(groupedItems).map(([categoryName, items]) => {
+              // Sub-group items by brand within this category
+              const brandGroups: Record<string, typeof items> = {};
+              items.forEach((item: any) => {
+                const brandName = item.products?.brands?.name || 'Sin Marca';
+                if (!brandGroups[brandName]) brandGroups[brandName] = [];
+                brandGroups[brandName].push(item);
+              });
+              const brandEntries = Object.entries(brandGroups).sort((a, b) => a[0].localeCompare(b[0]));
+              const hasManyBrands = brandEntries.length > 1;
+              const isBulkCategory = BULK_PRICE_CATEGORIES.some(c => categoryName.toLowerCase().includes(c));
+
+              // Sort items by measurement for relevant categories
+              const shouldSortByMeasure = MEASURE_SORTED_CATEGORIES.some(c => categoryName.toLowerCase().includes(c));
+              if (shouldSortByMeasure) {
+                brandEntries.forEach(([, bItems]) => {
+                  bItems.sort((a: any, b: any) => {
+                    const aOrder = getMeasureOrder(a.products?.name || '', a.products?.code || '');
+                    const bOrder = getMeasureOrder(b.products?.name || '', b.products?.code || '');
+                    return aOrder - bOrder;
+                  });
+                });
+              }
+
+              return (
               <div key={categoryName} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
                   <h3 className="font-bold text-[14px] text-slate-800 uppercase tracking-wider">
                     {categoryName}
                   </h3>
-                  <span className="text-[11px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
-                    {items.length} ÍTEMS
-                  </span>
+                  <div className="flex items-center gap-2.5">
+                    {isBulkCategory && !hasManyBrands && brandEntries.length === 1 && (
+                      <button
+                        onClick={() => {
+                          const [singleBrandName, singleBrandItems] = brandEntries[0];
+                          const prices = singleBrandItems.map((it: any) => it.products?.price_usd || 0).filter((p: number) => p > 0);
+                          if (prices.length > 0) {
+                            const mostCommon = prices.sort((a: number, b: number) =>
+                              prices.filter((v: number) => v === a).length - prices.filter((v: number) => v === b).length
+                            ).pop();
+                            setBulkPriceValue(String(mostCommon || ''));
+                          } else {
+                            setBulkPriceValue('');
+                          }
+                          const costs = singleBrandItems.map((it: any) => it.products?.cost || 0).filter((c: number) => c > 0);
+                          if (costs.length > 0) {
+                            const mostCommonCost = costs.sort((a: number, b: number) =>
+                              costs.filter((v: number) => v === a).length - costs.filter((v: number) => v === b).length
+                            ).pop();
+                            setBulkPriceCostValue(String(mostCommonCost || ''));
+                          } else {
+                            setBulkPriceCostValue('');
+                          }
+                          setBulkPriceTarget({ category: categoryName, brand: singleBrandName, items: singleBrandItems });
+                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer shadow-sm"
+                        title={`Editar precio de todos los ${brandEntries[0][0]} en ${categoryName}`}
+                      >
+                        <DollarSign className="w-3.5 h-3.5" />
+                        Editar Precio
+                      </button>
+                    )}
+                    <span className="text-[11px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
+                      {items.length} ÍTEMS
+                    </span>
+                  </div>
                 </div>
                 <div className="divide-y divide-slate-100">
-                  {(() => {
-                    // Sub-group items by brand within this category
-                    const brandGroups: Record<string, typeof items> = {};
-                    items.forEach((item: any) => {
-                      const brandName = item.products?.brands?.name || 'Sin Marca';
-                      if (!brandGroups[brandName]) brandGroups[brandName] = [];
-                      brandGroups[brandName].push(item);
-                    });
-                    const brandEntries = Object.entries(brandGroups).sort((a, b) => a[0].localeCompare(b[0]));
-                    const hasManyBrands = brandEntries.length > 1;
-
-                    // Sort items by measurement for relevant categories
-                    const shouldSortByMeasure = MEASURE_SORTED_CATEGORIES.some(c => categoryName.toLowerCase().includes(c));
-                    if (shouldSortByMeasure) {
-                      brandEntries.forEach(([, bItems]) => {
-                        bItems.sort((a: any, b: any) => {
-                          const aOrder = getMeasureOrder(a.products?.name || '', a.products?.code || '');
-                          const bOrder = getMeasureOrder(b.products?.name || '', b.products?.code || '');
-                          return aOrder - bOrder;
-                        });
-                      });
-                    }
-
-                    return brandEntries.map(([brandName, brandItems]) => (
-                      <div key={brandName}>
+                  {brandEntries.map(([brandName, brandItems]) => (
+                    <div key={brandName}>
                         {hasManyBrands && (
                           <div className="flex items-center justify-between px-5 py-2 bg-slate-50/80 border-b border-slate-100">
                             <div className="flex items-center gap-2">
@@ -646,11 +680,11 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                           })}
                         </div>
                       </div>
-                    ));
-                  })()}
+                    ))}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
