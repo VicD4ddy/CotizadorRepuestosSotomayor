@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Kit, Product, CartItem } from '@/types';
-import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useProducts, useBcvRate, useBcvMultiplier } from '@/hooks/use-supabase';
+import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useUpdateProduct, useProducts, useBcvRate, useBcvMultiplier } from '@/hooks/use-supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
 import { formatUSD } from '@/lib/utils';
-import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
@@ -21,6 +21,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const deleteKitItem = useDeleteKitItem();
   const createKitItem = useCreateKitItem();
   const deleteProduct = useDeleteProduct();
+  const updateProduct = useUpdateProduct();
   const { data: products = [] } = useProducts();
   const { addItem } = useCartStore();
   const { data: bcvRate = 36.5 } = useBcvRate();
@@ -35,6 +36,12 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [linkSearchQuery, setLinkSearchQuery] = useState('');
+
+  // Bulk price editing state
+  const [bulkPriceCategory, setBulkPriceCategory] = useState<string | null>(null);
+  const [bulkPriceValue, setBulkPriceValue] = useState('');
+  const [bulkPriceCostValue, setBulkPriceCostValue] = useState('');
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
   // Search results for linking existing products
   const linkSearchResults = useMemo(() => {
@@ -265,6 +272,49 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     toast.success(`${addedCount} repuestos añadidos al carrito`);
   };
 
+  // Categories that support bulk price editing
+  const BULK_PRICE_CATEGORIES = ['bielas', 'bancadas', 'anillos'];
+
+  const handleBulkPriceUpdate = async () => {
+    if (!bulkPriceCategory) return;
+    const items = groupedItems[bulkPriceCategory];
+    if (!items || items.length === 0) return;
+
+    const newPrice = parseFloat(bulkPriceValue);
+    const newCost = bulkPriceCostValue ? parseFloat(bulkPriceCostValue) : undefined;
+
+    if (isNaN(newPrice) || newPrice < 0) {
+      toast.error('Ingresa un precio válido');
+      return;
+    }
+    if (newCost !== undefined && (isNaN(newCost) || newCost < 0)) {
+      toast.error('Ingresa un costo válido');
+      return;
+    }
+
+    setIsBulkUpdating(true);
+    try {
+      let updatedCount = 0;
+      for (const item of items) {
+        const product = item.products;
+        if (!product) continue;
+        const updateData: any = { id: product.id, price_usd: newPrice };
+        if (newCost !== undefined) updateData.cost = newCost;
+        await updateProduct.mutateAsync(updateData);
+        updatedCount++;
+      }
+      queryClient.invalidateQueries({ queryKey: ['kit_items', kit.id] });
+      toast.success(`Precio actualizado en ${updatedCount} repuestos de "${bulkPriceCategory}"`);
+      setBulkPriceCategory(null);
+      setBulkPriceValue('');
+      setBulkPriceCostValue('');
+    } catch (error: any) {
+      toast.error('Error al actualizar precios', { description: error.message });
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -409,9 +459,38 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                   <h3 className="font-bold text-[14px] text-slate-800 uppercase tracking-wider">
                     {categoryName}
                   </h3>
-                  <span className="text-[11px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
-                    {items.length} ÍTEMS
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {BULK_PRICE_CATEGORIES.some(c => categoryName.toLowerCase().includes(c)) && (
+                      <button
+                        onClick={() => {
+                          setBulkPriceCategory(categoryName);
+                          // Pre-fill with the most common price in the group
+                          const prices = items.map((it: any) => it.products?.price_usd || 0).filter((p: number) => p > 0);
+                          if (prices.length > 0) {
+                            const mostCommon = prices.sort((a: number, b: number) =>
+                              prices.filter((v: number) => v === a).length - prices.filter((v: number) => v === b).length
+                            ).pop();
+                            setBulkPriceValue(String(mostCommon || ''));
+                          }
+                          const costs = items.map((it: any) => it.products?.cost || 0).filter((c: number) => c > 0);
+                          if (costs.length > 0) {
+                            const mostCommonCost = costs.sort((a: number, b: number) =>
+                              costs.filter((v: number) => v === a).length - costs.filter((v: number) => v === b).length
+                            ).pop();
+                            setBulkPriceCostValue(String(mostCommonCost || ''));
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                        title={`Editar precio de todos los repuestos en ${categoryName}`}
+                      >
+                        <DollarSign className="w-3.5 h-3.5" />
+                        Editar Precio
+                      </button>
+                    )}
+                    <span className="text-[11px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
+                      {items.length} ÍTEMS
+                    </span>
+                  </div>
                 </div>
                 <div className="divide-y divide-slate-100">
                   {(() => {
@@ -702,6 +781,95 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
         product={null}
         initialCompatibleKitId={kit.id}
       />
+
+      {/* Bulk Price Edit Dialog */}
+      <Dialog open={!!bulkPriceCategory} onOpenChange={(open) => { if (!open) { setBulkPriceCategory(null); setBulkPriceValue(''); setBulkPriceCostValue(''); } }}>
+        <DialogContent className="sm:max-w-[420px] p-0 overflow-hidden bg-white">
+          <DialogHeader className="p-6 pb-4 border-b border-slate-200">
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-emerald-600" />
+              Editar Precio — {bulkPriceCategory}
+            </DialogTitle>
+            <p className="text-xs text-slate-500 mt-1">
+              El nuevo precio y costo se aplicarán a <strong>todos los {groupedItems[bulkPriceCategory || '']?.length || 0} repuestos</strong> de esta categoría.
+            </p>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Nuevo Costo (USD)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={bulkPriceCostValue}
+                  onChange={(e) => setBulkPriceCostValue(e.target.value)}
+                  placeholder="Ej: 8.00 (opcional)"
+                  className="w-full pl-7 pr-3 h-[42px] rounded-lg border border-slate-200 text-[14px] font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Dejar vacío para no modificar el costo actual.</p>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Nuevo Precio de Venta (USD)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={bulkPriceValue}
+                  onChange={(e) => setBulkPriceValue(e.target.value)}
+                  placeholder="Ej: 35.00"
+                  className="w-full pl-7 pr-3 h-[42px] rounded-lg border border-slate-200 text-[14px] font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  autoFocus
+                />
+              </div>
+              {bulkPriceValue && !isNaN(parseFloat(bulkPriceValue)) && (
+                <p className="text-[11px] text-emerald-600 font-semibold mt-1">
+                  Precio BCV: {formatUSD(parseFloat(bulkPriceValue) * bcvMultiplier)}
+                </p>
+              )}
+            </div>
+
+            {/* Preview of affected products */}
+            <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 max-h-[140px] overflow-y-auto">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Repuestos afectados:</p>
+              <div className="space-y-1">
+                {(groupedItems[bulkPriceCategory || ''] || []).map((item: any) => (
+                  <div key={item.id} className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-700 truncate flex-1 mr-2">{item.products?.name}</span>
+                    <span className="text-slate-400 font-mono shrink-0">{formatUSD(item.products?.price_usd || 0)} → <span className="text-emerald-700 font-bold">{bulkPriceValue ? formatUSD(parseFloat(bulkPriceValue)) : '—'}</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => { setBulkPriceCategory(null); setBulkPriceValue(''); setBulkPriceCostValue(''); }}
+                className="flex-1 h-[42px] text-[13px] font-semibold"
+                disabled={isBulkUpdating}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleBulkPriceUpdate}
+                disabled={!bulkPriceValue || isBulkUpdating}
+                className="flex-1 h-[42px] bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold gap-2"
+              >
+                {isBulkUpdating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Actualizando...</>
+                ) : (
+                  <><DollarSign className="w-4 h-4" /> Aplicar a Todos</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
