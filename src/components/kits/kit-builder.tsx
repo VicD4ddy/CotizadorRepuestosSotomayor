@@ -788,24 +788,21 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
 
       {/* Bulk Price Edit Dialog */}
       <Dialog open={!!bulkPriceTarget} onOpenChange={(open) => { if (!open) { setBulkPriceTarget(null); setBulkPriceValue(''); setBulkPriceCostValue(''); } }}>
-        <DialogContent
-          style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
-          className="sm:max-w-[540px] w-[95vw] p-0 bg-white overflow-hidden shadow-2xl rounded-xl border border-slate-200"
-        >
-          <DialogHeader className="px-6 pt-5 pb-4 border-b border-slate-200 bg-slate-50/50">
-            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2.5">
+        <DialogContent className="sm:max-w-[520px] p-0 bg-white overflow-hidden">
+          <DialogHeader className="px-6 pt-5 pb-4 border-b border-slate-200 bg-slate-50/50 w-full min-w-0">
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
                 <DollarSign className="w-5 h-5 text-emerald-600" />
               </div>
-              <span className="truncate">Editar Precio — {bulkPriceTarget?.brand}</span>
+              <span className="truncate min-w-0 flex-1">Editar Precio — {bulkPriceTarget?.brand}</span>
             </DialogTitle>
             <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
               El nuevo precio y costo se aplicarán a <strong className="text-slate-700">los {bulkPriceTarget?.items?.length || 0} repuestos</strong> de <strong className="text-slate-700">{bulkPriceTarget?.brand}</strong> en {bulkPriceTarget?.category}.
             </p>
           </DialogHeader>
-          <div className="p-6 space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
+          <div className="p-6 space-y-5 w-full min-w-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full min-w-0">
+              <div className="min-w-0">
                 <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">
                   Costo (USD)
                 </label>
@@ -823,7 +820,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">Vacío = no modificar.</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">
                   Precio Venta (USD)
                 </label>
@@ -851,14 +848,14 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             </div>
 
             {/* Preview of affected products */}
-            <div className="bg-slate-50 rounded-lg border border-slate-200 p-3.5 max-h-[180px] overflow-y-auto">
+            <div className="bg-slate-50 rounded-lg border border-slate-200 p-3.5 max-h-[180px] overflow-y-auto overflow-x-hidden w-full min-w-0">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
                 Repuestos afectados ({bulkPriceTarget?.items?.length || 0}):
               </p>
-              <div className="space-y-1.5 divide-y divide-slate-100">
+              <div className="space-y-1.5 divide-y divide-slate-100 w-full min-w-0 overflow-hidden">
                 {(bulkPriceTarget?.items || []).map((item: any) => (
-                  <div key={item.id} className="flex items-center justify-between text-xs pt-1.5 first:pt-0 gap-3">
-                    <span className="text-slate-700 truncate flex-1 font-medium">{item.products?.name}</span>
+                  <div key={item.id} className="flex items-center justify-between text-xs pt-1.5 first:pt-0 gap-3 w-full min-w-0 overflow-hidden">
+                    <span className="text-slate-700 truncate flex-1 min-w-0 font-medium block">{item.products?.name}</span>
                     <div className="flex items-center gap-1.5 shrink-0 font-mono text-[11px]">
                       <span className="text-slate-400">{formatUSD(item.products?.price_usd || 0)}</span>
                       <span className="text-slate-300">→</span>
@@ -869,7 +866,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
               </div>
             </div>
 
-            <div className="flex gap-3 pt-1">
+            <div className="flex gap-3 pt-1 w-full">
               <Button
                 variant="outline"
                 onClick={() => { setBulkPriceTarget(null); setBulkPriceValue(''); setBulkPriceCostValue(''); }}
