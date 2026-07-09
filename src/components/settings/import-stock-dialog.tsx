@@ -25,6 +25,8 @@ type Step = 'upload' | 'preview' | 'importing' | 'done';
 interface ParsedStockRow {
   code: string;
   stock: number;
+  currentStock?: number;
+  isChanged: boolean;
   excelName?: string;
   dbName?: string;
   exists: boolean;
@@ -114,7 +116,8 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
         });
 
         // Fetch all existing product codes and names from database with pagination (overcoming 1000 limit)
-        const existingProducts: { code: string; name: string }[] = [];
+        // Fetch all existing product codes, names and current stock from database with pagination (overcoming 1000 limit)
+        const existingProducts: { code: string; name: string; stock: number }[] = [];
         const pageSize = 1000;
         let from = 0;
         let hasMore = true;
@@ -122,7 +125,7 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
         while (hasMore) {
           const { data, error: dbError } = await supabase
             .from('products')
-            .select('code, name')
+            .select('code, name, stock')
             .range(from, from + pageSize - 1);
 
           if (dbError) throw dbError;
@@ -135,9 +138,9 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
           }
         }
 
-        // Build a case-insensitive lookup: uppercase code -> { dbCode, name }
+        // Build a case-insensitive lookup: uppercase code -> { dbCode, name, currentStock }
         const existingMap = new Map(
-          existingProducts.map(p => [String(p.code || '').trim().toUpperCase(), { dbCode: p.code, name: p.name }])
+          existingProducts.map(p => [String(p.code || '').trim().toUpperCase(), { dbCode: p.code, name: p.name, currentStock: p.stock ?? 0 }])
         );
         const parsedMap = new Map<string, ParsedStockRow>();
 
@@ -175,16 +178,21 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
 
           const upperCode = code.toUpperCase();
           const match = existingMap.get(upperCode);
+          const currentStock = match ? match.currentStock : undefined;
+          const isChanged = match ? (validStock !== match.currentStock) : false;
 
           if (parsedMap.has(upperCode)) {
             // Si hay un código duplicado en el Excel, actualizamos con la existencia más reciente leída
             const existing = parsedMap.get(upperCode)!;
             existing.stock = validStock;
+            existing.isChanged = match ? (validStock !== match.currentStock) : false;
             if (!existing.excelName && name) existing.excelName = name;
           } else {
             parsedMap.set(upperCode, {
               code: match ? match.dbCode : code, // Use the exact DB code for upsert
               stock: validStock,
+              currentStock,
+              isChanged,
               excelName: name,
               dbName: match?.name,
               exists: !!match
@@ -199,13 +207,13 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
           return;
         }
 
-        // Ordenar: primero los que existen en el catálogo con stock > 0, luego los que existen con stock 0, luego los no encontrados
+        // Ordenar: primero los que existen en el catálogo y realmente CAMBIAN su stock (isChanged), luego los que existen pero no cambian, luego los no encontrados
         parsed.sort((a, b) => {
           if (a.exists !== b.exists) {
             return a.exists ? -1 : 1;
           }
-          if ((a.stock > 0) !== (b.stock > 0)) {
-            return a.stock > 0 ? -1 : 1;
+          if (a.isChanged !== b.isChanged) {
+            return a.isChanged ? -1 : 1;
           }
           return a.code.localeCompare(b.code);
         });
@@ -231,8 +239,9 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
     if (file) handleFile(file);
   }, [handleFile]);
 
-  // Counts (excluding discarded/not found)
-  const activeRows = parsedRows.filter((row, i) => row.exists && !excludedIndexes.has(i));
+  // Counts: solo actualizar los repuestos cuya existencia realmente cambia
+  const activeRows = parsedRows.filter((row, i) => row.exists && row.isChanged && !excludedIndexes.has(i));
+  const unchangedCount = parsedRows.filter(row => row.exists && !row.isChanged).length;
   const ignoredCount = parsedRows.filter(row => !row.exists).length;
 
   // ===== IMPORT =====
@@ -382,9 +391,12 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                   {activeRows.length > 0 && (
                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full">{activeRows.length} para actualizar</span>
+                  )}
+                  {unchangedCount > 0 && (
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">{unchangedCount} sin cambios (ya actualizados)</span>
                   )}
                   {ignoredCount > 0 && (
                     <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">{ignoredCount} no en catálogo (omitidos)</span>
@@ -410,6 +422,7 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
                       <th className="px-3 py-2 text-left text-[10px] font-bold text-white/70 uppercase tracking-wider w-8">#</th>
                       <th className="px-3 py-2 text-left text-[10px] font-bold text-white/70 uppercase tracking-wider">Código</th>
                       <th className="px-3 py-2 text-left text-[10px] font-bold text-white/70 uppercase tracking-wider">Nombre en Catálogo</th>
+                      <th className="px-3 py-2 text-right text-[10px] font-bold text-white/70 uppercase tracking-wider w-24">Stock Actual</th>
                       <th className="px-3 py-2 text-right text-[10px] font-bold text-white/70 uppercase tracking-wider w-24">Nueva Existencia</th>
                       <th className="px-3 py-2 text-center text-[10px] font-bold text-white/70 uppercase tracking-wider w-24">Estado</th>
                       <th className="px-3 py-2 text-center w-8"></th>
@@ -420,21 +433,24 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
                       const isExcluded = excludedIndexes.has(i);
                       return (
                         <tr key={i} className={`border-b border-slate-100 transition-colors ${
-                          isExcluded || !row.exists ? 'opacity-40 bg-slate-50' : 'hover:bg-slate-50'
+                          isExcluded || !row.exists ? 'opacity-40 bg-slate-50' : !row.isChanged ? 'bg-slate-50/50' : 'hover:bg-slate-50'
                         }`}>
                           <td className="px-3 py-1.5 text-slate-400 text-[11px]">{i + 1}</td>
                           <td className={`px-3 py-1.5 text-slate-600 font-mono text-[11px] ${isExcluded ? 'line-through' : ''}`}>{row.code}</td>
                           <td className={`px-3 py-1.5 text-slate-800 font-medium max-w-[280px] truncate ${isExcluded ? 'line-through' : ''}`} title={row.dbName || row.excelName}>
                             {row.exists ? row.dbName : <span className="text-slate-400 italic">No encontrado ({row.excelName || 'Sin nombre'})</span>}
                           </td>
+                          <td className="px-3 py-1.5 text-slate-500 font-medium text-right tabular-nums">{row.exists ? (row.currentStock ?? 0) : '-'}</td>
                           <td className={`px-3 py-1.5 text-slate-900 font-bold text-right tabular-nums ${isExcluded ? 'line-through' : ''}`}>{row.stock}</td>
                           <td className="px-3 py-1.5 text-center">
                             {isExcluded ? (
                               <span className="text-[9px] font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded-full">DESCARTADO</span>
-                            ) : row.exists ? (
-                              <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full">ACTUALIZA</span>
+                            ) : !row.exists ? (
+                              <span className="text-[9px] font-bold text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded-full">NO EN CATÁLOGO</span>
+                            ) : row.isChanged ? (
+                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">ACTUALIZA</span>
                             ) : (
-                              <span className="text-[9px] font-bold text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded-full">IGNORADO</span>
+                              <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full">SIN CAMBIOS</span>
                             )}
                           </td>
                           <td className="px-3 py-1.5 text-center">
