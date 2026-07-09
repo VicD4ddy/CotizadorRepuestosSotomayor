@@ -77,9 +77,10 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
 
         const headers = (aoa[0] || []).map(h => String(h || '').trim());
         let codeIndex = 0;
+        let nameIndex = 1;
         let stockIndex = 3; // Fallback index from typical Sotomayor Excel template
 
-        // Find index matching Code and Stock / Existencia in header titles
+        // Find index matching Code, Name and Stock / Existencia in header titles
         headers.forEach((h, idx) => {
           const lowerH = String(h || '').toLowerCase().trim();
           if (
@@ -91,6 +92,14 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
             ((lowerH.includes('código') || lowerH.includes('codigo') || lowerH.includes('sku')) && !lowerH.includes('barras') && !lowerH.includes('fabricante'))
           ) {
             codeIndex = idx;
+          }
+          if (
+            lowerH === 'nombre' ||
+            lowerH === 'descripción' ||
+            lowerH === 'descripcion' ||
+            lowerH === 'producto'
+          ) {
+            nameIndex = idx;
           }
           if (
             lowerH === 'existencia' ||
@@ -128,7 +137,7 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
 
         // Build a case-insensitive lookup: uppercase code -> { dbCode, name }
         const existingMap = new Map(
-          existingProducts.map(p => [p.code.toUpperCase(), { dbCode: p.code, name: p.name }])
+          existingProducts.map(p => [String(p.code || '').trim().toUpperCase(), { dbCode: p.code, name: p.name }])
         );
         const parsedMap = new Map<string, ParsedStockRow>();
 
@@ -137,7 +146,7 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
           if (!row || row.length === 0) continue;
 
           const code = String(row[codeIndex] || '').trim();
-          const name = String(row[1] || '').trim(); // Try index 1 for name, which is standard
+          const name = String(row[nameIndex] || row[1] || '').trim();
           
           if (!code) continue;
 
@@ -145,19 +154,21 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
           let stock = 0;
           const rawVal = row[stockIndex];
           if (typeof rawVal === 'number') {
-            stock = Math.round(rawVal);
-          } else {
-            // Solo convertimos si tiene 7 dígitos o menos; un número de 16 dígitos como un código de barras causaría error out of range para integer
-            const stockRaw = String(rawVal || '').replace(/[^0-9]/g, '');
-            if (stockRaw.length <= 7 && stockRaw.length > 0) {
-              stock = parseInt(stockRaw, 10);
+            stock = Math.max(0, Math.round(rawVal));
+          } else if (rawVal !== undefined && rawVal !== null) {
+            const cleanStr = String(rawVal).replace(',', '.').trim();
+            const parsedNum = parseFloat(cleanStr);
+            if (!isNaN(parsedNum) && parsedNum >= 0 && cleanStr.length <= 10) {
+              stock = Math.round(parsedNum);
             } else {
-              stock = 0;
+              const stockRaw = String(rawVal || '').replace(/[^0-9]/g, '');
+              if (stockRaw.length <= 7 && stockRaw.length > 0) {
+                stock = parseInt(stockRaw, 10);
+              }
             }
           }
           
           let validStock = isNaN(stock) || stock < 0 ? 0 : stock;
-          // El límite máximo de integer en PostgreSQL es ~2.14 mil millones. Cualquier existencia > 999,999 es un valor inválido o código de barras por error
           if (validStock > 999999) {
             validStock = 0;
           }
@@ -188,12 +199,15 @@ export function ImportStockDialog({ open, onOpenChange, onImportComplete }: Impo
           return;
         }
 
-        // Ordenar: primero los que existen en el catálogo (para actualizar), luego los no encontrados
+        // Ordenar: primero los que existen en el catálogo con stock > 0, luego los que existen con stock 0, luego los no encontrados
         parsed.sort((a, b) => {
-          if (a.exists === b.exists) {
-            return a.code.localeCompare(b.code);
+          if (a.exists !== b.exists) {
+            return a.exists ? -1 : 1;
           }
-          return a.exists ? -1 : 1;
+          if ((a.stock > 0) !== (b.stock > 0)) {
+            return a.stock > 0 ? -1 : 1;
+          }
+          return a.code.localeCompare(b.code);
         });
 
         setParsedRows(parsed);
