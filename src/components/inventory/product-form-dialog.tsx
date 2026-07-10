@@ -227,6 +227,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
   }, [brands, brandSearchQuery]);
 
   const watchProductName = watch('name');
+  const watchCode = watch('code');
 
   const suggestedCategories = useMemo(() => {
     if (!watchProductName || watchProductName.trim().length < 3) return [];
@@ -304,6 +305,88 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
 
     return suggested;
   }, [kits, watchProductName]);
+
+  const suggestedBrands = useMemo(() => {
+    if (!watchCode || watchCode.trim().length < 3) return [];
+    const codeUpper = watchCode.trim().toUpperCase();
+
+    const skuAbbrevMap: Record<string, string[]> = {
+      'RUSH': ['RUSHMORE'],
+      'RUSHMORE': ['RUSHMORE'],
+      'HAS': ['HASTINGS'],
+      'HAST': ['HASTINGS'],
+      'HASTINGS': ['HASTINGS'],
+      'MEL': ['MELLING'],
+      'MELL': ['MELLING'],
+      'MELLING': ['MELLING'],
+      'FRA': ['FRACO'],
+      'FRACO': ['FRACO'],
+      'NAT': ['NATSUKI'],
+      'NATSUKI': ['NATSUKI'],
+      'REINZ': ['VICTOR REINZ'],
+      'VICTOR': ['VICTOR REINZ'],
+      'ELG': ['ELGIN'],
+      'ELGIN': ['ELGIN'],
+      'MAH': ['MAHLE'],
+      'MAHLE': ['MAHLE'],
+      'EBI': ['EBITEN'],
+      'EBITEN': ['EBITEN'],
+      'MOG': ['MOOG'],
+      'MOOG': ['MOOG'],
+      'WOL': ['WOLVER'],
+      'WOLVER': ['WOLVER'],
+      'YUK': ['YUKO'],
+      'YUKO': ['YUKO'],
+      'ACD': ['ACDELCO'],
+      'ACDELCO': ['ACDELCO'],
+      'MOP': ['MOPAR'],
+      'MOPAR': ['MOPAR'],
+      'SEAL': ['SEALED POWER'],
+      'HAM': ['HAMMER'],
+      'PERM': ['PERMATEX'],
+      'WAG': ['WAGNER'],
+      'AKR': ['AKRON'],
+      'TAI': ['TAIKEN'],
+      'TAIKEN': ['TAIKEN'],
+      'CHAM': ['CHAMPION'],
+      'NGK': ['NGK'],
+      'AUT': ['AUTOLITE'],
+      'MON': ['MONROE'],
+      'RAY': ['RAYBESTOS'],
+      'TRW': ['TRW'],
+    };
+
+    const matchedBrands: Brand[] = [];
+
+    // 1. Check abbreviation/suffix map
+    for (const [key, targetNames] of Object.entries(skuAbbrevMap)) {
+      const regex = new RegExp(`[\\-\\s_]${key}$|^${key}[\\-\\s_]|[\\-\\s_]${key}[\\-\\s_]|${key}$`);
+      if (regex.test(codeUpper) || codeUpper.includes(`-${key}`) || codeUpper.endsWith(key)) {
+        brands.forEach((b) => {
+          const bUpper = b.name.toUpperCase().trim();
+          if (targetNames.some((tn) => bUpper.includes(tn)) && !matchedBrands.some((mb) => mb.id === b.id)) {
+            matchedBrands.push(b);
+          }
+        });
+      }
+    }
+
+    // 2. Check direct substring match of brand name inside SKU
+    brands.forEach((b) => {
+      const bUpper = b.name.toUpperCase().trim();
+      if (bUpper.length >= 3 && codeUpper.includes(bUpper) && !matchedBrands.some((mb) => mb.id === b.id)) {
+        matchedBrands.push(b);
+      }
+    });
+
+    return matchedBrands.slice(0, 3);
+  }, [brands, watchCode]);
+
+  useEffect(() => {
+    if (suggestedBrands.length > 0 && !watchBrandId && !isEditing) {
+      setValue('brand_id', suggestedBrands[0].id, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [suggestedBrands, watchBrandId, isEditing, setValue]);
 
   const sortedMotorKits = useMemo(() => {
     const motorKits = kits.filter((k: Kit) => k.category === 'Motor');
@@ -692,6 +775,31 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                         style={{ textTransform: 'uppercase' }}
                       />
                       {errors.code && <p className="text-xs text-red-500 mt-1">{errors.code.message}</p>}
+                      {suggestedBrands.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                            Marca sugerida:
+                          </span>
+                          {suggestedBrands.map((b) => {
+                            const isSelected = watchBrandId === b.id;
+                            return (
+                              <button
+                                key={b.id}
+                                type="button"
+                                onClick={() => setValue('brand_id', b.id, { shouldDirty: true, shouldValidate: true })}
+                                className={`text-[11px] font-semibold px-2 py-0.5 rounded transition-all flex items-center gap-1 ${
+                                  isSelected
+                                    ? 'bg-emerald-600 text-white border border-emerald-600 shadow-sm'
+                                    : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
+                                }`}
+                              >
+                                <Sparkles className={`w-2.5 h-2.5 ${isSelected ? 'text-white' : 'text-emerald-500'}`} />
+                                {b.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
 
