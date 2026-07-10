@@ -142,30 +142,37 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   ];
 
   // Categories that should be sorted by measurement size
-  const MEASURE_SORTED_CATEGORIES = ['anillos', 'bielas', 'bancadas', 'pistones'];
+  // Categories that should be sorted by measurement size
+  const MEASURE_SORTED_CATEGORIES = ['anillo', 'biela', 'bancada', 'piston', 'concha'];
 
-  // Extract numeric measurement value from product name/code for sorting
+  // Extract numeric measurement value taking SKU (productCode) as primary reference first, then product name
   // STD = 0, .010 = 10, .020 = 20, .030 = 30, etc.
   const getMeasureOrder = (productName: string, productCode: string): number => {
-    const upper = productName.toUpperCase();
-    const code = productCode.toUpperCase();
+    const code = (productCode || '').toUpperCase().trim();
+    const upper = (productName || '').toUpperCase().trim();
 
-    // Check name for (STD) or code ending with -STD
-    if (upper.includes('(STD)') || upper.includes(' STD ') || upper.endsWith(' STD') || code.includes('-STD') || code.endsWith('STD')) return 0;
+    // 1. PRIORIDAD 1: SKU / CÓDIGO DE PIEZA (ej. "7295 STD-SEALP", "7295 010-SEALP", "7295-020", "030-SEALP")
+    if (/\bSTD\b|[\s\-_]STD[\s\-_]|[\s\-_]STD$|^STD[\s\-_]/.test(code) || code.endsWith('STD') || code === 'STD' || code.includes('-STD') || code.includes(' STD')) {
+      return 0;
+    }
 
-    // Check name for measurement in parentheses: (.010), (.020), (010), (020)
+    // Buscar medidas como 010, 020, 030... 100 en el código SKU separadas por espacio, guion o punto
+    const matchCodeMeasure = code.match(/(?:^|[\s\-_/.])(010|020|030|040|050|060|070|075|080|090|100|\.010|\.020|\.030|\.040|\.050|\.060)(?:[\s\-_/.]|$|[A-Z])/);
+    if (matchCodeMeasure) {
+      const numStr = matchCodeMeasure[1].replace('.', '');
+      return parseInt(numStr, 10);
+    }
+
+    // 2. PRIORIDAD 2: NOMBRE DEL REPUESTO (fallback por si el SKU no tuviera la medida indicada)
+    if (upper.includes('(STD)') || upper.includes(' STD ') || upper.endsWith(' STD') || upper === 'STD') {
+      return 0;
+    }
+
     const matchParen = upper.match(/\(\.?(\d{2,3})\)/);
     if (matchParen) return parseInt(matchParen[1], 10);
 
-    // Check product code for measurement: 5085-010, 5085-020, 592-060-HAST
-    const matchCode = code.match(/[-](\d{2,3})(?:[-\s]|$)/);
-    if (matchCode) return parseInt(matchCode[1], 10);
-
-    // Check name for trailing number without parentheses: "...BLAZER 262 010"
-    // Look for a standalone 2-3 digit number at the end that looks like a measure
     const matchTrailing = upper.match(/\s(\d{3})(?:\s|$)/g);
     if (matchTrailing) {
-      // Take the last standalone 3-digit number that could be a measure (010-060 range)
       for (let i = matchTrailing.length - 1; i >= 0; i--) {
         const val = parseInt(matchTrailing[i].trim(), 10);
         if (val >= 10 && val <= 100) return val;
@@ -472,7 +479,8 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                   bItems.sort((a: any, b: any) => {
                     const aOrder = getMeasureOrder(a.products?.name || '', a.products?.code || '');
                     const bOrder = getMeasureOrder(b.products?.name || '', b.products?.code || '');
-                    return aOrder - bOrder;
+                    if (aOrder !== bOrder) return aOrder - bOrder;
+                    return (a.products?.code || '').localeCompare(b.products?.code || '');
                   });
                 });
               }
