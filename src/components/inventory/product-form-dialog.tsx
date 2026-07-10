@@ -775,31 +775,6 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                         style={{ textTransform: 'uppercase' }}
                       />
                       {errors.code && <p className="text-xs text-red-500 mt-1">{errors.code.message}</p>}
-                      {suggestedBrands.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                            Marca sugerida:
-                          </span>
-                          {suggestedBrands.map((b) => {
-                            const isSelected = watchBrandId === b.id;
-                            return (
-                              <button
-                                key={b.id}
-                                type="button"
-                                onClick={() => setValue('brand_id', b.id, { shouldDirty: true, shouldValidate: true })}
-                                className={`text-[11px] font-semibold px-2 py-0.5 rounded transition-all flex items-center gap-1 ${
-                                  isSelected
-                                    ? 'bg-emerald-600 text-white border border-emerald-600 shadow-sm'
-                                    : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
-                                }`}
-                              >
-                                <Sparkles className={`w-2.5 h-2.5 ${isSelected ? 'text-white' : 'text-emerald-500'}`} />
-                                {b.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
                     </div>
                   </div>
 
@@ -983,6 +958,31 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                         {/* Hidden input for RHF validation and submit compatibility */}
                         <input type="hidden" {...register('brand_id')} />
                       </div>
+                      {suggestedBrands.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                            Marca sugerida:
+                          </span>
+                          {suggestedBrands.map((b) => {
+                            const isSelected = watchBrandId === b.id;
+                            return (
+                              <button
+                                key={b.id}
+                                type="button"
+                                onClick={() => setValue('brand_id', b.id, { shouldDirty: true, shouldValidate: true })}
+                                className={`text-[11px] font-semibold px-2 py-0.5 rounded transition-all flex items-center gap-1 ${
+                                  isSelected
+                                    ? 'bg-emerald-600 text-white border border-emerald-600 shadow-sm'
+                                    : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
+                                }`}
+                              >
+                                <Sparkles className={`w-2.5 h-2.5 ${isSelected ? 'text-white' : 'text-emerald-500'}`} />
+                                {b.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
 
