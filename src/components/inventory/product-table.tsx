@@ -15,7 +15,7 @@ import { useProducts, useBcvRate, useCategories, useBcvMultiplier, useUpdateProd
 import { useCartStore } from '@/store/cart-store';
 import { Badge } from '@/components/ui/badge';
 import { formatUSD } from '@/lib/utils';
-import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff } from 'lucide-react';
 import { ProductFormDialog } from './product-form-dialog';
 import { ProductHistoryDialog } from './product-history-dialog';
 import { ImageGalleryDialog } from './image-gallery-dialog';
@@ -239,7 +239,14 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
         ),
         size: 280,
         cell: ({ row }) => (
-          <p className="font-semibold text-[13px] text-slate-900 leading-tight">{row.original.name}</p>
+          <div>
+            <p className="font-semibold text-[13px] text-slate-900 leading-tight">{row.original.name}</p>
+            {row.original.is_active === false ? (
+              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                <EyeOff className="w-3 h-3" /> WEB: OCULTO
+              </span>
+            ) : null}
+          </div>
         ),
       }),
       columnHelper.display({
@@ -343,6 +350,27 @@ export function ProductTable({ showRecentsOnMount }: ProductTableProps) {
         size: 80,
         cell: ({ row }) => (
           <div className="flex items-center gap-1">
+            <button
+              className={`w-7 h-7 rounded flex items-center justify-center transition-all ${
+                row.original.is_active === false
+                  ? 'text-amber-600 bg-amber-100 hover:bg-amber-200 border border-amber-300'
+                  : 'text-slate-400 bg-slate-100 hover:text-blue-600 hover:bg-blue-50'
+              }`}
+              title={row.original.is_active === false ? 'Pausado de la página web. Clic para activar y mostrar en la web' : 'Visible en la página web. Clic para ocultar/desactivar en la web'}
+              onClick={async (e) => {
+                e.stopPropagation();
+                const p = row.original;
+                const newStatus = !(p.is_active !== false);
+                try {
+                  await updateProduct.mutateAsync({ id: p.id, is_active: newStatus });
+                  toast.success(newStatus ? 'Repuesto activado y visible en la página web' : 'Repuesto oculto de la página web');
+                } catch (err: any) {
+                  toast.error('Error al cambiar estado web', { description: err.message });
+                }
+              }}
+            >
+              {row.original.is_active === false ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
             <button
               className="w-7 h-7 rounded bg-slate-100 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
               title="Ver Historial de Precios"

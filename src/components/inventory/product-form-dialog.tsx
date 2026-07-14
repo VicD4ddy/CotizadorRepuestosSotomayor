@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Upload, X, Plus, Image as ImageIcon, Save, RefreshCw, Sparkles, Search as SearchIcon, ListPlus, ChevronDown, Check } from 'lucide-react';
+import { Upload, X, Plus, Image as ImageIcon, Save, RefreshCw, Sparkles, Search as SearchIcon, ListPlus, ChevronDown, Check, Eye, EyeOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useAiQueueStore } from '@/store/ai-queue-store';
 
@@ -97,6 +97,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
       fitment: [],
       compatible_kits: [],
       stock: 0,
+      is_active: false,
     },
   });
 
@@ -114,6 +115,11 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
   useEffect(() => {
     if (open) {
       if (product) {
+        const syncedImageUrls = (product.image_urls && product.image_urls.length > 0)
+          ? product.image_urls
+          : (product.image_url ? [product.image_url] : []);
+        const syncedMainUrl = product.image_url || (syncedImageUrls.length > 0 ? syncedImageUrls[0] : '');
+
         reset({
           code: product.code,
           name: product.name,
@@ -122,14 +128,15 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
           brand_id: product.brand_id || '',
           cost: product.cost,
           price_usd: product.price_usd,
-          image_url: product.image_url,
-          image_urls: product.image_urls || (product.image_url ? [product.image_url] : []),
+          image_url: syncedMainUrl,
+          image_urls: syncedImageUrls,
           location: product.location || '',
           fitment: product.fitment || [],
           compatible_kits: product.kit_items?.map(k => k.kit_id) || [],
           stock: product.stock || 0,
+          is_active: product.is_active === true,
         });
-        setPreviewUrl(product.image_url || '');
+        setPreviewUrl(syncedMainUrl);
       } else {
         reset({
           code: '',
@@ -145,6 +152,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
           fitment: [],
           compatible_kits: initialCompatibleKitId ? [initialCompatibleKitId] : [],
           stock: 0,
+          is_active: false,
         });
         setPreviewUrl('');
       }
@@ -441,32 +449,6 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
     setFitmentInput({ make: '', model: '', year: '' });
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('La imagen no debe superar los 2MB');
-      return;
-    }
-
-    const localUrl = URL.createObjectURL(file);
-    setPreviewUrl(localUrl);
-
-    const tempCode = watch('code') || 'NEW';
-    try {
-      setIsUploading(true);
-      const publicUrl = await uploadImage.mutateAsync({ file, productCode: tempCode });
-      setValue('image_url', publicUrl, { shouldDirty: true });
-      toast.success('Imagen subida temporalmente. Se guardará al crear el producto.');
-    } catch (err) {
-      toast.error('Error al subir la imagen');
-      setPreviewUrl('');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
   const handleGenerateDescription = async () => {
     const currentName = watch('name');
     const currentCode = watch('code');
@@ -663,6 +645,13 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
   const onSubmit = async (data: ProductFormValues) => {
     try {
       const { compatible_kits, ...productData } = data;
+      // Synchronize images cleanly
+      if (productData.image_urls && productData.image_urls.length > 0 && !productData.image_url) {
+        productData.image_url = productData.image_urls[0];
+      } else if (productData.image_url && (!productData.image_urls || productData.image_urls.length === 0)) {
+        productData.image_urls = [productData.image_url];
+      }
+
       if (isEditing && product) {
         await updateProduct.mutateAsync({ id: product.id, ...productData, compatible_kits });
         toast.success('Producto actualizado exitosamente');
@@ -1257,6 +1246,31 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                       {errors.stock && <p className="text-xs text-red-500 mt-1">{errors.stock.message}</p>}
                     </div>
 
+                    <div className="pt-2 border-t border-slate-100">
+                      <label className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50/50 cursor-pointer hover:bg-slate-50 transition-colors">
+                        <div className="flex flex-col pr-3">
+                          <span className="text-[12px] font-bold text-slate-800 flex items-center gap-1.5">
+                            {watch('is_active') !== false ? (
+                              <Eye className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <EyeOff className="w-4 h-4 text-amber-600 shrink-0" />
+                            )}
+                            Visible en el Catálogo y Tienda Web
+                          </span>
+                          <span className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                            {watch('is_active') !== false 
+                              ? 'Aparecerá visible en las búsquedas y tienda online para los clientes.' 
+                              : 'Oculto en la página web (sólo visible para administración e inventario interno).'}
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          {...register('is_active')}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer shrink-0"
+                        />
+                      </label>
+                    </div>
+
                     <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Precio Calculado (VES)</span>
@@ -1355,7 +1369,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                             const current = watch('image_urls') || [];
                             const newImages = [...current, publicUrl];
                             setValue('image_urls', newImages, { shouldDirty: true });
-                            if (newImages.length === 1) {
+                            if (newImages.length === 1 || !watch('image_url')) {
                               setValue('image_url', publicUrl, { shouldDirty: true });
                               setPreviewUrl(publicUrl);
                             }

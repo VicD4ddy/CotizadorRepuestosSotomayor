@@ -4,7 +4,7 @@ import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useU
 import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
 import { formatUSD } from '@/lib/utils';
-import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
@@ -42,6 +42,35 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const [bulkPriceValue, setBulkPriceValue] = useState('');
   const [bulkPriceCostValue, setBulkPriceCostValue] = useState('');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [togglingLineKey, setTogglingLineKey] = useState<string | null>(null);
+
+  const handleToggleLineWebStatus = async (items: any[], brandName: string, categoryName: string) => {
+    const lineKey = `${categoryName}-${brandName}`;
+    if (togglingLineKey) return;
+    const allActive = items.every((it: any) => it.products?.is_active !== false);
+    const targetStatus = !allActive;
+
+    setTogglingLineKey(lineKey);
+    try {
+      let count = 0;
+      for (const item of items) {
+        if (item.products && item.products.is_active !== targetStatus) {
+          await updateProduct.mutateAsync({ id: item.products.id, is_active: targetStatus });
+          count++;
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['kit_items', kit.id] });
+      toast.success(
+        targetStatus
+          ? `✅ Los ${items.length} repuestos de ${brandName} en ${categoryName} ahora son VISIBLES en la web`
+          : `🙈 Los ${items.length} repuestos de ${brandName} en ${categoryName} ahora están OCULTOS de la web`
+      );
+    } catch (error: any) {
+      toast.error('Error al cambiar visibilidad en web', { description: error.message });
+    } finally {
+      setTogglingLineKey(null);
+    }
+  };
 
   // Search results for linking existing products
   const linkSearchResults = useMemo(() => {
@@ -491,37 +520,76 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                   <h3 className="font-bold text-[14px] text-slate-800 uppercase tracking-wider">
                     {categoryName}
                   </h3>
-                  <div className="flex items-center gap-2.5">
-                    {isBulkCategory && !hasManyBrands && brandEntries.length === 1 && (
-                      <button
-                        onClick={() => {
+                  <div className="flex items-center gap-2">
+                    {!hasManyBrands && brandEntries.length === 1 && (
+                      <div className="flex items-center gap-2">
+                        {isBulkCategory && (
+                          <button
+                            onClick={() => {
+                              const [singleBrandName, singleBrandItems] = brandEntries[0];
+                              const prices = singleBrandItems.map((it: any) => it.products?.price_usd || 0).filter((p: number) => p > 0);
+                              if (prices.length > 0) {
+                                const mostCommon = prices.sort((a: number, b: number) =>
+                                  prices.filter((v: number) => v === a).length - prices.filter((v: number) => v === b).length
+                                ).pop();
+                                setBulkPriceValue(String(mostCommon || ''));
+                              } else {
+                                setBulkPriceValue('');
+                              }
+                              const costs = singleBrandItems.map((it: any) => it.products?.cost || 0).filter((c: number) => c > 0);
+                              if (costs.length > 0) {
+                                const mostCommonCost = costs.sort((a: number, b: number) =>
+                                  costs.filter((v: number) => v === a).length - costs.filter((v: number) => v === b).length
+                                ).pop();
+                                setBulkPriceCostValue(String(mostCommonCost || ''));
+                              } else {
+                                setBulkPriceCostValue('');
+                              }
+                              setBulkPriceTarget({ category: categoryName, brand: singleBrandName, items: singleBrandItems });
+                            }}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer shadow-sm"
+                            title={`Editar precio de todos los ${brandEntries[0][0]} en ${categoryName}`}
+                          >
+                            <DollarSign className="w-3.5 h-3.5" />
+                            Editar Precio
+                          </button>
+                        )}
+                        {(() => {
                           const [singleBrandName, singleBrandItems] = brandEntries[0];
-                          const prices = singleBrandItems.map((it: any) => it.products?.price_usd || 0).filter((p: number) => p > 0);
-                          if (prices.length > 0) {
-                            const mostCommon = prices.sort((a: number, b: number) =>
-                              prices.filter((v: number) => v === a).length - prices.filter((v: number) => v === b).length
-                            ).pop();
-                            setBulkPriceValue(String(mostCommon || ''));
-                          } else {
-                            setBulkPriceValue('');
-                          }
-                          const costs = singleBrandItems.map((it: any) => it.products?.cost || 0).filter((c: number) => c > 0);
-                          if (costs.length > 0) {
-                            const mostCommonCost = costs.sort((a: number, b: number) =>
-                              costs.filter((v: number) => v === a).length - costs.filter((v: number) => v === b).length
-                            ).pop();
-                            setBulkPriceCostValue(String(mostCommonCost || ''));
-                          } else {
-                            setBulkPriceCostValue('');
-                          }
-                          setBulkPriceTarget({ category: categoryName, brand: singleBrandName, items: singleBrandItems });
-                        }}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer shadow-sm"
-                        title={`Editar precio de todos los ${brandEntries[0][0]} en ${categoryName}`}
-                      >
-                        <DollarSign className="w-3.5 h-3.5" />
-                        Editar Precio
-                      </button>
+                          const lineKey = `${categoryName}-${singleBrandName}`;
+                          const isToggling = togglingLineKey === lineKey;
+                          const allActive = singleBrandItems.every((it: any) => it.products?.is_active !== false);
+                          return (
+                            <button
+                              onClick={() => handleToggleLineWebStatus(singleBrandItems, singleBrandName, categoryName)}
+                              disabled={isToggling}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors shadow-sm cursor-pointer ${
+                                allActive
+                                  ? 'text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100'
+                                  : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                              } ${isToggling ? 'opacity-60 pointer-events-none' : ''}`}
+                              title={allActive ? 'Clic para ocultar todos los repuestos de esta línea en la web' : 'Clic para mostrar todos los repuestos de esta línea en la web'}
+                            >
+                              {isToggling ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Web...</span>
+                                </>
+                              ) : allActive ? (
+                                <>
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Web: Visible ({singleBrandItems.length})</span>
+                                </>
+                              ) : (
+                                <>
+                                  <EyeOff className="w-3.5 h-3.5" />
+                                  <span>Mostrar en Web ({singleBrandItems.length})</span>
+                                </>
+                              )}
+                            </button>
+                          );
+                        })()}
+                      </div>
                     )}
                     <span className="text-[11px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
                       {items.length} ÍTEMS
@@ -548,37 +616,73 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                 ({brandItems.length})
                               </span>
                             </div>
-                            {BULK_PRICE_CATEGORIES.some(c => categoryName.toLowerCase().includes(c)) && (
-                              <button
-                                onClick={() => {
-                                  // Pre-fill with the most common price in the brand group
-                                  const prices = brandItems.map((it: any) => it.products?.price_usd || 0).filter((p: number) => p > 0);
-                                  if (prices.length > 0) {
-                                    const mostCommon = prices.sort((a: number, b: number) =>
-                                      prices.filter((v: number) => v === a).length - prices.filter((v: number) => v === b).length
-                                    ).pop();
-                                    setBulkPriceValue(String(mostCommon || ''));
-                                  } else {
-                                    setBulkPriceValue('');
-                                  }
-                                  const costs = brandItems.map((it: any) => it.products?.cost || 0).filter((c: number) => c > 0);
-                                  if (costs.length > 0) {
-                                    const mostCommonCost = costs.sort((a: number, b: number) =>
-                                      costs.filter((v: number) => v === a).length - costs.filter((v: number) => v === b).length
-                                    ).pop();
-                                    setBulkPriceCostValue(String(mostCommonCost || ''));
-                                  } else {
-                                    setBulkPriceCostValue('');
-                                  }
-                                  setBulkPriceTarget({ category: categoryName, brand: brandName, items: brandItems });
-                                }}
-                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                                title={`Editar precio de todos los ${brandName} en ${categoryName}`}
-                              >
-                                <DollarSign className="w-3.5 h-3.5" />
-                                Editar Precio
-                              </button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {BULK_PRICE_CATEGORIES.some(c => categoryName.toLowerCase().includes(c)) && (
+                                <button
+                                  onClick={() => {
+                                    // Pre-fill with the most common price in the brand group
+                                    const prices = brandItems.map((it: any) => it.products?.price_usd || 0).filter((p: number) => p > 0);
+                                    if (prices.length > 0) {
+                                      const mostCommon = prices.sort((a: number, b: number) =>
+                                        prices.filter((v: number) => v === a).length - prices.filter((v: number) => v === b).length
+                                      ).pop();
+                                      setBulkPriceValue(String(mostCommon || ''));
+                                    } else {
+                                      setBulkPriceValue('');
+                                    }
+                                    const costs = brandItems.map((it: any) => it.products?.cost || 0).filter((c: number) => c > 0);
+                                    if (costs.length > 0) {
+                                      const mostCommonCost = costs.sort((a: number, b: number) =>
+                                        costs.filter((v: number) => v === a).length - costs.filter((v: number) => v === b).length
+                                      ).pop();
+                                      setBulkPriceCostValue(String(mostCommonCost || ''));
+                                    } else {
+                                      setBulkPriceCostValue('');
+                                    }
+                                    setBulkPriceTarget({ category: categoryName, brand: brandName, items: brandItems });
+                                  }}
+                                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
+                                  title={`Editar precio de todos los ${brandName} en ${categoryName}`}
+                                >
+                                  <DollarSign className="w-3.5 h-3.5" />
+                                  Editar Precio
+                                </button>
+                              )}
+                              {(() => {
+                                const lineKey = `${categoryName}-${brandName}`;
+                                const isToggling = togglingLineKey === lineKey;
+                                const allActive = brandItems.every((it: any) => it.products?.is_active !== false);
+                                return (
+                                  <button
+                                    onClick={() => handleToggleLineWebStatus(brandItems, brandName, categoryName)}
+                                    disabled={isToggling}
+                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors shadow-sm cursor-pointer ${
+                                      allActive
+                                        ? 'text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100'
+                                        : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                                    } ${isToggling ? 'opacity-60 pointer-events-none' : ''}`}
+                                    title={allActive ? 'Clic para ocultar todos en la web' : 'Clic para mostrar todos en la web'}
+                                  >
+                                    {isToggling ? (
+                                      <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Web...</span>
+                                      </>
+                                    ) : allActive ? (
+                                      <>
+                                        <Eye className="w-3.5 h-3.5" />
+                                        <span>Web: Visible ({brandItems.length})</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <EyeOff className="w-3.5 h-3.5" />
+                                        <span>Mostrar en Web ({brandItems.length})</span>
+                                      </>
+                                    )}
+                                  </button>
+                                );
+                              })()}
+                            </div>
                           </div>
                         )}
                         <div className="divide-y divide-slate-100">
@@ -634,6 +738,15 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                     }`}>
                                       Stock: {product?.stock ?? 0}
                                     </span>
+                                    {product?.is_active === false ? (
+                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-amber-100 text-amber-800 flex items-center gap-1 border border-amber-300">
+                                        <EyeOff className="w-3 h-3" /> WEB: OCULTO
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-blue-50 text-blue-700 flex items-center gap-1 border border-blue-200">
+                                        <Eye className="w-3 h-3" /> WEB: ACTIVO
+                                      </span>
+                                    )}
                                     {product?.brands?.name && (
                                       <span className="text-[10px] font-bold text-slate-400 uppercase">
                                         {product.brands.name}
@@ -660,6 +773,26 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                     >
                                       <Plus className="w-3 h-3 mr-1" /> AÑADIR
                                     </Button>
+                                    <button
+                                      onClick={async () => {
+                                        if (!product) return;
+                                        const newStatus = !(product.is_active !== false);
+                                        try {
+                                          await updateProduct.mutateAsync({ id: product.id, is_active: newStatus });
+                                          toast.success(newStatus ? 'Repuesto activado y visible en la página web' : 'Repuesto oculto de la página web');
+                                        } catch (err: any) {
+                                          toast.error('Error al cambiar estado web', { description: err.message });
+                                        }
+                                      }}
+                                      className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${
+                                        product?.is_active === false 
+                                          ? 'text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-300' 
+                                          : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                                      }`}
+                                      title={product?.is_active === false ? 'Pausado de la página web. Clic para activar y mostrar en la web' : 'Visible en la página web. Clic para ocultar/desactivar en la web'}
+                                    >
+                                      {product?.is_active === false ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
                                     <button
                                       onClick={() => product && setEditProduct(product as Product)}
                                       className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"

@@ -29,6 +29,7 @@ export interface Product {
   location?: string;
   fitment?: Fitment[];
   stock?: number;
+  is_active?: boolean | null;
   created_at?: string;
   updated_at?: string;
   // Joined fields

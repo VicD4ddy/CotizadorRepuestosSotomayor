@@ -20,6 +20,7 @@ export const productSchema = z.object({
   ).default([]),
   compatible_kits: z.array(z.string()).default([]),
   stock: z.coerce.number().int('La existencia debe ser un número entero').min(0, 'La existencia no puede ser negativa').default(0),
+  is_active: z.boolean().default(false),
 });
 
 export type ProductFormValues = z.infer<typeof productSchema>;

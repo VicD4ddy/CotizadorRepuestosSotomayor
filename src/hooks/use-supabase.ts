@@ -66,6 +66,8 @@ export function useUpdateProduct() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['kits'] });
+      queryClient.invalidateQueries({ queryKey: ['kit_items'] });
     },
   });
 }
@@ -94,6 +96,8 @@ export function useCreateProduct() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['kits'] });
+      queryClient.invalidateQueries({ queryKey: ['kit_items'] });
     },
   });
 }
@@ -418,8 +422,9 @@ export function useDeleteQuote() {
 export function useUploadImage() {
   return useMutation({
     mutationFn: async ({ file, productCode }: { file: File; productCode: string }) => {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${productCode}-${Date.now()}.${fileExt}`;
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const sanitizedCode = (productCode || 'PROD').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const fileName = `${sanitizedCode}-${Date.now()}.${fileExt}`;
       const filePath = `products/${fileName}`;
 
       const { error } = await supabase.storage
@@ -439,9 +444,9 @@ export function useUploadImage() {
 export function useUploadKitImage() {
   return useMutation({
     mutationFn: async ({ file, kitId }: { file: File; kitId: string }) => {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split('.').pop() || 'jpg';
       // Use a random string if kitId is not available yet (creating new kit)
-      const prefix = kitId || Math.random().toString(36).substring(7);
+      const prefix = (kitId || Math.random().toString(36).substring(7)).replace(/[^a-zA-Z0-9_-]/g, '_');
       const fileName = `kit-${prefix}-${Date.now()}.${fileExt}`;
       const filePath = `kits/${fileName}`;
 
