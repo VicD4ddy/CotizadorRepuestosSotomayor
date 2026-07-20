@@ -262,7 +262,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
 
   // Prepare table data
   const tableHead = isBoth
-    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNIT. ($)', 'TOTAL ($)', 'P. UNIT. (Bs)', 'TOTAL (Bs)']]
+    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'PRECIO EN DIVISAS', 'PRECIO EN DÓLARES BCV', 'P. UNIT. (Bs)', 'TOTAL (Bs)']]
     : isBcv
     ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'USD BCV', 'P. UNIT.', 'TOTAL']]
     : [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNIT.', 'TOTAL']];
@@ -275,12 +275,13 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     const brand = item.brand_name || '—';
 
     if (isBoth) {
+      const unitDivisas = item.unit_price_usd || 0;
       return [
         item.product_name || '',
         brand,
         String(item.quantity || 1),
+        formatUSD(unitDivisas),
         formatUSD(unitUsdBcv),
-        formatUSD(totalUsd),
         formatBsVal(unitBs),
         formatBsVal(totalBs),
       ];
@@ -307,12 +308,12 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   const colStyles: Record<number, Partial<{ cellWidth: number; halign: 'left' | 'center' | 'right' }>> = isBoth
     ? {
         0: { halign: 'left' },
-        1: { cellWidth: 65, halign: 'center' },
-        2: { cellWidth: 30, halign: 'center' },
-        3: { cellWidth: 60, halign: 'right' },
-        4: { cellWidth: 65, halign: 'right' },
-        5: { cellWidth: 68, halign: 'right' },
-        6: { cellWidth: 72, halign: 'right' },
+        1: { cellWidth: 60, halign: 'center' },
+        2: { cellWidth: 28, halign: 'center' },
+        3: { cellWidth: 64, halign: 'right' },
+        4: { cellWidth: 72, halign: 'right' },
+        5: { cellWidth: 66, halign: 'right' },
+        6: { cellWidth: 70, halign: 'right' },
       }
     : isBcv
     ? {
@@ -444,61 +445,82 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   const totalsX = pageWidth - margin - totalsBoxW;
 
   if (isBoth) {
-    const rowH = 26;
-    const bothBoxW = 260;
+    const rowH = 24;
+    const bothBoxW = 270;
     const bothTotalsX = pageWidth - margin - bothBoxW;
     
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.5);
     doc.setFillColor(255, 255, 255);
-    roundedRect(doc, bothTotalsX, y, bothBoxW, rowH * 2 + 78, 6, 'FD');
+    roundedRect(doc, bothTotalsX, y, bothBoxW, rowH * 3 + 94, 6, 'FD');
 
-    // Subtotal USD
+    // Subtotal Divisas
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setTextColor(100, 116, 139);
-    doc.text('Subtotal Divisas ($):', bothTotalsX + 14, y + 18);
+    doc.text('Subtotal Divisas ($):', bothTotalsX + 12, y + 16);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(16, 185, 129);
-    doc.text(formatUSD(subtotalUsdBcv), bothTotalsX + bothBoxW - 14, y + 18, { align: 'right' });
+    doc.text(formatUSD(subtotalUsd), bothTotalsX + bothBoxW - 12, y + 16, { align: 'right' });
     doc.setDrawColor(241, 245, 249);
     doc.line(bothTotalsX + 8, y + rowH, bothTotalsX + bothBoxW - 8, y + rowH);
+
+    // Subtotal Dólares BCV
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text('Subtotal Dólares BCV ($):', bothTotalsX + 12, y + rowH + 16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(5, 150, 105);
+    doc.text(formatUSD(subtotalUsdBcv), bothTotalsX + bothBoxW - 12, y + rowH + 16, { align: 'right' });
+    doc.line(bothTotalsX + 8, y + rowH * 2, bothTotalsX + bothBoxW - 8, y + rowH * 2);
 
     // Subtotal Bs
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
-    doc.text(`Subtotal Bs (Tasa: ${rate.toFixed(2)}):`, bothTotalsX + 14, y + rowH + 18);
+    doc.text(`Subtotal Bs (Tasa: ${rate.toFixed(2)}):`, bothTotalsX + 12, y + rowH * 2 + 16);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(37, 99, 235);
-    doc.text(formatBsVal(subtotalBs), bothTotalsX + bothBoxW - 14, y + rowH + 18, { align: 'right' });
+    doc.text(formatBsVal(subtotalBs), bothTotalsX + bothBoxW - 12, y + rowH * 2 + 16, { align: 'right' });
 
-    // Total USD bar
-    const barUsdY = y + rowH * 2 + 4;
-    const barH = 35;
-    doc.setFillColor(...hexToRGB('#064e3b')); // dark green
-    doc.rect(bothTotalsX, barUsdY, bothBoxW, barH, 'F');
+    // Total Divisas bar
+    const bar1Y = y + rowH * 3 + 4;
+    const barH = 30;
+    doc.setFillColor(...hexToRGB('#047857')); // green
+    doc.rect(bothTotalsX, bar1Y, bothBoxW, barH, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setTextColor(255, 255, 255);
-    doc.text('TOTAL DIVISAS:', bothTotalsX + 14, barUsdY + 22);
-    doc.setFontSize(14);
+    doc.text('TOTAL DIVISAS:', bothTotalsX + 12, bar1Y + 19);
+    doc.setFontSize(13);
+    doc.setTextColor(...hexToRGB('#a7f3d0'));
+    doc.text(formatUSD(subtotalUsd), bothTotalsX + bothBoxW - 12, bar1Y + 19, { align: 'right' });
+
+    // Total Dólares BCV bar
+    const bar2Y = bar1Y + barH;
+    doc.setFillColor(...hexToRGB('#065f46')); // darker green/teal
+    doc.rect(bothTotalsX, bar2Y, bothBoxW, barH, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text('TOTAL DÓLARES BCV:', bothTotalsX + 12, bar2Y + 19);
+    doc.setFontSize(13);
     doc.setTextColor(...hexToRGB('#34d399'));
-    doc.text(formatUSD(subtotalUsdBcv), bothTotalsX + bothBoxW - 14, barUsdY + 22, { align: 'right' });
+    doc.text(formatUSD(subtotalUsdBcv), bothTotalsX + bothBoxW - 12, bar2Y + 19, { align: 'right' });
 
     // Total Bs bar
-    const barBsY = barUsdY + barH;
+    const bar3Y = bar2Y + barH;
     doc.setFillColor(...darkBg);
-    roundedRect(doc, bothTotalsX, barBsY, bothBoxW, barH, 6, 'F');
-    doc.rect(bothTotalsX, barBsY, bothBoxW, 6, 'F');
+    roundedRect(doc, bothTotalsX, bar3Y, bothBoxW, barH, 6, 'F');
+    doc.rect(bothTotalsX, bar3Y, bothBoxW, 6, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setTextColor(255, 255, 255);
-    doc.text('TOTAL BOLÍVARES:', bothTotalsX + 14, barBsY + 22);
-    doc.setFontSize(14);
+    doc.text('TOTAL BOLÍVARES:', bothTotalsX + 12, bar3Y + 19);
+    doc.setFontSize(13);
     doc.setTextColor(...hexToRGB('#60a5fa'));
-    doc.text(formatBsVal(subtotalBs), bothTotalsX + bothBoxW - 14, barBsY + 22, { align: 'right' });
+    doc.text(formatBsVal(subtotalBs), bothTotalsX + bothBoxW - 12, bar3Y + 19, { align: 'right' });
 
-    y = barBsY + barH + 20;
+    y = bar3Y + barH + 20;
   } else if (isBcv) {
     // Subtotal Bs row
     const rowH = 28;
