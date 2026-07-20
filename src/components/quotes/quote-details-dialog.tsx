@@ -86,13 +86,19 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
     }
   };
 
-  const handleDownloadPDF = async (currency: 'usd' | 'bcv') => {
+  const handleDownloadPDF = async (currency: 'usd' | 'bcv' | 'both') => {
     if (!quote) return;
     setIsGeneratingPDF(true);
     
     try {
-      await generateQuotePDF({ quote, currency, bcvMultiplier });
-      toast.success(`PDF en ${currency === 'bcv' ? 'Bolívares' : 'USD'} generado`);
+      if (currency === 'both') {
+        await generateQuotePDF({ quote, currency: 'usd', bcvMultiplier });
+        await generateQuotePDF({ quote, currency: 'bcv', bcvMultiplier });
+        toast.success('📑 PDF en USD y Bolívares generados');
+      } else {
+        await generateQuotePDF({ quote, currency, bcvMultiplier });
+        toast.success(`📄 PDF en ${currency === 'bcv' ? 'Bolívares' : 'USD'} generado`);
+      }
     } catch (error) {
       console.error('PDF generation error:', error);
       toast.error('Error al generar el PDF');
@@ -223,6 +229,15 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
               >
                 <FileText className="w-4 h-4" />
                 {isGeneratingPDF ? '...' : 'PDF Bs'}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleDownloadPDF('both')}
+                disabled={isGeneratingPDF}
+                className="bg-slate-700 text-white hover:bg-slate-800 gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                {isGeneratingPDF ? '...' : 'Ambos PDF'}
               </Button>
               <Button
                 type="button"

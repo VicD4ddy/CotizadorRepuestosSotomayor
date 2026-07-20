@@ -2,6 +2,7 @@
 
 import { Search, RefreshCw, User } from 'lucide-react';
 import { NotificationPanel } from './notification-panel';
+import { DailyBcvDialog } from './daily-bcv-dialog';
 import { useBcvRate, useUpdateBcvRate } from '@/hooks/use-supabase';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
@@ -97,6 +98,7 @@ export function Header() {
           <User className="w-4 h-4 text-white" />
         </div>
       </div>
+      <DailyBcvDialog />
     </header>
   );
 }

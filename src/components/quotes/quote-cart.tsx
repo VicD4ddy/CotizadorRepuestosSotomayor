@@ -79,7 +79,7 @@ export function QuoteCart() {
     })),
   });
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = async (customCurrency?: 'usd' | 'bcv' | 'both') => {
     if (items.length === 0) {
       toast.error('Agrega productos a la cotización');
       return;
@@ -87,9 +87,15 @@ export function QuoteCart() {
     setIsGeneratingPdf(true);
     try {
       const tempQuote = buildTempQuote();
-      const currency = paymentMethod === 'bs' ? 'bcv' : 'usd';
-      await generateQuotePDF({ quote: tempQuote, currency, bcvMultiplier });
-      toast.success('PDF generado exitosamente');
+      if (customCurrency === 'both') {
+        await generateQuotePDF({ quote: tempQuote, currency: 'usd', bcvMultiplier });
+        await generateQuotePDF({ quote: tempQuote, currency: 'bcv', bcvMultiplier });
+        toast.success('📑 PDF en USD y Bolívares generados exitosamente');
+      } else {
+        const currency = customCurrency || (paymentMethod === 'bs' ? 'bcv' : 'usd');
+        await generateQuotePDF({ quote: tempQuote, currency, bcvMultiplier });
+        toast.success(`📄 PDF en ${currency === 'bcv' ? 'Bolívares (Bs)' : 'Divisas (USD)'} generado exitosamente`);
+      }
     } catch (error) {
       console.error('PDF generation error:', error);
       toast.error('Error al generar el PDF');
@@ -352,13 +358,36 @@ export function QuoteCart() {
             >
               <MessageCircle className="w-4 h-4" />
             </button>
+          </div>
+
+          {/* PDF Export Buttons */}
+          <div className="flex gap-2 mt-2.5">
             <button
-              onClick={handleExportPdf}
+              onClick={() => handleExportPdf('usd')}
               disabled={isGeneratingPdf}
-              title="Exportar PDF"
-              className="w-[40px] h-[40px] shrink-0 rounded border border-slate-200 bg-white flex items-center justify-center text-slate-800 hover:bg-slate-50 transition-colors"
+              title="Descargar PDF en Divisas (USD)"
+              className="flex-1 min-w-0 h-[36px] px-2 rounded border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50"
             >
-              <Save className="w-4 h-4" />
+              <FileText className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+              <span className="truncate">PDF USD</span>
+            </button>
+            <button
+              onClick={() => handleExportPdf('bcv')}
+              disabled={isGeneratingPdf}
+              title="Descargar PDF en Bolívares (BCV)"
+              className="flex-1 min-w-0 h-[36px] px-2 rounded border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50"
+            >
+              <FileText className="w-3.5 h-3.5 shrink-0 text-blue-600" />
+              <span className="truncate">PDF Bs</span>
+            </button>
+            <button
+              onClick={() => handleExportPdf('both')}
+              disabled={isGeneratingPdf}
+              title="Descargar ambos formatos (USD y Bolívares)"
+              className="flex-1 min-w-0 h-[36px] px-2 rounded border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50"
+            >
+              <FileText className="w-3.5 h-3.5 shrink-0 text-slate-600" />
+              <span className="truncate">Ambos</span>
             </button>
           </div>
         </div>

@@ -99,7 +99,11 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
       });
       toast.success(`${product.name} vinculado al cotizador`);
     } catch (error: any) {
-      toast.error('Error al vincular repuesto', { description: error.message });
+      if (error.message?.includes('vinculado')) {
+        toast.warning('Repuesto duplicado', { description: error.message });
+      } else {
+        toast.error('Error al vincular repuesto', { description: error.message });
+      }
     }
   };
 
@@ -309,7 +313,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   };
 
   // Categories that support bulk price editing
-  const BULK_PRICE_CATEGORIES = ['bielas', 'bancadas', 'anillos'];
+  const BULK_PRICE_CATEGORIES = ['piston', 'pistones', 'anillo', 'anillos', 'biela', 'bielas', 'bancada', 'bancadas', 'concha', 'conchas', 'valvula', 'valvulas', 'taquete', 'taquetes', 'empacadura', 'empacaduras'];
 
   const handleBulkPriceUpdate = async () => {
     if (!bulkPriceTarget) return;

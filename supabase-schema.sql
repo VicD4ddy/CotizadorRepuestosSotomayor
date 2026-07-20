@@ -146,7 +146,8 @@ CREATE TABLE IF NOT EXISTS kit_items (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   kit_id UUID REFERENCES kits(id) ON DELETE CASCADE,
   product_id UUID REFERENCES products(id) ON DELETE CASCADE,
-  quantity INTEGER DEFAULT 1
+  quantity INTEGER DEFAULT 1,
+  CONSTRAINT unique_kit_product UNIQUE (kit_id, product_id)
 );
 
 ALTER TABLE kits ENABLE ROW LEVEL SECURITY;

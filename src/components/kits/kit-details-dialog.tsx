@@ -52,7 +52,11 @@ export function KitDetailsDialog({ open, onOpenChange, kit }: KitDetailsDialogPr
       setSearchQuery('');
       toast.success(`${product.name} añadido al combo`);
     } catch (error: any) {
-      toast.error('Error al añadir repuesto', { description: error.message });
+      if (error.message?.includes('vinculado')) {
+        toast.warning('Repuesto duplicado', { description: error.message });
+      } else {
+        toast.error('Error al añadir repuesto', { description: error.message });
+      }
     }
   };
 

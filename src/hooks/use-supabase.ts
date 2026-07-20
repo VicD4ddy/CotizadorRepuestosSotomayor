@@ -53,7 +53,8 @@ export function useUpdateProduct() {
         await supabase.from('kit_items').delete().eq('product_id', id);
         // Insert new ones
         if (compatible_kits.length > 0) {
-          const insertData = compatible_kits.map((kitId: string) => ({
+          const uniqueKitIds = Array.from(new Set<string>(compatible_kits as string[]));
+          const insertData = uniqueKitIds.map((kitId: string) => ({
             kit_id: kitId,
             product_id: id,
             quantity: 1,
@@ -84,7 +85,8 @@ export function useCreateProduct() {
       if (error) throw error;
 
       if (payload.compatible_kits && payload.compatible_kits.length > 0) {
-        const insertData = payload.compatible_kits.map((kitId: string) => ({
+        const uniqueKitIds = Array.from(new Set<string>(payload.compatible_kits as string[]));
+        const insertData = uniqueKitIds.map((kitId: string) => ({
           kit_id: kitId,
           product_id: data.id,
           quantity: 1,
@@ -543,6 +545,20 @@ export function useCreateKitItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (kitItem: any) => {
+      // 1. Verificar en base de datos si el repuesto ya está en este cotizador
+      if (kitItem.kit_id && kitItem.product_id) {
+        const { data: existing, error: checkError } = await supabase
+          .from('kit_items')
+          .select('id')
+          .eq('kit_id', kitItem.kit_id)
+          .eq('product_id', kitItem.product_id)
+          .maybeSingle();
+
+        if (existing) {
+          throw new Error('Este repuesto ya se encuentra vinculado en este cotizador.');
+        }
+      }
+
       const { data, error } = await supabase.from('kit_items').insert(kitItem).select().single();
       if (error) throw error;
       return data;
