@@ -92,9 +92,8 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
     
     try {
       if (currency === 'both') {
-        await generateQuotePDF({ quote, currency: 'usd', bcvMultiplier });
-        await generateQuotePDF({ quote, currency: 'bcv', bcvMultiplier });
-        toast.success('📑 PDF en USD y Bolívares generados');
+        await generateQuotePDF({ quote, currency: 'both', bcvMultiplier });
+        toast.success('📑 PDF con ambos precios (USD y Bs) generado');
       } else {
         await generateQuotePDF({ quote, currency, bcvMultiplier });
         toast.success(`📄 PDF en ${currency === 'bcv' ? 'Bolívares' : 'USD'} generado`);

@@ -5,7 +5,7 @@ import { formatUSD } from '@/lib/utils';
 
 interface GenerateQuotePDFOptions {
   quote: Quote;
-  currency: 'usd' | 'bcv';
+  currency: 'usd' | 'bcv' | 'both';
   bcvMultiplier?: number;
   returnBlob?: boolean;
 }
@@ -94,8 +94,9 @@ function roundedRect(
 
 export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, returnBlob = false }: GenerateQuotePDFOptions): Promise<{ fileName: string; blob?: Blob }> {
   const isBcv = currency === 'bcv';
+  const isBoth = currency === 'both';
   const rate = quote.bcv_rate || 1;
-  const mult = isBcv ? bcvMultiplier : 1;
+  const mult = (isBcv || isBoth) ? bcvMultiplier : 1;
   const quoteNumber = quote.id.substring(0, 8).toUpperCase();
 
   const date = new Date(quote.created_at || '').toLocaleDateString('es-VE', {
@@ -110,8 +111,8 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   const subtotalBs = subtotalUsdBcv * rate;
 
   // Colors
-  const accentColor = isBcv ? '#2563eb' : '#10b981';
-  const accentLight = isBcv ? '#3b82f6' : '#34d399';
+  const accentColor = isBoth ? '#0f172a' : (isBcv ? '#2563eb' : '#10b981');
+  const accentLight = isBoth ? '#38bdf8' : (isBcv ? '#3b82f6' : '#34d399');
   const darkBg: [number, number, number] = [15, 23, 42]; // #0f172a
 
   // Page dimensions (pt) — Letter-like
@@ -171,11 +172,11 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   doc.text('COTIZACIÓN', cotBadgeX - 110 + cotBadgeW / 2, badgeY + 15, { align: 'center' });
 
   // Currency badge
-  const currLabel = isBcv ? 'BOLÍVARES (BCV)' : 'DÓLARES (USD)';
-  const currBadgeW = 100;
+  const currLabel = isBoth ? 'DIVISAS Y BOLÍVARES' : (isBcv ? 'BOLÍVARES (BCV)' : 'DÓLARES (USD)');
+  const currBadgeW = isBoth ? 120 : 100;
   const currBadgeX = pageWidth - margin - currBadgeW;
-  const currBadgeBg = isBcv ? hexToRGB('#dbeafe') : hexToRGB('#d1fae5');
-  const currBadgeText = isBcv ? hexToRGB('#1d4ed8') : hexToRGB('#047857');
+  const currBadgeBg = isBoth ? hexToRGB('#e2e8f0') : (isBcv ? hexToRGB('#dbeafe') : hexToRGB('#d1fae5'));
+  const currBadgeText = isBoth ? hexToRGB('#1e293b') : (isBcv ? hexToRGB('#1d4ed8') : hexToRGB('#047857'));
   doc.setFillColor(...currBadgeBg);
   roundedRect(doc, currBadgeX, badgeY, currBadgeW, cotBadgeH, 4, 'F');
   doc.setFont('helvetica', 'bold');
@@ -206,7 +207,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.5);
-  const clientBoxW = isBcv ? contentWidth - 200 : contentWidth;
+  const clientBoxW = (isBcv || isBoth) ? contentWidth - 200 : contentWidth;
   roundedRect(doc, margin, y, clientBoxW, clientBoxH, 6, 'FD');
 
   doc.setFont('helvetica', 'bold');
@@ -224,8 +225,8 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   doc.setTextColor(100, 116, 139);
   doc.text(`Tel: ${quote.client_phone || 'No especificado'}`, margin + 16, y + 48);
 
-  // BCV rate box (only for BCV)
-  if (isBcv) {
+  // BCV rate box (only for BCV / Both)
+  if (isBcv || isBoth) {
     const bcvBoxX = margin + clientBoxW + 12;
     const bcvBoxW = contentWidth - clientBoxW - 12;
     doc.setFillColor(239, 246, 255);
@@ -260,7 +261,9 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   );
 
   // Prepare table data
-  const tableHead = isBcv
+  const tableHead = isBoth
+    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNIT. ($)', 'TOTAL ($)', 'P. UNIT. (Bs)', 'TOTAL (Bs)']]
+    : isBcv
     ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'USD BCV', 'P. UNIT.', 'TOTAL']]
     : [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNIT.', 'TOTAL']];
 
@@ -271,7 +274,17 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     const totalUsd = (item.unit_price_usd || 0) * (item.quantity || 1);
     const brand = item.brand_name || '—';
 
-    if (isBcv) {
+    if (isBoth) {
+      return [
+        item.product_name || '',
+        brand,
+        String(item.quantity || 1),
+        formatUSD(unitUsdBcv),
+        formatUSD(totalUsd),
+        formatBsVal(unitBs),
+        formatBsVal(totalBs),
+      ];
+    } else if (isBcv) {
       return [
         item.product_name || '',
         brand,
@@ -291,7 +304,17 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     }
   });
 
-  const colStyles: Record<number, Partial<{ cellWidth: number; halign: 'left' | 'center' | 'right' }>> = isBcv
+  const colStyles: Record<number, Partial<{ cellWidth: number; halign: 'left' | 'center' | 'right' }>> = isBoth
+    ? {
+        0: { halign: 'left' },
+        1: { cellWidth: 65, halign: 'center' },
+        2: { cellWidth: 30, halign: 'center' },
+        3: { cellWidth: 60, halign: 'right' },
+        4: { cellWidth: 65, halign: 'right' },
+        5: { cellWidth: 68, halign: 'right' },
+        6: { cellWidth: 72, halign: 'right' },
+      }
+    : isBcv
     ? {
         0: { halign: 'left' },
         1: { cellWidth: 80, halign: 'center' },
@@ -316,8 +339,8 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     theme: 'plain',
     styles: {
       font: 'helvetica',
-      fontSize: 9,
-      cellPadding: { top: 8, bottom: 8, left: 10, right: 10 },
+      fontSize: isBoth ? 8 : 9,
+      cellPadding: { top: 7, bottom: 7, left: isBoth ? 6 : 10, right: isBoth ? 6 : 10 },
       textColor: [30, 41, 59],
       lineWidth: 0,
     },
@@ -326,7 +349,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 8,
-      cellPadding: { top: 10, bottom: 10, left: 10, right: 10 },
+      cellPadding: { top: 9, bottom: 9, left: isBoth ? 6 : 10, right: isBoth ? 6 : 10 },
     },
     columnStyles: colStyles,
     alternateRowStyles: {
@@ -350,8 +373,8 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
         const logoUrl = item?.brand_logo_url;
         if (logoUrl && brandLogoCache[logoUrl]) {
           try {
-            const imgW = 44;
-            const imgH = 22;
+            const imgW = isBoth ? 38 : 44;
+            const imgH = isBoth ? 19 : 22;
             const imgX = data.cell.x + (data.cell.width - imgW) / 2;
             const imgY = data.cell.y + (data.cell.height - imgH) / 2;
             doc.addImage(brandLogoCache[logoUrl]!, 'PNG', imgX, imgY, imgW, imgH, undefined, 'FAST');
@@ -362,12 +385,29 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
       }
     },
     didParseCell: (data) => {
-      // Make USD BCV column green in body
+      // Both mode styling for USD ($) columns
+      if (isBoth && data.section === 'body' && (data.column.index === 3 || data.column.index === 4)) {
+        data.cell.styles.textColor = hexToRGB('#10b981');
+        if (data.column.index === 4) data.cell.styles.fontStyle = 'bold';
+      }
+      if (isBoth && data.section === 'head' && (data.column.index === 3 || data.column.index === 4)) {
+        data.cell.styles.textColor = hexToRGB('#34d399');
+      }
+      // Both mode styling for Bs columns
+      if (isBoth && data.section === 'body' && (data.column.index === 5 || data.column.index === 6)) {
+        data.cell.styles.textColor = hexToRGB('#2563eb');
+        if (data.column.index === 6) data.cell.styles.fontStyle = 'bold';
+      }
+      if (isBoth && data.section === 'head' && (data.column.index === 5 || data.column.index === 6)) {
+        data.cell.styles.textColor = hexToRGB('#60a5fa');
+      }
+
+      // Make USD BCV column green in body for BCV mode
       if (isBcv && data.section === 'body' && data.column.index === 3) {
         data.cell.styles.textColor = hexToRGB('#10b981');
         data.cell.styles.fontStyle = 'bold';
       }
-      // Make USD BCV header green
+      // Make USD BCV header green for BCV mode
       if (isBcv && data.section === 'head' && data.column.index === 3) {
         data.cell.styles.textColor = hexToRGB('#34d399');
       }
@@ -386,10 +426,10 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
         }
       }
       // Bold the total column
-      const totalColIdx = isBcv ? 5 : 4;
+      const totalColIdx = isBoth ? 6 : (isBcv ? 5 : 4);
       if (data.section === 'body' && data.column.index === totalColIdx) {
         data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.textColor = [15, 23, 42];
+        if (!isBoth) data.cell.styles.textColor = [15, 23, 42];
       }
     },
   });
@@ -403,7 +443,63 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   const totalsBoxW = 240;
   const totalsX = pageWidth - margin - totalsBoxW;
 
-  if (isBcv) {
+  if (isBoth) {
+    const rowH = 26;
+    const bothBoxW = 260;
+    const bothTotalsX = pageWidth - margin - bothBoxW;
+    
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.setFillColor(255, 255, 255);
+    roundedRect(doc, bothTotalsX, y, bothBoxW, rowH * 2 + 78, 6, 'FD');
+
+    // Subtotal USD
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Subtotal Divisas ($):', bothTotalsX + 14, y + 18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(16, 185, 129);
+    doc.text(formatUSD(subtotalUsdBcv), bothTotalsX + bothBoxW - 14, y + 18, { align: 'right' });
+    doc.setDrawColor(241, 245, 249);
+    doc.line(bothTotalsX + 8, y + rowH, bothTotalsX + bothBoxW - 8, y + rowH);
+
+    // Subtotal Bs
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Subtotal Bs (Tasa: ${rate.toFixed(2)}):`, bothTotalsX + 14, y + rowH + 18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(37, 99, 235);
+    doc.text(formatBsVal(subtotalBs), bothTotalsX + bothBoxW - 14, y + rowH + 18, { align: 'right' });
+
+    // Total USD bar
+    const barUsdY = y + rowH * 2 + 4;
+    const barH = 35;
+    doc.setFillColor(...hexToRGB('#064e3b')); // dark green
+    doc.rect(bothTotalsX, barUsdY, bothBoxW, barH, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text('TOTAL DIVISAS:', bothTotalsX + 14, barUsdY + 22);
+    doc.setFontSize(14);
+    doc.setTextColor(...hexToRGB('#34d399'));
+    doc.text(formatUSD(subtotalUsdBcv), bothTotalsX + bothBoxW - 14, barUsdY + 22, { align: 'right' });
+
+    // Total Bs bar
+    const barBsY = barUsdY + barH;
+    doc.setFillColor(...darkBg);
+    roundedRect(doc, bothTotalsX, barBsY, bothBoxW, barH, 6, 'F');
+    doc.rect(bothTotalsX, barBsY, bothBoxW, 6, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text('TOTAL BOLÍVARES:', bothTotalsX + 14, barBsY + 22);
+    doc.setFontSize(14);
+    doc.setTextColor(...hexToRGB('#60a5fa'));
+    doc.text(formatBsVal(subtotalBs), bothTotalsX + bothBoxW - 14, barBsY + 22, { align: 'right' });
+
+    y = barBsY + barH + 20;
+  } else if (isBcv) {
     // Subtotal Bs row
     const rowH = 28;
     doc.setDrawColor(226, 232, 240);
@@ -524,7 +620,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   doc.rect(0, y, pageWidth * 0.2, 4, 'F');
   doc.rect(pageWidth * 0.8, y, pageWidth * 0.2, 4, 'F');
 
-  const suffix = currency === 'bcv' ? '_Bs' : '_USD';
+  const suffix = isBoth ? '_USD_Bs' : (currency === 'bcv' ? '_Bs' : '_USD');
   const fileName = `Cotizacion${suffix}_${quote.client_name?.replace(/\s+/g, '_') || 'Mostrador'}_${quote.id.substring(0, 6)}.pdf`;
   
   if (returnBlob) {

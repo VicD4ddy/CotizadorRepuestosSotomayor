@@ -88,9 +88,8 @@ export function QuoteCart() {
     try {
       const tempQuote = buildTempQuote();
       if (customCurrency === 'both') {
-        await generateQuotePDF({ quote: tempQuote, currency: 'usd', bcvMultiplier });
-        await generateQuotePDF({ quote: tempQuote, currency: 'bcv', bcvMultiplier });
-        toast.success('📑 PDF en USD y Bolívares generados exitosamente');
+        await generateQuotePDF({ quote: tempQuote, currency: 'both', bcvMultiplier });
+        toast.success('📑 PDF con ambos precios (USD y Bs) generado exitosamente');
       } else {
         const currency = customCurrency || (paymentMethod === 'bs' ? 'bcv' : 'usd');
         await generateQuotePDF({ quote: tempQuote, currency, bcvMultiplier });
