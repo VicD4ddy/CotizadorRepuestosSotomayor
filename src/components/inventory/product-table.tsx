@@ -11,14 +11,15 @@ import {
 } from '@tanstack/react-table';
 import Fuse from 'fuse.js';
 import { Product } from '@/types';
-import { useProducts, useBcvRate, useCategories, useBcvMultiplier, useUpdateProduct, useBrands, useBulkDeleteProducts } from '@/hooks/use-supabase';
+import { useProducts, useBcvRate, useCategories, useBcvMultiplier, useUpdateProduct, useBrands, useBulkDeleteProducts, useDefaultMinStock } from '@/hooks/use-supabase';
 import { useCartStore } from '@/store/cart-store';
 import { Badge } from '@/components/ui/badge';
-import { formatUSD } from '@/lib/utils';
-import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff } from 'lucide-react';
+import { formatUSD, calculateBcvPrice } from '@/lib/utils';
+import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff, AlertTriangle, PackageX, PackageMinus, Bell, Check } from 'lucide-react';
 import { ProductFormDialog } from './product-form-dialog';
 import { ProductHistoryDialog } from './product-history-dialog';
 import { ImageGalleryDialog } from './image-gallery-dialog';
+import { BulkMinStockDialog } from './bulk-min-stock-dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -27,9 +28,10 @@ const columnHelper = createColumnHelper<Product>();
 interface ProductTableProps {
   showRecentsOnMount?: boolean;
   isMiscellaneous?: boolean;
+  isMinStockAlert?: boolean;
 }
 
-export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTableProps) {
+export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAlert }: ProductTableProps) {
   const { data: products = [], isLoading } = useProducts();
   const { data: bcvRate = 36.5 } = useBcvRate();
   const { data: bcvMultiplier = 1.4 } = useBcvMultiplier();
@@ -47,6 +49,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
   const [priceFilter, setPriceFilter] = useState<string>('all');
   const [imageFilter, setImageFilter] = useState<string>('all');
   const [recentsOnly, setRecentsOnly] = useState(!!showRecentsOnMount);
+  const [minStockSubFilter, setMinStockSubFilter] = useState<'all_alert' | 'out_of_stock' | 'low_stock' | 'all_configured'>('all_alert');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showFilters, setShowFilters] = useState(!!showRecentsOnMount);
@@ -64,6 +67,9 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
   const [editCost, setEditCost] = useState('');
   const [editPrice, setEditPrice] = useState('');
 
+  const { data: defaultMinStock = 0 } = useDefaultMinStock();
+  const [isBulkMinStockOpen, setIsBulkMinStockOpen] = useState(false);
+
   // Identify categories for Misceláneos (Aceites y Lubricantes)
   const miscCategoryIds = useMemo(() => {
     return categories
@@ -78,8 +84,65 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
       .map((c) => c.id);
   }, [categories]);
 
-  // Base products filtered by section if isMiscellaneous is active
+  // Helper to determine effective min stock (individual rule overrides global default)
+  // IMPORTANTE: Solo aplica si el producto tiene precio asignado (> 0) para no manchar con productos sin depurar
+  const getEffectiveMinStock = useCallback(
+    (p: Product) => {
+      if (!p.price_usd || p.price_usd <= 0) {
+        return { min: 0, isGlobal: false, hasPrice: false };
+      }
+      if (p.min_stock !== undefined && p.min_stock !== null && p.min_stock > 0) {
+        return { min: p.min_stock, isGlobal: false, hasPrice: true };
+      }
+      if (defaultMinStock && defaultMinStock > 0) {
+        return { min: defaultMinStock, isGlobal: true, hasPrice: true };
+      }
+      return { min: 0, isGlobal: false, hasPrice: true };
+    },
+    [defaultMinStock]
+  );
+
+  // Alert stats for Min Stock View (Solo repuestos con precio asignado)
+  const alertStats = useMemo(() => {
+    const validProducts = products.filter((p) => (p.price_usd ?? 0) > 0);
+    const configured = validProducts.filter((p) => getEffectiveMinStock(p).min > 0);
+    const inAlert = configured.filter((p) => (p.stock ?? 0) <= getEffectiveMinStock(p).min);
+    const outOfStock = configured.filter((p) => (p.stock ?? 0) <= 0);
+    const lowStock = configured.filter((p) => {
+      const min = getEffectiveMinStock(p).min;
+      return (p.stock ?? 0) > 0 && (p.stock ?? 0) <= min;
+    });
+
+    return {
+      configuredCount: configured.length,
+      inAlertCount: inAlert.length,
+      outOfStockCount: outOfStock.length,
+      lowStockCount: lowStock.length,
+    };
+  }, [products, getEffectiveMinStock]);
+
+  // Base products filtered by section if isMiscellaneous or isMinStockAlert is active
   const targetProducts = useMemo(() => {
+    if (isMinStockAlert) {
+      // Solo productos con precio asignado entran en la pantalla de alertas
+      const validProducts = products.filter((p) => (p.price_usd ?? 0) > 0);
+      if (minStockSubFilter === 'all_configured') {
+        return validProducts.filter((p) => getEffectiveMinStock(p).min > 0);
+      }
+      if (minStockSubFilter === 'out_of_stock') {
+        return validProducts.filter((p) => getEffectiveMinStock(p).min > 0 && (p.stock ?? 0) <= 0);
+      }
+      if (minStockSubFilter === 'low_stock') {
+        return validProducts.filter((p) => {
+          const min = getEffectiveMinStock(p).min;
+          return min > 0 && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= min;
+        });
+      }
+      return validProducts.filter((p) => {
+        const min = getEffectiveMinStock(p).min;
+        return min > 0 && (p.stock ?? 0) <= min;
+      });
+    }
     if (!isMiscellaneous) return products;
     return products.filter((p) => {
       if (p.category_id && miscCategoryIds.includes(p.category_id)) return true;
@@ -88,7 +151,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
       if (catName.includes('lubricante') || catName.includes('miscel')) return true;
       return false;
     });
-  }, [products, isMiscellaneous, miscCategoryIds]);
+  }, [products, isMiscellaneous, isMinStockAlert, minStockSubFilter, miscCategoryIds, getEffectiveMinStock]);
 
   // Listen for open-product events from notification panel
   useEffect(() => {
@@ -153,6 +216,11 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
       result = result.filter((p) => (p.stock ?? 0) <= 0);
     } else if (stockFilter === 'in_stock') {
       result = result.filter((p) => (p.stock ?? 0) > 0);
+    } else if (stockFilter === 'low_stock') {
+      result = result.filter((p) => {
+        const { min } = getEffectiveMinStock(p);
+        return min > 0 && (p.stock ?? 0) <= min;
+      });
     }
 
     if (webStatusFilter === 'visible') {
@@ -383,13 +451,35 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
             <ArrowUpDown className="w-3 h-3" />
           </button>
         ),
-        size: 65,
+        size: 75,
         cell: (info) => {
           const val = info.getValue() ?? 0;
+          const { min: minStock, isGlobal } = getEffectiveMinStock(info.row.original);
+          const isLow = minStock > 0 && val <= minStock;
+          const isOut = val <= 0;
+
           return (
-            <span className={`text-[13px] font-bold ${val > 0 ? 'text-slate-900' : 'text-red-500 font-medium'}`}>
-              {val}
-            </span>
+            <div className="flex flex-col items-center">
+              <span className={`text-[13px] font-bold ${isOut ? 'text-red-600' : isLow ? 'text-amber-600 font-extrabold' : 'text-slate-900'}`}>
+                {val}
+              </span>
+              {minStock > 0 && (
+                <span 
+                  className={`text-[9px] font-medium leading-tight mt-0.5 px-1 py-0.5 rounded ${
+                    isOut 
+                      ? 'bg-red-50 text-red-600 font-semibold' 
+                      : isLow 
+                      ? 'bg-amber-100 text-amber-800 font-bold border border-amber-300' 
+                      : isGlobal
+                      ? 'text-indigo-600 bg-indigo-50 border border-indigo-200'
+                      : 'text-slate-400 bg-slate-100'
+                  }`}
+                  title={isGlobal ? `Stock mínimo por defecto global: ${minStock}` : `Stock mínimo individual: ${minStock}`}
+                >
+                  Mín: {minStock}{isGlobal ? ' (G)' : ''}
+                </span>
+              )}
+            </div>
           );
         },
       }),
@@ -417,7 +507,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
         ),
         size: 90,
         cell: ({ row }) => {
-          const priceUsdBcv = row.original.price_usd * bcvMultiplier;
+          const priceUsdBcv = calculateBcvPrice(row.original.price_usd, bcvMultiplier);
           return (
             <span className="text-[13px] text-slate-900 font-bold text-center block">
               {formatUSD(priceUsdBcv)}
@@ -434,7 +524,8 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
         ),
         size: 100,
         cell: ({ row }) => {
-          const priceBs = row.original.price_usd * bcvMultiplier * bcvRate;
+          const priceUsdBcv = calculateBcvPrice(row.original.price_usd, bcvMultiplier);
+          const priceBs = priceUsdBcv * bcvRate;
           return (
             <div className="text-right">
               <span className="text-[10px] text-slate-900 font-bold">Bs</span><br/>
@@ -595,24 +686,127 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
       {/* Title Bar */}
       <div className="flex items-center justify-between p-3 md:p-4 border-b border-slate-200">
         <div className="flex items-center gap-2 md:gap-3">
-          <h2 className="text-[15px] md:text-[18px] font-bold text-slate-900">
-            {isMiscellaneous
-              ? (categoryFilter !== 'all'
-                  ? categories.find((c) => c.id === categoryFilter)?.name || 'Misceláneos'
-                  : 'Catálogo de Misceláneos (Aceites y Lubricantes)')
-              : (categoryFilter !== 'all'
-                  ? categories.find((c) => c.id === categoryFilter)?.name || 'Lista de Repuestos'
-                  : 'Catálogo de Repuestos')}
+          <h2 className="text-[15px] md:text-[18px] font-bold text-slate-900 flex items-center gap-2">
+            {isMinStockAlert ? (
+              <>
+                <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
+                <span>Alerta Stock Mínimo</span>
+              </>
+            ) : isMiscellaneous ? (
+              categoryFilter !== 'all'
+                ? categories.find((c) => c.id === categoryFilter)?.name || 'Misceláneos'
+                : 'Catálogo de Misceláneos (Aceites y Lubricantes)'
+            ) : (
+              categoryFilter !== 'all'
+                ? categories.find((c) => c.id === categoryFilter)?.name || 'Lista de Repuestos'
+                : 'Catálogo de Repuestos'
+            )}
           </h2>
-          <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-100 text-[10px] font-bold uppercase tracking-widest border-none px-3 py-1 rounded-md hidden sm:block">
+          <Badge
+            variant="secondary"
+            className={`${
+              isMinStockAlert
+                ? 'bg-rose-100 text-rose-800'
+                : 'bg-slate-100 text-slate-700'
+            } hover:bg-slate-100 text-[10px] font-bold uppercase tracking-widest border-none px-3 py-1 rounded-md hidden sm:block`}
+          >
             {filteredProducts.length} ÍTEMS
           </Badge>
         </div>
-        <Button onClick={handleAddProduct} className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2 h-[36px] text-[13px] px-3 md:px-4 rounded-md hidden md:flex">
-          <Plus className="w-4 h-4" />
-          Añadir Producto
-        </Button>
+        <div className="flex items-center gap-2">
+          {isMinStockAlert && (
+            <Button 
+              onClick={() => setIsBulkMinStockOpen(true)} 
+              variant="outline" 
+              className="gap-2 h-[36px] text-[13px] px-3 md:px-4 rounded-md border-rose-200 text-rose-700 bg-rose-50/60 hover:bg-rose-100 font-semibold shadow-xs"
+            >
+              <SlidersHorizontal className="w-4 h-4 text-rose-600" />
+              Configurar Mínimos
+            </Button>
+          )}
+          <Button onClick={handleAddProduct} className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2 h-[36px] text-[13px] px-3 md:px-4 rounded-md hidden md:flex">
+            <Plus className="w-4 h-4" />
+            Añadir Producto
+          </Button>
+        </div>
       </div>
+
+      {/* KPI Stats Bar for Min Stock Alert */}
+      {isMinStockAlert && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 md:p-4 bg-slate-50/70 border-b border-slate-200">
+          <button
+            onClick={() => setMinStockSubFilter('all_alert')}
+            className={`p-3 rounded-xl border text-left transition-all ${
+              minStockSubFilter === 'all_alert'
+                ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-400/20'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total en Alerta</span>
+              <AlertTriangle className="w-4 h-4 text-rose-500" />
+            </div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-2xl font-black text-rose-600">{alertStats.inAlertCount}</span>
+              <span className="text-[11px] text-slate-400">repuestos</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setMinStockSubFilter('out_of_stock')}
+            className={`p-3 rounded-xl border text-left transition-all ${
+              minStockSubFilter === 'out_of_stock'
+                ? 'bg-red-50 border-red-300 ring-2 ring-red-400/20'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Agotados (0)</span>
+              <PackageX className="w-4 h-4 text-red-500" />
+            </div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-2xl font-black text-red-700">{alertStats.outOfStockCount}</span>
+              <span className="text-[11px] text-slate-400">sin existencia</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setMinStockSubFilter('low_stock')}
+            className={`p-3 rounded-xl border text-left transition-all ${
+              minStockSubFilter === 'low_stock'
+                ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400/20'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Bajo Mínimo</span>
+              <PackageMinus className="w-4 h-4 text-amber-500" />
+            </div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-2xl font-black text-amber-600">{alertStats.lowStockCount}</span>
+              <span className="text-[11px] text-slate-400">&gt;0 y ≤mín</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setMinStockSubFilter('all_configured')}
+            className={`p-3 rounded-xl border text-left transition-all ${
+              minStockSubFilter === 'all_configured'
+                ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-400/20'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Configurados</span>
+              <Bell className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-2xl font-black text-slate-700">{alertStats.configuredCount}</span>
+              <span className="text-[11px] text-slate-400">con regla</span>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Bulk Action Bar */}
       {selectedIds.size > 0 && (
@@ -734,6 +928,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
             >
               <option value="all">Todas</option>
               <option value="in_stock">Con Stock (&gt; 0)</option>
+              <option value="low_stock">⚠️ Bajo Stock Mínimo</option>
               <option value="zero_stock">Existencia 0 (Sin Stock)</option>
             </select>
           </div>
@@ -836,7 +1031,8 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
           {displayProducts.map((p) => {
             const hasImage = p.image_url || (p.image_urls && p.image_urls.length > 0);
             const isEditing = editingPriceId === p.id;
-            const priceBs = p.price_usd * bcvMultiplier * bcvRate;
+            const priceUsdBcv = calculateBcvPrice(p.price_usd, bcvMultiplier);
+            const priceBs = priceUsdBcv * bcvRate;
 
             return (
               <div 
@@ -1000,9 +1196,23 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
 
         {displayProducts.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-white">
-            <Search className="w-10 h-10 mb-3 opacity-20" />
-            <p className="text-sm text-slate-600">No se encontraron productos</p>
-            <p className="text-[12px]">Intenta con otro término de búsqueda</p>
+            {isMinStockAlert ? (
+              <>
+                <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-3 border border-emerald-100">
+                  <Check className="w-7 h-7" />
+                </div>
+                <p className="text-base font-bold text-slate-800">¡Sin alertas pendientes!</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm text-center">
+                  Ningún repuesto configurado ha alcanzado o está por debajo de su stock mínimo en este momento.
+                </p>
+              </>
+            ) : (
+              <>
+                <Search className="w-10 h-10 mb-3 opacity-20" />
+                <p className="text-sm text-slate-600">No se encontraron productos</p>
+                <p className="text-[12px]">Intenta con otro término de búsqueda</p>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -1025,6 +1235,11 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous }: ProductTab
         open={!!galleryProduct}
         onOpenChange={(open) => !open && setGalleryProduct(null)}
         product={galleryProduct}
+      />
+
+      <BulkMinStockDialog
+        open={isBulkMinStockOpen}
+        onOpenChange={setIsBulkMinStockOpen}
       />
     </div>
   );

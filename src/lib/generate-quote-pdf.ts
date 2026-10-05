@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Quote } from '@/types';
-import { formatUSD } from '@/lib/utils';
+import { formatUSD, calculateBcvPrice } from '@/lib/utils';
 
 interface GenerateQuotePDFOptions {
   quote: Quote;
@@ -109,7 +109,11 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   const subtotalUsd = quote.quote_items?.reduce(
     (sum, item) => sum + (item.unit_price_usd || 0) * (item.quantity || 1), 0
   ) || 0;
-  const subtotalUsdBcv = subtotalUsd * mult;
+  const subtotalUsdBcv = (isBcv || isBoth)
+    ? (quote.quote_items?.reduce(
+        (sum, item) => sum + calculateBcvPrice(item.unit_price_usd || 0, mult) * (item.quantity || 1), 0
+      ) || 0)
+    : subtotalUsd;
   const subtotalBs = subtotalUsdBcv * rate;
 
   // Colors
@@ -264,16 +268,19 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
 
   // Prepare table data
   const tableHead = isBoth
-    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'PRECIO EN DIVISAS', 'PRECIO EN DÓLARES BCV', 'P. UNIT. (Bs)', 'TOTAL (Bs)']]
+    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'PRECIO DIVISAS', 'P. UNIT. BCV ($)', 'TOTAL EN USD AL BCV', 'TOTAL EN VES']]
     : isBcv
-    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'USD BCV', 'P. UNIT.', 'TOTAL']]
-    : [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNIT.', 'TOTAL']];
+    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNIT. BCV ($)', 'TOTAL EN USD AL BCV', 'TOTAL EN VES']]
+    : [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNIT.', 'TOTAL EN DÓLARES']];
 
   const tableBody = items.map((item) => {
-    const unitUsdBcv = (item.unit_price_usd || 0) * mult;
+    const unitUsdBcv = (isBcv || isBoth)
+      ? calculateBcvPrice(item.unit_price_usd || 0, mult)
+      : (item.unit_price_usd || 0);
     const unitBs = unitUsdBcv * rate;
     const totalBs = unitBs * (item.quantity || 1);
     const totalUsd = (item.unit_price_usd || 0) * (item.quantity || 1);
+    const totalUsdBcv = unitUsdBcv * (item.quantity || 1);
     const brand = item.brand_name || '—';
 
     if (isBoth) {
@@ -284,7 +291,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
         String(item.quantity || 1),
         formatUSD(unitDivisas),
         formatUSD(unitUsdBcv),
-        formatBsVal(unitBs),
+        formatUSD(totalUsdBcv),
         formatBsVal(totalBs),
       ];
     } else if (isBcv) {
@@ -293,7 +300,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
         brand,
         String(item.quantity || 1),
         formatUSD(unitUsdBcv),
-        formatBsVal(unitBs),
+        formatUSD(totalUsdBcv),
         formatBsVal(totalBs),
       ];
     } else {
@@ -310,28 +317,28 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   const colStyles: Record<number, Partial<{ cellWidth: number; halign: 'left' | 'center' | 'right' }>> = isBoth
     ? {
         0: { halign: 'left' },
-        1: { cellWidth: 80, halign: 'center' },
-        2: { cellWidth: 28, halign: 'center' },
-        3: { cellWidth: 64, halign: 'center' },
-        4: { cellWidth: 72, halign: 'center' },
-        5: { cellWidth: 66, halign: 'center' },
-        6: { cellWidth: 70, halign: 'center' },
+        1: { cellWidth: 68, halign: 'center' },
+        2: { cellWidth: 36, halign: 'center' },
+        3: { cellWidth: 62, halign: 'center' },
+        4: { cellWidth: 64, halign: 'center' },
+        5: { cellWidth: 76, halign: 'center' },
+        6: { cellWidth: 76, halign: 'center' },
       }
     : isBcv
     ? {
         0: { halign: 'left' },
-        1: { cellWidth: 100, halign: 'center' },
-        2: { cellWidth: 35, halign: 'center' },
-        3: { cellWidth: 60, halign: 'center' },
-        4: { cellWidth: 70, halign: 'center' },
-        5: { cellWidth: 70, halign: 'center' },
+        1: { cellWidth: 80, halign: 'center' },
+        2: { cellWidth: 42, halign: 'center' },
+        3: { cellWidth: 78, halign: 'center' },
+        4: { cellWidth: 92, halign: 'center' },
+        5: { cellWidth: 88, halign: 'center' },
       }
     : {
         0: { halign: 'left' },
         1: { cellWidth: 100, halign: 'center' },
-        2: { cellWidth: 40, halign: 'center' },
-        3: { cellWidth: 75, halign: 'center' },
-        4: { cellWidth: 75, halign: 'center' },
+        2: { cellWidth: 44, halign: 'center' },
+        3: { cellWidth: 85, halign: 'center' },
+        4: { cellWidth: 85, halign: 'center' },
       };
 
   autoTable(doc, {
@@ -343,7 +350,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     styles: {
       font: 'helvetica',
       fontSize: isBoth ? 8 : 9,
-      cellPadding: { top: 7, bottom: 7, left: isBoth ? 6 : 10, right: isBoth ? 6 : 10 },
+      cellPadding: { top: 7, bottom: 7, left: isBoth ? 5 : 8, right: isBoth ? 5 : 8 },
       textColor: [30, 41, 59],
       lineWidth: 0,
     },
@@ -352,7 +359,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 8,
-      cellPadding: { top: 9, bottom: 9, left: isBoth ? 6 : 10, right: isBoth ? 6 : 10 },
+      cellPadding: { top: 8, bottom: 8, left: 4, right: 4 },
     },
     columnStyles: colStyles,
     alternateRowStyles: {
@@ -404,31 +411,42 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     },
     didParseCell: (data) => {
       // Both mode styling for USD ($) columns
-      if (isBoth && data.section === 'body' && (data.column.index === 3 || data.column.index === 4)) {
-        data.cell.styles.textColor = hexToRGB('#10b981');
-        if (data.column.index === 4) data.cell.styles.fontStyle = 'bold';
-      }
-      if (isBoth && data.section === 'head' && (data.column.index === 3 || data.column.index === 4)) {
-        data.cell.styles.textColor = hexToRGB('#34d399');
-      }
-      // Both mode styling for Bs columns
-      if (isBoth && data.section === 'body' && (data.column.index === 5 || data.column.index === 6)) {
-        data.cell.styles.textColor = hexToRGB('#2563eb');
-        if (data.column.index === 6) data.cell.styles.fontStyle = 'bold';
-      }
-      if (isBoth && data.section === 'head' && (data.column.index === 5 || data.column.index === 6)) {
-        data.cell.styles.textColor = hexToRGB('#60a5fa');
+      if (isBoth) {
+        if (data.section === 'body' && (data.column.index === 3 || data.column.index === 4 || data.column.index === 5)) {
+          data.cell.styles.textColor = hexToRGB('#10b981');
+          if (data.column.index === 5) data.cell.styles.fontStyle = 'bold';
+        }
+        if (data.section === 'head' && (data.column.index === 3 || data.column.index === 4 || data.column.index === 5)) {
+          data.cell.styles.textColor = hexToRGB('#34d399');
+        }
+        // Both mode styling for VES column (index 6)
+        if (data.section === 'body' && data.column.index === 6) {
+          data.cell.styles.textColor = hexToRGB('#2563eb');
+          data.cell.styles.fontStyle = 'bold';
+        }
+        if (data.section === 'head' && data.column.index === 6) {
+          data.cell.styles.textColor = hexToRGB('#60a5fa');
+        }
       }
 
-      // Make USD BCV column green in body for BCV mode
-      if (isBcv && data.section === 'body' && data.column.index === 3) {
-        data.cell.styles.textColor = hexToRGB('#10b981');
-        data.cell.styles.fontStyle = 'bold';
+      // BCV mode styling
+      if (isBcv) {
+        if (data.section === 'body' && (data.column.index === 3 || data.column.index === 4)) {
+          data.cell.styles.textColor = hexToRGB('#10b981');
+          if (data.column.index === 4) data.cell.styles.fontStyle = 'bold';
+        }
+        if (data.section === 'head' && (data.column.index === 3 || data.column.index === 4)) {
+          data.cell.styles.textColor = hexToRGB('#34d399');
+        }
+        if (data.section === 'body' && data.column.index === 5) {
+          data.cell.styles.textColor = hexToRGB('#2563eb');
+          data.cell.styles.fontStyle = 'bold';
+        }
+        if (data.section === 'head' && data.column.index === 5) {
+          data.cell.styles.textColor = hexToRGB('#60a5fa');
+        }
       }
-      // Make USD BCV header green for BCV mode
-      if (isBcv && data.section === 'head' && data.column.index === 3) {
-        data.cell.styles.textColor = hexToRGB('#34d399');
-      }
+
       // Brand column styling — hide text if logo available, show as fallback
       if (data.section === 'body' && data.column.index === 1) {
         const item = items[data.row.index];
@@ -443,11 +461,10 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
           data.cell.styles.fontStyle = 'bold';
         }
       }
-      // Bold the total column
-      const totalColIdx = isBoth ? 6 : (isBcv ? 5 : 4);
-      if (data.section === 'body' && data.column.index === totalColIdx) {
+      // Bold the total column for USD mode
+      if (!isBoth && !isBcv && data.section === 'body' && data.column.index === 4) {
         data.cell.styles.fontStyle = 'bold';
-        if (!isBoth) data.cell.styles.textColor = [15, 23, 42];
+        data.cell.styles.textColor = [15, 23, 42];
       }
     },
   });
@@ -494,7 +511,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     // Subtotal Bs
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
-    doc.text(`Subtotal Bs (Tasa: ${rate.toFixed(2)}):`, bothTotalsX + 12, y + rowH * 2 + 16);
+    doc.text(`Subtotal VES (Tasa: ${rate.toFixed(2)}):`, bothTotalsX + 12, y + rowH * 2 + 16);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(37, 99, 235);
     doc.text(formatBsVal(subtotalBs), bothTotalsX + bothBoxW - 12, y + rowH * 2 + 16, { align: 'right' });
@@ -519,7 +536,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(255, 255, 255);
-    doc.text('TOTAL DÓLARES BCV:', bothTotalsX + 12, bar2Y + 19);
+    doc.text('TOTAL EN USD AL BCV:', bothTotalsX + 12, bar2Y + 19);
     doc.setFontSize(13);
     doc.setTextColor(...hexToRGB('#34d399'));
     doc.text(formatUSD(subtotalUsdBcv), bothTotalsX + bothBoxW - 12, bar2Y + 19, { align: 'right' });
@@ -532,7 +549,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(255, 255, 255);
-    doc.text('TOTAL BOLÍVARES:', bothTotalsX + 12, bar3Y + 19);
+    doc.text('TOTAL EN VES:', bothTotalsX + 12, bar3Y + 19);
     doc.setFontSize(13);
     doc.setTextColor(...hexToRGB('#60a5fa'));
     doc.text(formatBsVal(subtotalBs), bothTotalsX + bothBoxW - 12, bar3Y + 19, { align: 'right' });
@@ -550,7 +567,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(100, 116, 139);
-    doc.text('Subtotal Bs:', totalsX + 14, y + 19);
+    doc.text('Subtotal VES:', totalsX + 14, y + 19);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(51, 65, 85);
     doc.text(formatBsVal(subtotalBs), totalsX + totalsBoxW - 14, y + 19, { align: 'right' });
@@ -560,7 +577,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     // Ref. USD BCV
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
-    doc.text('Ref. USD BCV:', totalsX + 14, y + rowH + 19);
+    doc.text('Ref. Total en USD al BCV:', totalsX + 14, y + rowH + 19);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...hexToRGB('#10b981'));
     doc.text(formatUSD(subtotalUsdBcv), totalsX + totalsBoxW - 14, y + rowH + 19, { align: 'right' });
@@ -580,7 +597,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(255, 255, 255);
-    doc.text('Total Bs:', totalsX + 14, totalBarY + 23);
+    doc.text('TOTAL EN VES:', totalsX + 14, totalBarY + 23);
     doc.setFontSize(15);
     doc.setTextColor(...hexToRGB(accentLight));
     doc.text(formatBsVal(subtotalBs), totalsX + totalsBoxW - 14, totalBarY + 23, { align: 'right' });

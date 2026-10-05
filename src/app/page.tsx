@@ -63,6 +63,7 @@ export default function HomePage() {
           <main className="flex-1 overflow-auto p-3 md:p-5 bg-slate-50 min-w-0">
             {activeTab === 'inventory' && <ProductTable key={showRecentImports ? 'recents' : 'normal'} showRecentsOnMount={showRecentImports} />}
             {activeTab === 'miscellaneous' && <ProductTable key="miscellaneous" isMiscellaneous={true} />}
+            {activeTab === 'min_stock_alert' && <ProductTable key="min_stock_alert" isMinStockAlert={true} />}
             {activeTab === 'categories' && <ClasificacionesContainer />}
             {activeTab === 'quotes' && <QuoteTable />}
             {activeTab === 'manual_quote' && <ManualQuoteBuilder />}

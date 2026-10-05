@@ -17,7 +17,7 @@ import {
   useBcvMultiplier,
   useDeleteProduct,
 } from '@/hooks/use-supabase';
-import { calculateMargin, formatUSD } from '@/lib/utils';
+import { calculateMargin, formatUSD, calculateBcvPrice } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Upload, X, Plus, Image as ImageIcon, Save, RefreshCw, Sparkles, Search as SearchIcon, ListPlus, ChevronDown, Check, Eye, EyeOff } from 'lucide-react';
+import { Upload, X, Plus, Image as ImageIcon, Save, RefreshCw, Sparkles, Search as SearchIcon, ListPlus, ChevronDown, Check, Eye, EyeOff, Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useAiQueueStore } from '@/store/ai-queue-store';
 
@@ -98,6 +98,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
       fitment: [],
       compatible_kits: [],
       stock: 0,
+      min_stock: 0,
       is_active: false,
     },
   });
@@ -110,8 +111,9 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
   const watchCost = watch('cost');
   const watchPriceUsd = watch('price_usd');
 
-  const priceUsdBcv = watchPriceUsd ? (watchPriceUsd * bcvMultiplier).toFixed(2) : '0.00';
-  const priceBcv = watchPriceUsd ? (watchPriceUsd * bcvMultiplier * bcvRate).toFixed(2) : '0.00';
+  const roundedUsdBcv = watchPriceUsd ? calculateBcvPrice(watchPriceUsd, bcvMultiplier) : 0;
+  const priceUsdBcv = roundedUsdBcv.toFixed(2);
+  const priceBcv = (roundedUsdBcv * bcvRate).toFixed(2);
 
   useEffect(() => {
     if (open) {
@@ -135,6 +137,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
           fitment: product.fitment || [],
           compatible_kits: product.kit_items?.map(k => k.kit_id) || [],
           stock: product.stock || 0,
+          min_stock: product.min_stock ?? 0,
           is_active: product.is_active === true,
         });
         setPreviewUrl(syncedMainUrl);
@@ -153,6 +156,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
           fitment: [],
           compatible_kits: initialCompatibleKitId ? [initialCompatibleKitId] : [],
           stock: 0,
+          min_stock: 0,
           is_active: false,
         });
         setPreviewUrl('');
@@ -1233,19 +1237,43 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                       {errors.price_usd && <p className="text-xs text-red-500 mt-1">{errors.price_usd.message}</p>}
                     </div>
 
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">
-                        Existencia (Stock)
-                      </label>
-                      <Input
-                        {...register('stock')}
-                        type="number"
-                        step="1"
-                        placeholder="Ej. 10"
-                        className="bg-slate-50 border-slate-200 text-[14px] font-mono text-slate-900"
-                      />
-                      {errors.stock && <p className="text-xs text-red-500 mt-1">{errors.stock.message}</p>}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">
+                          Existencia (Stock)
+                        </label>
+                        <Input
+                          {...register('stock')}
+                          type="number"
+                          step="1"
+                          placeholder="Ej. 10"
+                          className="bg-slate-50 border-slate-200 text-[14px] font-mono text-slate-900"
+                        />
+                        {errors.stock && <p className="text-xs text-red-500 mt-1">{errors.stock.message}</p>}
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 mb-1.5 flex items-center justify-between uppercase tracking-wider">
+                          <span>Stock Mínimo</span>
+                          <span className="text-[9px] text-amber-600 font-semibold lowercase">alerta</span>
+                        </label>
+                        <Input
+                          {...register('min_stock')}
+                          type="number"
+                          step="1"
+                          placeholder="Ej. 3 (0 = sin alerta)"
+                          className="bg-slate-50 border-slate-200 text-[14px] font-mono text-slate-900"
+                        />
+                        {errors.min_stock && <p className="text-xs text-red-500 mt-1">{errors.min_stock.message}</p>}
+                      </div>
                     </div>
+                    {Number(watch('min_stock') || 0) > 0 && (
+                      <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-800">
+                        <Bell className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>
+                          El sistema alertará cuando la existencia sea <strong>≤ {watch('min_stock')} unidades</strong>.
+                        </span>
+                      </div>
+                    )}
 
                     <div className="pt-2 border-t border-slate-100">
                       <label className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50/50 cursor-pointer hover:bg-slate-50 transition-colors">

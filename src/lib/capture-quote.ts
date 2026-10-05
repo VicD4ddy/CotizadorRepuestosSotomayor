@@ -1,4 +1,5 @@
 import html2canvas from 'html2canvas';
+import { calculateBcvPrice } from '@/lib/utils';
 
 const WHATSAPP_PHRASES = [
   "La pasión por servirte es el motor que nunca se apaga.",
@@ -30,6 +31,11 @@ export async function copyQuoteToClipboard(quoteData: any, bcvMultiplier: number
   const dateStr = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' });
   const quoteId = quoteData.id ? quoteData.id.substring(0,8).toUpperCase() : 'TEMP';
   
+  const itemsList = quoteData.quote_items || quoteData.items || [];
+  const baseSubtotal = itemsList.reduce((sum: number, it: any) => sum + (it.unit_price_usd || 0) * (it.quantity || 1), 0);
+  const subtotalBcv = itemsList.reduce((sum: number, it: any) => sum + calculateBcvPrice(it.unit_price_usd || 0, bcvMultiplier) * (it.quantity || 1), 0);
+  const subtotalBs = subtotalBcv * bcvRate;
+
   // Formatters
   const formatUSD = (val: number) => `$${val.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const formatBs = (val: number) => `Bs ${val.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -76,25 +82,25 @@ export async function copyQuoteToClipboard(quoteData: any, bcvMultiplier: number
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; table-layout: fixed;">
         <thead>
           <tr style="background: #0f172a; color: white; text-align: left;">
-            <th style="padding: 12px 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; width: 35%;">DESCRIPCIÓN</th>
-            <th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: 14%;">MARCA</th>
-            <th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: 8%;">CANT.</th>
-            ${currency === 'both' ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 10%;">P.<br/>DIVISAS</th>` : ''}
-            ${(currency === 'both' || currency === 'bcv') ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 11%;">${currency === 'bcv' ? 'USD BCV' : 'P.<br/>DÓLARES BCV'}</th>` : ''}
+            <th style="padding: 12px 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; width: 33%;">DESCRIPCIÓN</th>
+            <th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: 13%;">MARCA</th>
+            <th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: 6%;">CANT.</th>
+            ${currency === 'both' ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 12%;">PRECIO<br/>DIVISAS</th>` : ''}
+            ${(currency === 'both' || currency === 'bcv') ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 12%;">P. UNIT.<br/>BCV ($)</th>` : ''}
             ${currency === 'usd' ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399;">P. UNIT.</th>` : ''}
-            ${(currency === 'both' || currency === 'bcv') ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #60a5fa; width: 11%;">P. UNIT.<br/>(Bs)</th>` : ''}
-            ${currency === 'usd' ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399;">TOTAL</th>` : ''}
-            ${(currency === 'both' || currency === 'bcv') ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #60a5fa; width: 11%;">TOTAL<br/>(Bs)</th>` : ''}
+            ${(currency === 'both' || currency === 'bcv') ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 12%;">TOTAL EN<br/>USD AL BCV</th>` : ''}
+            ${(currency === 'both' || currency === 'bcv') ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #60a5fa; width: 12%;">TOTAL EN<br/>VES</th>` : ''}
+            ${currency === 'usd' ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399;">TOTAL EN<br/>DÓLARES</th>` : ''}
           </tr>
         </thead>
         <tbody>
-          ${(quoteData.quote_items || quoteData.items || []).map((item: any, i: number) => {
+          ${itemsList.map((item: any, i: number) => {
             const rowBg = i % 2 === 0 ? 'white' : '#f8fafc';
             
             const unitUsd = item.unit_price_usd || 0;
             const totalUsd = unitUsd * item.quantity;
             
-            const unitUsdBcv = unitUsd * bcvMultiplier;
+            const unitUsdBcv = calculateBcvPrice(unitUsd, bcvMultiplier);
             const totalUsdBcv = unitUsdBcv * item.quantity;
             
             const unitBs = unitUsdBcv * bcvRate;
@@ -110,11 +116,11 @@ export async function copyQuoteToClipboard(quoteData: any, bcvMultiplier: number
               <td style="padding: 14px 16px; text-align: center;">${brandContent}</td>
               <td style="padding: 14px 16px; text-align: center; font-size: 13px; font-weight: 600;">${item.quantity}</td>
               ${currency === 'both' ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; color: #10b981;">${formatUSD(unitUsd)}</td>` : ''}
-              ${(currency === 'both' || currency === 'bcv') ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; font-weight: 800; color: #10b981;">${formatUSD(unitUsdBcv)}</td>` : ''}
+              ${(currency === 'both' || currency === 'bcv') ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; color: #10b981;">${formatUSD(unitUsdBcv)}</td>` : ''}
               ${currency === 'usd' ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; color: #10b981;">${formatUSD(unitUsd)}</td>` : ''}
-              ${(currency === 'both' || currency === 'bcv') ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; color: #2563eb;">${formatBs(unitBs)}</td>` : ''}
-              ${currency === 'usd' ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; font-weight: 800; color: #10b981;">${formatUSD(totalUsd)}</td>` : ''}
+              ${(currency === 'both' || currency === 'bcv') ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; font-weight: 800; color: #10b981;">${formatUSD(totalUsdBcv)}</td>` : ''}
               ${(currency === 'both' || currency === 'bcv') ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; font-weight: 800; color: #2563eb;">${formatBs(totalBs)}</td>` : ''}
+              ${currency === 'usd' ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; font-weight: 800; color: #10b981;">${formatUSD(totalUsd)}</td>` : ''}
             </tr>
           `}).join('')}
         </tbody>
@@ -126,51 +132,59 @@ export async function copyQuoteToClipboard(quoteData: any, bcvMultiplier: number
           ${currency === 'both' ? `
           <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
             <span style="color: #64748b; font-size: 13px;">Subtotal Divisas ($):</span>
-            <span style="font-weight: 700; color: #10b981; font-size: 13px;">${formatUSD(quoteData.total_usd)}</span>
+            <span style="font-weight: 700; color: #10b981; font-size: 13px;">${formatUSD(baseSubtotal)}</span>
           </div>
           ` : ''}
           
-          ${(currency === 'bcv' || currency === 'both') ? `
+          ${(currency === 'both') ? `
           <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
             <span style="color: #64748b; font-size: 13px;">Subtotal Dólares BCV ($):</span>
-            <span style="font-weight: 700; color: #10b981; font-size: 13px;">${formatUSD(quoteData.total_usd * bcvMultiplier)}</span>
+            <span style="font-weight: 700; color: #10b981; font-size: 13px;">${formatUSD(subtotalBcv)}</span>
           </div>
           ` : ''}
           
           ${(currency === 'usd') ? `
           <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
             <span style="color: #64748b; font-size: 13px;">Subtotal ($):</span>
-            <span style="font-weight: 700; color: #10b981; font-size: 13px;">${formatUSD(quoteData.total_usd)}</span>
+            <span style="font-weight: 700; color: #10b981; font-size: 13px;">${formatUSD(baseSubtotal)}</span>
           </div>
           <div style="background: #047857; padding: 12px 16px; display: flex; justify-content: space-between; color: white;">
             <span style="font-weight: 700; font-size: 14px;">TOTAL DIVISAS:</span>
-            <span style="font-weight: 800; font-size: 15px;">${formatUSD(quoteData.total_usd)}</span>
+            <span style="font-weight: 800; font-size: 15px;">${formatUSD(baseSubtotal)}</span>
           </div>
           ` : ''}
 
           ${(currency === 'both') ? `
           <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
-            <span style="color: #64748b; font-size: 13px;">Subtotal Bs (Tasa: ${formatBs(bcvRate)}):</span>
-            <span style="font-weight: 700; color: #2563eb; font-size: 13px;">${formatBs(quoteData.total_usd * bcvMultiplier * bcvRate)}</span>
+            <span style="color: #64748b; font-size: 13px;">Subtotal VES (Tasa: ${formatBs(bcvRate)}):</span>
+            <span style="font-weight: 700; color: #2563eb; font-size: 13px;">${formatBs(subtotalBs)}</span>
           </div>
           <div style="background: #047857; padding: 12px 16px; display: flex; justify-content: space-between; color: white;">
             <span style="font-weight: 700; font-size: 14px;">TOTAL DIVISAS:</span>
-            <span style="font-weight: 800; font-size: 15px;">${formatUSD(quoteData.total_usd)}</span>
+            <span style="font-weight: 800; font-size: 15px;">${formatUSD(baseSubtotal)}</span>
           </div>
           <div style="background: #065f46; padding: 12px 16px; display: flex; justify-content: space-between; color: white;">
-            <span style="font-weight: 700; font-size: 14px;">TOTAL BS:</span>
-            <span style="font-weight: 800; font-size: 15px;">${formatBs(quoteData.total_usd * bcvMultiplier * bcvRate)}</span>
+            <span style="font-weight: 700; font-size: 14px;">TOTAL EN USD AL BCV:</span>
+            <span style="font-weight: 800; font-size: 15px;">${formatUSD(subtotalBcv)}</span>
+          </div>
+          <div style="background: #0f172a; padding: 12px 16px; display: flex; justify-content: space-between; color: white;">
+            <span style="font-weight: 700; font-size: 14px;">TOTAL EN VES:</span>
+            <span style="font-weight: 800; font-size: 15px;">${formatBs(subtotalBs)}</span>
           </div>
           ` : ''}
           
           ${(currency === 'bcv') ? `
           <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
-            <span style="color: #64748b; font-size: 13px;">Subtotal Bs (Tasa: ${formatBs(bcvRate)}):</span>
-            <span style="font-weight: 700; color: #2563eb; font-size: 13px;">${formatBs(quoteData.total_usd * bcvMultiplier * bcvRate)}</span>
+            <span style="color: #64748b; font-size: 13px;">Subtotal VES (Tasa: ${formatBs(bcvRate)}):</span>
+            <span style="font-weight: 700; color: #2563eb; font-size: 13px;">${formatBs(subtotalBs)}</span>
           </div>
-          <div style="background: #065f46; padding: 12px 16px; display: flex; justify-content: space-between; color: white;">
-            <span style="font-weight: 700; font-size: 14px;">TOTAL BS:</span>
-            <span style="font-weight: 800; font-size: 15px;">${formatBs(quoteData.total_usd * bcvMultiplier * bcvRate)}</span>
+          <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
+            <span style="color: #64748b; font-size: 13px;">Ref. Total en USD al BCV:</span>
+            <span style="font-weight: 700; color: #10b981; font-size: 13px;">${formatUSD(subtotalBcv)}</span>
+          </div>
+          <div style="background: #0f172a; padding: 12px 16px; display: flex; justify-content: space-between; color: white;">
+            <span style="font-weight: 700; font-size: 14px;">TOTAL EN VES:</span>
+            <span style="font-weight: 800; font-size: 15px;">${formatBs(subtotalBs)}</span>
           </div>
           ` : ''}
 

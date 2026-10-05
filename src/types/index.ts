@@ -29,6 +29,7 @@ export interface Product {
   location?: string;
   fitment?: Fitment[];
   stock?: number;
+  min_stock?: number;
   is_active?: boolean | null;
   created_at?: string;
   updated_at?: string;
@@ -150,3 +151,32 @@ export interface PriceHistory {
   change_type?: string; // 'price' | 'name' | 'description' | 'all'
   changed_at: string;
 }
+
+export type AuditActionType = 'product_deleted' | 'kit_connected' | 'kit_disconnected';
+
+export interface AuditLogDetails {
+  product_snapshot?: Product;
+  kit_associations?: Array<{ kit_id: string; kit_name?: string; category?: string; quantity?: number; kits?: { id: string; name: string; category: string } }>;
+  kit_id?: string;
+  kit_name?: string;
+  kit_category?: string;
+  product_id?: string;
+  product_code?: string;
+  product_name?: string;
+  quantity?: number;
+  reason?: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action_type: AuditActionType;
+  entity_type: 'product' | 'kit_item';
+  entity_id?: string;
+  entity_code?: string;
+  entity_name?: string;
+  details: AuditLogDetails;
+  is_reverted: boolean;
+  reverted_at?: string | null;
+  created_at: string;
+}
+

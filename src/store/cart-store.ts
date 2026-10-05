@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CartItem } from '@/types';
+import { calculateBcvPrice } from '@/lib/utils';
 
 interface CartStore {
   items: CartItem[];
@@ -71,7 +72,7 @@ export const useCartStore = create<CartStore>()(
         const isBs = get().paymentMethod === 'bs';
         return get().items.reduce(
           (sum, item) => {
-            const price = isBs ? item.unit_price_usd * bcvMultiplier : item.unit_price_usd;
+            const price = isBs ? calculateBcvPrice(item.unit_price_usd, bcvMultiplier) : item.unit_price_usd;
             return sum + price * item.quantity;
           },
           0

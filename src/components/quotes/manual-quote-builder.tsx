@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useBcvRate, useBcvMultiplier, useBrands, useCreateQuote } from '@/hooks/use-supabase';
 import { generateQuotePDF } from '@/lib/generate-quote-pdf';
-import { formatUSD } from '@/lib/utils';
+import { formatUSD, calculateBcvPrice } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Quote } from '@/types';
 
@@ -70,8 +70,12 @@ export function ManualQuoteBuilder() {
   }, [items]);
 
   const totalUsdBcv = useMemo(() => {
-    return subtotalUsd * (currency === 'usd' ? 1 : bcvMultiplier);
-  }, [subtotalUsd, currency, bcvMultiplier]);
+    if (currency === 'usd') return subtotalUsd;
+    return items.reduce((sum, item) => {
+      const unit = calculateBcvPrice(Number(item.price_usd) || 0, bcvMultiplier);
+      return sum + (Number(item.quantity) || 0) * unit;
+    }, 0);
+  }, [items, subtotalUsd, currency, bcvMultiplier]);
 
   const totalBs = useMemo(() => {
     return totalUsdBcv * bcvRate;
@@ -286,7 +290,8 @@ export function ManualQuoteBuilder() {
 
     validItems.forEach((it, i) => {
       const itemTotalUsd = (it.quantity || 1) * (it.price_usd || 0);
-      const itemTotalBs = itemTotalUsd * bcvMultiplier * bcvRate;
+      const unitUsdBcv = calculateBcvPrice(it.price_usd || 0, bcvMultiplier);
+      const itemTotalBs = unitUsdBcv * (it.quantity || 1) * bcvRate;
       text += `${i + 1}. *${it.name.toUpperCase()}* ${it.brand ? `(${it.brand.toUpperCase()})` : ''}\n`;
       text += `   Cant: ${it.quantity} x ${formatUSD(it.price_usd)} = *${formatUSD(itemTotalUsd)}* (~Bs ${itemTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})\n`;
     });

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Bell, ImageOff, FileText, DollarSign, Tag, AlertTriangle, X, ChevronRight, ArrowLeft, Unlink, Sparkles } from 'lucide-react';
-import { useProducts, useKits } from '@/hooks/use-supabase';
+import { Bell, ImageOff, FileText, DollarSign, Tag, AlertTriangle, X, ChevronRight, ArrowLeft, Unlink, Sparkles, PackageX } from 'lucide-react';
+import { useProducts, useKits, useDefaultMinStock } from '@/hooks/use-supabase';
 import { Product, Kit } from '@/types';
 
 interface NotificationItem {
@@ -21,6 +21,7 @@ export function NotificationPanel() {
   const panelRef = useRef<HTMLDivElement>(null);
   const { data: products = [] } = useProducts();
   const { data: kits = [] } = useKits();
+  const { data: defaultMinStock = 0 } = useDefaultMinStock();
 
   // Find products that have suggested kits that have not been selected
   const suggestedNotSelected = useMemo(() => {
@@ -100,7 +101,32 @@ export function NotificationPanel() {
   const costEqualsPrice = products.filter(p => p.cost > 0 && p.price_usd > 0 && p.cost === p.price_usd);
   const costGreaterThanPrice = products.filter(p => p.cost > 0 && p.price_usd > 0 && p.cost > p.price_usd);
 
+  // Low stock products (effective min_stock > 0 and stock <= min_stock, ONLY with price assigned)
+  const lowStock = products.filter(p => {
+    if (!p.price_usd || p.price_usd <= 0) return false;
+    const min = (p.min_stock !== undefined && p.min_stock !== null && p.min_stock > 0)
+      ? p.min_stock
+      : (defaultMinStock || 0);
+    if (!min || min <= 0) return false;
+    return (p.stock ?? 0) <= min;
+  });
+
   const notifications: NotificationItem[] = [];
+
+  if (lowStock.length > 0) {
+    const outOfStockCount = lowStock.filter(p => (p.stock ?? 0) <= 0).length;
+    notifications.push({
+      icon: <PackageX className="w-4 h-4" />,
+      label: outOfStockCount > 0 
+        ? `Stock mínimo alcanzado (${outOfStockCount} agotado${outOfStockCount > 1 ? 's' : ''})`
+        : 'Stock mínimo alcanzado',
+      count: lowStock.length,
+      color: outOfStockCount > 0 ? 'text-rose-600' : 'text-amber-600',
+      bgColor: outOfStockCount > 0 ? 'bg-rose-50' : 'bg-amber-50',
+      severity: outOfStockCount > 0 ? 'critical' : 'warning',
+      products: lowStock,
+    });
+  }
 
   if (zeroCost.length > 0) {
     notifications.push({
@@ -274,6 +300,21 @@ export function NotificationPanel() {
                     <p className="text-[12px] font-semibold text-slate-800 truncate group-hover:text-emerald-700">{p.name}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1 rounded">{p.code}</span>
+                      {(() => {
+                        const min = (p.min_stock !== undefined && p.min_stock !== null && p.min_stock > 0)
+                          ? p.min_stock
+                          : (defaultMinStock || 0);
+                        if (!min || min <= 0) return null;
+                        return (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            (p.stock ?? 0) <= 0 
+                              ? 'bg-rose-100 text-rose-700 border border-rose-200' 
+                              : 'bg-amber-100 text-amber-800 border border-amber-200'
+                          }`}>
+                            Stock: {p.stock ?? 0} (Mín: {min})
+                          </span>
+                        );
+                      })()}
                       {p.cost !== undefined && p.cost > 0 && (
                         <span className="text-[10px] text-slate-400">Costo: ${p.cost.toFixed(2)}</span>
                       )}

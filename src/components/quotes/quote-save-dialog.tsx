@@ -19,7 +19,7 @@ export function QuoteSaveDialog({ open, onOpenChange }: QuoteSaveDialogProps) {
   const createQuote = useCreateQuote();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const total = getSubtotal(bcvMultiplier);
+  const baseTotal = items.reduce((sum, item) => sum + (item.unit_price_usd || 0) * (item.quantity || 1), 0);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +39,7 @@ export function QuoteSaveDialog({ open, onOpenChange }: QuoteSaveDialogProps) {
         quote: {
           client_name: clientName,
           client_phone: clientPhone,
-          total_usd: total,
+          total_usd: baseTotal,
           bcv_rate: bcvRate,
           status: 'Cotizada', // Default status for saved quotes
         },

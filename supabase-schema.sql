@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS products (
   location TEXT DEFAULT '',
   fitment JSONB DEFAULT '[]'::jsonb,
   stock INTEGER DEFAULT 0,
+  min_stock INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -34,6 +35,7 @@ CREATE TABLE IF NOT EXISTS products (
 -- ALTER TABLE products ADD COLUMN IF NOT EXISTS location TEXT DEFAULT '';
 -- ALTER TABLE products ADD COLUMN IF NOT EXISTS fitment JSONB DEFAULT '[]'::jsonb;
 -- ALTER TABLE products ADD COLUMN IF NOT EXISTS stock INTEGER DEFAULT 0;
+-- ALTER TABLE products ADD COLUMN IF NOT EXISTS min_stock INTEGER DEFAULT 0;
 -- ==========================================
 
 -- Settings (key-value for BCV rate etc.)
@@ -176,7 +178,7 @@ CREATE TABLE IF NOT EXISTS brands (
 -- Add logo_url to brands if it doesn't exist
 -- ALTER TABLE brands ADD COLUMN IF NOT EXISTS logo_url TEXT DEFAULT '';
 
--- Price History
+-- Price History (Permanente)
 CREATE TABLE IF NOT EXISTS product_price_history (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   product_id UUID REFERENCES products(id) ON DELETE CASCADE,
@@ -184,6 +186,11 @@ CREATE TABLE IF NOT EXISTS product_price_history (
   new_cost DECIMAL(12,2),
   old_price_usd DECIMAL(12,2),
   new_price_usd DECIMAL(12,2),
+  old_name TEXT,
+  new_name TEXT,
+  old_description TEXT,
+  new_description TEXT,
+  change_type TEXT DEFAULT 'price',
   changed_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -196,18 +203,63 @@ CREATE POLICY "Allow all on brands" ON brands FOR ALL USING (true) WITH CHECK (t
 DROP POLICY IF EXISTS "Allow all on product_price_history" ON product_price_history;
 CREATE POLICY "Allow all on product_price_history" ON product_price_history FOR ALL USING (true) WITH CHECK (true);
 
--- Trigger function to track price changes
+-- Trigger function to track price, name and description changes
 CREATE OR REPLACE FUNCTION record_price_change()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_change_type TEXT;
+  v_price_changed BOOLEAN;
+  v_name_changed BOOLEAN;
+  v_desc_changed BOOLEAN;
 BEGIN
   IF (TG_OP = 'UPDATE') THEN
-    IF (OLD.cost IS DISTINCT FROM NEW.cost) OR (OLD.price_usd IS DISTINCT FROM NEW.price_usd) THEN
-      INSERT INTO product_price_history (product_id, old_cost, new_cost, old_price_usd, new_price_usd)
-      VALUES (NEW.id, OLD.cost, NEW.cost, OLD.price_usd, NEW.price_usd);
+    v_price_changed := (OLD.cost IS DISTINCT FROM NEW.cost) OR (OLD.price_usd IS DISTINCT FROM NEW.price_usd);
+    v_name_changed := (OLD.name IS DISTINCT FROM NEW.name);
+    v_desc_changed := (OLD.description IS DISTINCT FROM NEW.description);
+
+    IF v_price_changed OR v_name_changed OR v_desc_changed THEN
+      IF v_name_changed AND NOT v_price_changed AND NOT v_desc_changed THEN
+        v_change_type := 'name';
+      ELSIF v_desc_changed AND NOT v_price_changed AND NOT v_name_changed THEN
+        v_change_type := 'description';
+      ELSIF v_price_changed AND NOT v_name_changed AND NOT v_desc_changed THEN
+        v_change_type := 'price';
+      ELSE
+        v_change_type := 'multiple';
+      END IF;
+
+      INSERT INTO product_price_history (
+        product_id,
+        old_cost, new_cost,
+        old_price_usd, new_price_usd,
+        old_name, new_name,
+        old_description, new_description,
+        change_type
+      ) VALUES (
+        NEW.id,
+        OLD.cost, NEW.cost,
+        OLD.price_usd, NEW.price_usd,
+        OLD.name, NEW.name,
+        OLD.description, NEW.description,
+        v_change_type
+      );
     END IF;
   ELSIF (TG_OP = 'INSERT') THEN
-    INSERT INTO product_price_history (product_id, old_cost, new_cost, old_price_usd, new_price_usd)
-    VALUES (NEW.id, 0, NEW.cost, 0, NEW.price_usd);
+    INSERT INTO product_price_history (
+      product_id,
+      old_cost, new_cost,
+      old_price_usd, new_price_usd,
+      old_name, new_name,
+      old_description, new_description,
+      change_type
+    ) VALUES (
+      NEW.id,
+      0, NEW.cost,
+      0, NEW.price_usd,
+      '', NEW.name,
+      '', NEW.description,
+      'create'
+    );
   END IF;
   RETURN NEW;
 END;
@@ -218,3 +270,40 @@ DROP TRIGGER IF EXISTS trigger_record_price_change ON products;
 CREATE TRIGGER trigger_record_price_change
 AFTER INSERT OR UPDATE ON products
 FOR EACH ROW EXECUTE FUNCTION record_price_change();
+
+-- ============================================================
+-- Inventory Audit Log (Auditoría reversible para eliminaciones y kits)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS inventory_audit_log (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  action_type TEXT NOT NULL, -- 'product_deleted', 'kit_connected', 'kit_disconnected'
+  entity_type TEXT NOT NULL, -- 'product', 'kit_item'
+  entity_id UUID,
+  entity_code TEXT,
+  entity_name TEXT,
+  details JSONB DEFAULT '{}'::jsonb,
+  is_reverted BOOLEAN DEFAULT false,
+  reverted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE inventory_audit_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on inventory_audit_log" ON inventory_audit_log;
+CREATE POLICY "Allow all on inventory_audit_log" ON inventory_audit_log FOR ALL USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON inventory_audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action_type ON inventory_audit_log(action_type);
+CREATE INDEX IF NOT EXISTS idx_audit_log_is_reverted ON inventory_audit_log(is_reverted);
+
+-- ============================================================
+-- Limpieza automática de historial cada 30 días
+-- NOTA: product_price_history (precios, nombres, descripciones) PERDURA PARA SIEMPRE.
+-- ============================================================
+CREATE OR REPLACE FUNCTION cleanup_old_history_logs()
+RETURNS void AS $$
+BEGIN
+  DELETE FROM inventory_audit_log WHERE created_at < NOW() - INTERVAL '30 days';
+END;
+$$ LANGUAGE plpgsql;
+
+

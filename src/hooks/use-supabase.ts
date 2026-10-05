@@ -2,7 +2,19 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Product, Category, Setting, Quote, QuoteItem } from '@/types';
+import { Product, Category, Setting, Quote, QuoteItem, AuditLogEntry } from '@/types';
+
+// Helper for audit logging with graceful fallback if table does not exist
+async function logAuditAction(entry: Omit<AuditLogEntry, 'id' | 'created_at'> | Array<Omit<AuditLogEntry, 'id' | 'created_at'>>) {
+  try {
+    const { error } = await supabase.from('inventory_audit_log').insert(entry as any);
+    if (error) {
+      console.warn('Audit log notice (table may need creation via SQL script):', error.message);
+    }
+  } catch (err) {
+    console.warn('Audit log error:', err);
+  }
+}
 
 // ========== Products ==========
 export function useProducts() {
@@ -40,26 +52,111 @@ export function useUpdateProduct() {
   return useMutation({
     mutationFn: async (product: Partial<Product> & { id: string, compatible_kits?: string[] }) => {
       const { id, categories, created_at, compatible_kits, brands, kit_items, ...updateData } = product as any;
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('products')
         .update({ ...updateData, updated_at: new Date().toISOString() })
         .eq('id', id)
         .select('*, categories(*), brands(*), kit_items(kit_id)')
         .single();
-      if (error) throw error;
+
+      if (error && error.code === '42703' && error.message?.includes('min_stock')) {
+        const { min_stock, ...restUpdate } = updateData;
+        const fallback = await supabase
+          .from('products')
+          .update({ ...restUpdate, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .select('*, categories(*), brands(*), kit_items(kit_id)')
+          .single();
+        if (fallback.error) throw fallback.error;
+        data = fallback.data;
+      } else if (error) {
+        throw error;
+      }
 
       if (compatible_kits) {
+        // Track previous kit items for audit logging
+        let prevKitItems: any[] = [];
+        try {
+          const { data: currentItems } = await supabase
+            .from('kit_items')
+            .select('kit_id, kits(id, name, category)')
+            .eq('product_id', id);
+          prevKitItems = currentItems || [];
+        } catch (e) {
+          console.warn('Error reading prev kit items:', e);
+        }
+
+        const prevKitIds = prevKitItems.map((k: any) => k.kit_id);
+        const newKitIds = Array.from(new Set<string>(compatible_kits as string[]));
+
+        const removedKitIds = prevKitIds.filter((kId: string) => !newKitIds.includes(kId));
+        const addedKitIds = newKitIds.filter((kId: string) => !prevKitIds.includes(kId));
+
         // Sync kits: delete all current
         await supabase.from('kit_items').delete().eq('product_id', id);
         // Insert new ones
-        if (compatible_kits.length > 0) {
-          const uniqueKitIds = Array.from(new Set<string>(compatible_kits as string[]));
-          const insertData = uniqueKitIds.map((kitId: string) => ({
+        if (newKitIds.length > 0) {
+          const insertData = newKitIds.map((kitId: string) => ({
             kit_id: kitId,
             product_id: id,
             quantity: 1,
           }));
           await supabase.from('kit_items').insert(insertData);
+        }
+
+        // Audit removed kit connections
+        if (removedKitIds.length > 0) {
+          const auditRemovals = removedKitIds.map((kId: string) => {
+            const prev = prevKitItems.find((k: any) => k.kit_id === kId);
+            return {
+              action_type: 'kit_disconnected' as const,
+              entity_type: 'kit_item' as const,
+              entity_id: id,
+              entity_code: data?.code || (product as any).code || '',
+              entity_name: data?.name || (product as any).name || '',
+              details: {
+                kit_id: kId,
+                kit_name: prev?.kits?.name || 'Cotizador',
+                kit_category: prev?.kits?.category || '',
+                product_id: id,
+                product_code: data?.code || (product as any).code || '',
+                product_name: data?.name || (product as any).name || '',
+                quantity: 1,
+              },
+              is_reverted: false,
+            };
+          });
+          await logAuditAction(auditRemovals);
+        }
+
+        // Audit added kit connections
+        if (addedKitIds.length > 0) {
+          const { data: addedKitsData } = await supabase
+            .from('kits')
+            .select('id, name, category')
+            .in('id', addedKitIds);
+
+          const auditAdditions = addedKitIds.map((kId: string) => {
+            const kitInfo = addedKitsData?.find((k: any) => k.id === kId);
+            return {
+              action_type: 'kit_connected' as const,
+              entity_type: 'kit_item' as const,
+              entity_id: id,
+              entity_code: data?.code || (product as any).code || '',
+              entity_name: data?.name || (product as any).name || '',
+              details: {
+                kit_id: kId,
+                kit_name: kitInfo?.name || 'Cotizador',
+                kit_category: kitInfo?.category || '',
+                product_id: id,
+                product_code: data?.code || (product as any).code || '',
+                product_name: data?.name || (product as any).name || '',
+                quantity: 1,
+              },
+              is_reverted: false,
+            };
+          });
+          await logAuditAction(auditAdditions);
         }
       }
 
@@ -69,6 +166,7 @@ export function useUpdateProduct() {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['kits'] });
       queryClient.invalidateQueries({ queryKey: ['kit_items'] });
+      queryClient.invalidateQueries({ queryKey: ['audit_history'] });
     },
   });
 }
@@ -77,12 +175,24 @@ export function useCreateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { product: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'categories' | 'brands' | 'kit_items'>, compatible_kits?: string[] }) => {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('products')
         .insert(payload.product)
         .select('*, categories(*), brands(*)')
         .single();
-      if (error) throw error;
+
+      if (error && error.code === '42703' && error.message?.includes('min_stock')) {
+        const { min_stock, ...restProduct } = payload.product as any;
+        const fallback = await supabase
+          .from('products')
+          .insert(restProduct)
+          .select('*, categories(*), brands(*)')
+          .single();
+        if (fallback.error) throw fallback.error;
+        data = fallback.data;
+      } else if (error) {
+        throw error;
+      }
 
       if (payload.compatible_kits && payload.compatible_kits.length > 0) {
         const uniqueKitIds = Array.from(new Set<string>(payload.compatible_kits as string[]));
@@ -92,6 +202,38 @@ export function useCreateProduct() {
           quantity: 1,
         }));
         await supabase.from('kit_items').insert(insertData);
+
+        // Fetch kit names for audit logging
+        try {
+          const { data: kitsData } = await supabase
+            .from('kits')
+            .select('id, name, category')
+            .in('id', uniqueKitIds);
+
+          const auditAdditions = uniqueKitIds.map((kitId: string) => {
+            const kitInfo = kitsData?.find((k: any) => k.id === kitId);
+            return {
+              action_type: 'kit_connected' as const,
+              entity_type: 'kit_item' as const,
+              entity_id: data.id,
+              entity_code: data.code,
+              entity_name: data.name,
+              details: {
+                kit_id: kitId,
+                kit_name: kitInfo?.name || 'Cotizador',
+                kit_category: kitInfo?.category || '',
+                product_id: data.id,
+                product_code: data.code,
+                product_name: data.name,
+                quantity: 1,
+              },
+              is_reverted: false,
+            };
+          });
+          await logAuditAction(auditAdditions);
+        } catch (e) {
+          console.warn('Error auditing kit additions on product create:', e);
+        }
       }
 
       return data;
@@ -100,6 +242,7 @@ export function useCreateProduct() {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['kits'] });
       queryClient.invalidateQueries({ queryKey: ['kit_items'] });
+      queryClient.invalidateQueries({ queryKey: ['audit_history'] });
     },
   });
 }
@@ -108,12 +251,48 @@ export function useDeleteProduct() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // 1. Capture snapshot of product and kit associations before deletion
+      try {
+        const { data: prod } = await supabase
+          .from('products')
+          .select('*, kit_items(kit_id, quantity, kits(id, name, category))')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (prod) {
+          const { kit_items, categories, brands, ...rawProduct } = prod;
+          await logAuditAction({
+            action_type: 'product_deleted',
+            entity_type: 'product',
+            entity_id: prod.id,
+            entity_code: prod.code,
+            entity_name: prod.name,
+            details: {
+              product_snapshot: rawProduct,
+              kit_associations: (kit_items || []).map((k: any) => ({
+                kit_id: k.kit_id,
+                kit_name: k.kits?.name || 'Cotizador',
+                category: k.kits?.category || '',
+                quantity: k.quantity || 1,
+              })),
+            },
+            is_reverted: false,
+          });
+        }
+      } catch (e) {
+        console.warn('Error capturing product snapshot for audit:', e);
+      }
+
+      // 2. Perform deletion
       const { error } = await supabase.from('products').delete().eq('id', id);
       if (error) throw error;
       return id;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['kits'] });
+      queryClient.invalidateQueries({ queryKey: ['kit_items'] });
+      queryClient.invalidateQueries({ queryKey: ['audit_history'] });
     },
   });
 }
@@ -122,12 +301,50 @@ export function useBulkDeleteProducts() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (ids: string[]) => {
+      // 1. Capture snapshots before deletion
+      try {
+        const { data: prods } = await supabase
+          .from('products')
+          .select('*, kit_items(kit_id, quantity, kits(id, name, category))')
+          .in('id', ids);
+
+        if (prods && prods.length > 0) {
+          const auditEntries = prods.map((prod: any) => {
+            const { kit_items, categories, brands, ...rawProduct } = prod;
+            return {
+              action_type: 'product_deleted' as const,
+              entity_type: 'product' as const,
+              entity_id: prod.id,
+              entity_code: prod.code,
+              entity_name: prod.name,
+              details: {
+                product_snapshot: rawProduct,
+                kit_associations: (kit_items || []).map((k: any) => ({
+                  kit_id: k.kit_id,
+                  kit_name: k.kits?.name || 'Cotizador',
+                  category: k.kits?.category || '',
+                  quantity: k.quantity || 1,
+                })),
+              },
+              is_reverted: false,
+            };
+          });
+          await logAuditAction(auditEntries);
+        }
+      } catch (e) {
+        console.warn('Error capturing bulk product snapshot for audit:', e);
+      }
+
+      // 2. Perform deletion
       const { error } = await supabase.from('products').delete().in('id', ids);
       if (error) throw error;
       return ids;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['kits'] });
+      queryClient.invalidateQueries({ queryKey: ['kit_items'] });
+      queryClient.invalidateQueries({ queryKey: ['audit_history'] });
     },
   });
 }
@@ -331,6 +548,77 @@ export function useUpdateBcvMultiplier() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bcv_multiplier'] });
+    },
+  });
+}
+
+export function useDefaultMinStock() {
+  return useQuery<number>({
+    queryKey: ['default_min_stock'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'default_min_stock')
+        .maybeSingle();
+      if (error || !data) return 0;
+      return Number(data.value);
+    },
+  });
+}
+
+export function useUpdateDefaultMinStock() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (newValue: number) => {
+      const { error } = await supabase
+        .from('settings')
+        .upsert({ key: 'default_min_stock', value: newValue, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      return newValue;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['default_min_stock'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
+export function useBulkUpdateMinStock() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      minStock,
+      filterType,
+      filterValue,
+      onlyWithoutRule,
+    }: {
+      minStock: number;
+      filterType: 'all' | 'category' | 'brand';
+      filterValue?: string;
+      onlyWithoutRule?: boolean;
+    }) => {
+      let query = supabase.from('products').update({ min_stock: minStock, updated_at: new Date().toISOString() });
+
+      // Solo aplicar a productos que tienen precio asignado (> 0)
+      query = query.gt('price_usd', 0);
+
+      if (filterType === 'category' && filterValue) {
+        query = query.eq('category_id', filterValue);
+      } else if (filterType === 'brand' && filterValue) {
+        query = query.eq('brand_id', filterValue);
+      }
+
+      if (onlyWithoutRule) {
+        query = query.or('min_stock.is.null,min_stock.eq.0');
+      }
+
+      const { data, error } = await query.select('id');
+      if (error) throw error;
+      return data?.length || 0;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
     },
   });
 }
@@ -561,11 +849,41 @@ export function useCreateKitItem() {
 
       const { data, error } = await supabase.from('kit_items').insert(kitItem).select().single();
       if (error) throw error;
+
+      // Log in audit table
+      try {
+        const [{ data: kitData }, { data: prodData }] = await Promise.all([
+          supabase.from('kits').select('id, name, category').eq('id', kitItem.kit_id).maybeSingle(),
+          supabase.from('products').select('id, code, name').eq('id', kitItem.product_id).maybeSingle(),
+        ]);
+
+        await logAuditAction({
+          action_type: 'kit_connected',
+          entity_type: 'kit_item',
+          entity_id: data.id,
+          entity_code: prodData?.code || '',
+          entity_name: prodData?.name || '',
+          details: {
+            kit_id: kitItem.kit_id,
+            kit_name: kitData?.name || 'Cotizador',
+            kit_category: kitData?.category || '',
+            product_id: kitItem.product_id,
+            product_code: prodData?.code || '',
+            product_name: prodData?.name || '',
+            quantity: kitItem.quantity || 1,
+          },
+          is_reverted: false,
+        });
+      } catch (err) {
+        console.warn('Error auditing kit_connected in useCreateKitItem:', err);
+      }
+
       return data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['kits'] });
       queryClient.invalidateQueries({ queryKey: ['kit_items', variables.kit_id] });
+      queryClient.invalidateQueries({ queryKey: ['audit_history'] });
     },
   });
 }
@@ -574,6 +892,39 @@ export function useDeleteKitItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, kitId }: { id: string; kitId: string }) => {
+      // 1. Fetch info before deletion for audit log
+      try {
+        const { data: itemData } = await supabase
+          .from('kit_items')
+          .select('id, kit_id, product_id, quantity, kits(id, name, category), products(id, code, name)')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (itemData) {
+          const kitInfo = itemData.kits as any;
+          const prodInfo = itemData.products as any;
+          await logAuditAction({
+            action_type: 'kit_disconnected',
+            entity_type: 'kit_item',
+            entity_id: id,
+            entity_code: prodInfo?.code || '',
+            entity_name: prodInfo?.name || '',
+            details: {
+              kit_id: itemData.kit_id,
+              kit_name: kitInfo?.name || 'Cotizador',
+              kit_category: kitInfo?.category || '',
+              product_id: itemData.product_id,
+              product_code: prodInfo?.code || '',
+              product_name: prodInfo?.name || '',
+              quantity: itemData.quantity || 1,
+            },
+            is_reverted: false,
+          });
+        }
+      } catch (err) {
+        console.warn('Error auditing kit_disconnected in useDeleteKitItem:', err);
+      }
+
       const { error } = await supabase.from('kit_items').delete().eq('id', id);
       if (error) throw error;
       return { id, kitId };
@@ -581,6 +932,7 @@ export function useDeleteKitItem() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['kits'] });
       queryClient.invalidateQueries({ queryKey: ['kit_items', variables.kitId] });
+      queryClient.invalidateQueries({ queryKey: ['audit_history'] });
     },
   });
 }
@@ -811,7 +1163,7 @@ export function useDeleteVehicleBrand() {
   });
 }
 
-// ========== Price History ==========
+// ========== Price History (Permanente) ==========
 export function usePriceHistory(productId: string) {
   return useQuery<any[]>({
     queryKey: ['price_history', productId],
@@ -828,3 +1180,175 @@ export function usePriceHistory(productId: string) {
     enabled: !!productId,
   });
 }
+
+// ========== Audit Log & Reversion ==========
+export function useAuditHistory(limit = 100) {
+  return useQuery<AuditLogEntry[]>({
+    queryKey: ['audit_history', limit],
+    queryFn: async () => {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const cutoff = thirtyDaysAgo.toISOString();
+
+      // Trigger non-blocking background cleanup of records older than 30 days
+      supabase.from('inventory_audit_log').delete().lt('created_at', cutoff).then(() => {});
+
+      const { data, error } = await supabase
+        .from('inventory_audit_log')
+        .select('*')
+        .gte('created_at', cutoff)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        // Table might not exist yet if user hasn't run the migration
+        if (error.code === '42P01' || error.code === 'PGRST205' || error.message?.includes('does not exist')) {
+          console.warn('inventory_audit_log table does not exist yet. Please run supabase_add_audit_log.sql in Supabase.');
+          return [];
+        }
+        throw error;
+      }
+      return (data || []) as AuditLogEntry[];
+    },
+  });
+}
+
+export function useRevertAuditLog() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (entry: AuditLogEntry) => {
+      if (entry.is_reverted) {
+        throw new Error('Esta acción ya ha sido revertida.');
+      }
+
+      if (entry.action_type === 'product_deleted') {
+        const snapshot = entry.details?.product_snapshot;
+        if (!snapshot) {
+          throw new Error('No se encontró el respaldo de información del producto para restaurar.');
+        }
+
+        // Strip joined relation fields and timestamp generated columns
+        const { categories, brands, kit_items, created_at, updated_at, ...cleanProduct } = snapshot as any;
+
+        // 1. Re-insert product preserving its original ID
+        const { error: prodError } = await supabase
+          .from('products')
+          .upsert(cleanProduct, { onConflict: 'id' });
+
+        if (prodError) throw prodError;
+
+        // 2. Re-insert kit associations if any existed
+        const kitAssocs = entry.details?.kit_associations || [];
+        if (kitAssocs.length > 0) {
+          const kitItemsToInsert = kitAssocs.map((k: any) => ({
+            kit_id: k.kit_id,
+            product_id: entry.entity_id || cleanProduct.id,
+            quantity: k.quantity || 1,
+          }));
+          await supabase.from('kit_items').insert(kitItemsToInsert);
+        }
+      } else if (entry.action_type === 'kit_connected') {
+        // Reverting kit_connected means disconnecting the product from the kit
+        const kitId = entry.details?.kit_id;
+        const productId = entry.details?.product_id;
+        if (!kitId || !productId) {
+          throw new Error('Faltan datos del cotizador o repuesto para revertir la vinculación.');
+        }
+
+        const { error: delError } = await supabase
+          .from('kit_items')
+          .delete()
+          .eq('kit_id', kitId)
+          .eq('product_id', productId);
+
+        if (delError) throw delError;
+      } else if (entry.action_type === 'kit_disconnected') {
+        // Reverting kit_disconnected means re-connecting the product to the kit
+        const kitId = entry.details?.kit_id;
+        const productId = entry.details?.product_id;
+        if (!kitId || !productId) {
+          throw new Error('Faltan datos del cotizador o repuesto para reconectar.');
+        }
+
+        // Verify if product still exists
+        const { data: prodCheck } = await supabase
+          .from('products')
+          .select('id')
+          .eq('id', productId)
+          .maybeSingle();
+
+        if (!prodCheck) {
+          throw new Error('No se puede reconectar porque el producto no existe en el catálogo.');
+        }
+
+        // Avoid duplicate insertion
+        const { data: alreadyConnected } = await supabase
+          .from('kit_items')
+          .select('id')
+          .eq('kit_id', kitId)
+          .eq('product_id', productId)
+          .maybeSingle();
+
+        if (!alreadyConnected) {
+          const { error: insertError } = await supabase
+            .from('kit_items')
+            .insert({
+              kit_id: kitId,
+              product_id: productId,
+              quantity: entry.details?.quantity || 1,
+            });
+
+          if (insertError) throw insertError;
+        }
+      }
+
+      // Mark audit entry as reverted
+      const { error: markError } = await supabase
+        .from('inventory_audit_log')
+        .update({
+          is_reverted: true,
+          reverted_at: new Date().toISOString(),
+        })
+        .eq('id', entry.id);
+
+      if (markError) throw markError;
+
+      return entry.id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['kits'] });
+      queryClient.invalidateQueries({ queryKey: ['kit_items'] });
+      queryClient.invalidateQueries({ queryKey: ['audit_history'] });
+      queryClient.invalidateQueries({ queryKey: ['global_history'] });
+    },
+  });
+}
+
+export function usePurgeOldHistory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const cutoff = thirtyDaysAgo.toISOString();
+
+      // Only purge temporary audit backups (deletions and kits)
+      // product_price_history is permanent and never purged
+      const { error } = await supabase
+        .from('inventory_audit_log')
+        .delete()
+        .lt('created_at', cutoff);
+
+      if (error && !error.message?.includes('does not exist')) {
+        console.warn('Audit purge warning:', error);
+      }
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['audit_history'] });
+    },
+  });
+}
+
+

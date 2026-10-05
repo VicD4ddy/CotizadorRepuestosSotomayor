@@ -2,7 +2,7 @@
 
 import { useCartStore } from '@/store/cart-store';
 import { useBcvRate, useCreateQuote, useBcvMultiplier, useProducts } from '@/hooks/use-supabase';
-import { formatUSD, formatBs } from '@/lib/utils';
+import { formatUSD, formatBs, calculateBcvPrice } from '@/lib/utils';
 import {
   ShoppingCart,
   Trash2,
@@ -65,26 +65,29 @@ export function QuoteCart() {
   };
 
   // Build a temporary Quote object from cart state for PDF layout
-  const buildTempQuote = (): Quote => ({
-    id: `TEMP-${Date.now().toString(36).toUpperCase()}`,
-    client_name: clientName || 'Cliente Mostrador',
-    client_phone: clientPhone || '',
-    total_usd: subtotal,
-    bcv_rate: bcvRate,
-    status: 'Cotizada',
-    created_at: new Date().toISOString(),
-    quote_items: items.map((item, i) => ({
-      id: `item-${i}`,
-      quote_id: '',
-      product_id: item.product_id,
-      product_name: item.product_name,
-      product_code: item.product_code,
-      quantity: item.quantity,
-      unit_price_usd: item.unit_price_usd,
-      brand_name: item.brand_name,
-      brand_logo_url: item.brand_logo_url,
-    })),
-  });
+  const buildTempQuote = (): Quote => {
+    const baseSubtotal = items.reduce((sum, item) => sum + (item.unit_price_usd || 0) * (item.quantity || 1), 0);
+    return {
+      id: `TEMP-${Date.now().toString(36).toUpperCase()}`,
+      client_name: clientName || 'Cliente Mostrador',
+      client_phone: clientPhone || '',
+      total_usd: baseSubtotal,
+      bcv_rate: bcvRate,
+      status: 'Cotizada',
+      created_at: new Date().toISOString(),
+      quote_items: items.map((item, i) => ({
+        id: `item-${i}`,
+        quote_id: '',
+        product_id: item.product_id,
+        product_name: item.product_name,
+        product_code: item.product_code,
+        quantity: item.quantity,
+        unit_price_usd: item.unit_price_usd,
+        brand_name: item.brand_name,
+        brand_logo_url: item.brand_logo_url,
+      })),
+    };
+  };
 
   const handleExportPdf = async (customCurrency?: 'usd' | 'bcv' | 'both') => {
     if (items.length === 0) {
@@ -200,8 +203,9 @@ export function QuoteCart() {
         msg += `- ${item.quantity}x ${item.product_name}${brandSuffix}\n  USD: ${formatUSD(priceUSD)} | Bs: ${formatBs(priceBs)}\n`;
       });
       
-      const calcTotalBs = total * bcvMultiplier * bcvRate;
-      msg += `\n*Total USD:* ${formatUSD(total)}\n`;
+      const baseTotal = items.reduce((sum, item) => sum + (item.unit_price_usd || 0) * (item.quantity || 1), 0);
+      const calcTotalBs = baseTotal * bcvMultiplier * bcvRate;
+      msg += `\n*Total USD:* ${formatUSD(baseTotal)}\n`;
       msg += `*Total Bs:* ${formatBs(calcTotalBs)}\n`;
       msg += `\n_${randomPhrase}_`;
 
@@ -213,7 +217,7 @@ export function QuoteCart() {
         quote: {
           client_name: clientName,
           client_phone: clientPhone,
-          total_usd: total,
+          total_usd: baseTotal,
           bcv_rate: bcvRate,
           status: 'Enviada por WhatsApp',
         },
@@ -322,7 +326,7 @@ export function QuoteCart() {
             {items.map((item) => {
               const dbProduct = products.find((p) => p.id === item.product_id);
               const activeStock = dbProduct ? (dbProduct.stock ?? 0) : (item.stock ?? 0);
-              const itemPrice = paymentMethod === 'bs' ? item.unit_price_usd * bcvMultiplier : item.unit_price_usd;
+              const itemPrice = paymentMethod === 'bs' ? calculateBcvPrice(item.unit_price_usd, bcvMultiplier) : item.unit_price_usd;
               const itemBs = itemPrice * bcvRate;
               return (
                 <div key={item.product_id} className="p-3 bg-white border border-slate-200 shadow-sm">

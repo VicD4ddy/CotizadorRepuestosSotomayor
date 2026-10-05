@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 import { Quote, QuoteItem } from '@/types';
-import { formatUSD } from '@/lib/utils';
+import { formatUSD, calculateBcvPrice } from '@/lib/utils';
 
 interface QuotePDFLayoutProps {
   quote: Quote;
@@ -19,14 +19,16 @@ export const QuotePDFLayout = forwardRef<HTMLDivElement, QuotePDFLayoutProps>(
     const mult = isBcv ? bcvMultiplier : 1;
     const quoteNumber = quote.id.substring(0, 8).toUpperCase();
 
-    // For BCV: price = usd * multiplier * rate (Bs)
+    // For BCV: price = calculateBcvPrice(usd, mult)
     // For USD: price = usd (dollars)
-    const getItemUsdBcv = (usd: number) => usd * mult;
-    const getItemBs = (usd: number) => usd * mult * rate;
+    const getItemUsdBcv = (usd: number) => isBcv ? calculateBcvPrice(usd, mult) : usd;
+    const getItemBs = (usd: number) => getItemUsdBcv(usd) * rate;
 
     // Calculate subtotal from items (without IVA)
     const subtotalUsd = quote.quote_items?.reduce((sum, item) => sum + (item.unit_price_usd || 0) * (item.quantity || 1), 0) || 0;
-    const subtotalUsdBcv = subtotalUsd * mult;
+    const subtotalUsdBcv = isBcv
+      ? (quote.quote_items?.reduce((sum, item) => sum + calculateBcvPrice(item.unit_price_usd || 0, mult) * (item.quantity || 1), 0) || 0)
+      : subtotalUsd;
     const subtotalBs = subtotalUsdBcv * rate;
 
     const formatBsVal = (val: number) => `Bs ${val.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

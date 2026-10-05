@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { ImportExcelDialog } from '@/components/settings/import-excel-dialog';
 import { ImportStockDialog } from '@/components/settings/import-stock-dialog';
-import { FileSpreadsheet, Download } from 'lucide-react';
+import { BulkMinStockDialog } from '@/components/inventory/bulk-min-stock-dialog';
+import { FileSpreadsheet, Download, SlidersHorizontal } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   Dialog,
@@ -14,7 +15,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { useBcvRate, useUpdateBcvRate, useMarginPercentage, useUpdateMarginPercentage, useBcvMultiplier, useUpdateBcvMultiplier } from '@/hooks/use-supabase';
+import {
+  useBcvRate,
+  useUpdateBcvRate,
+  useMarginPercentage,
+  useUpdateMarginPercentage,
+  useBcvMultiplier,
+  useUpdateBcvMultiplier,
+  useDefaultMinStock,
+  useUpdateDefaultMinStock,
+} from '@/hooks/use-supabase';
 
 interface SettingsDialogProps {
   open: boolean;
@@ -29,26 +39,32 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
   const updateMargin = useUpdateMarginPercentage();
   const { data: bcvMultiplier = 1.4 } = useBcvMultiplier();
   const updateBcvMultiplier = useUpdateBcvMultiplier();
+  const { data: defaultMinStock = 0 } = useDefaultMinStock();
+  const updateDefaultMinStock = useUpdateDefaultMinStock();
 
   const [localBcv, setLocalBcv] = useState('');
   const [localMargin, setLocalMargin] = useState('');
   const [localMultiplier, setLocalMultiplier] = useState('');
+  const [localMinStock, setLocalMinStock] = useState('');
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isImportStockOpen, setIsImportStockOpen] = useState(false);
+  const [isBulkMinStockOpen, setIsBulkMinStockOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
       if (bcvRate) setLocalBcv(bcvRate.toString());
       if (marginPercentage) setLocalMargin(marginPercentage.toString());
       if (bcvMultiplier) setLocalMultiplier(bcvMultiplier.toString());
+      setLocalMinStock(defaultMinStock > 0 ? defaultMinStock.toString() : '2');
     }
-  }, [open, bcvRate, marginPercentage, bcvMultiplier]);
+  }, [open, bcvRate, marginPercentage, bcvMultiplier, defaultMinStock]);
 
   const handleSave = async () => {
     try {
       const parsedBcv = parseFloat(localBcv);
       const parsedMargin = parseFloat(localMargin);
       const parsedMultiplier = parseFloat(localMultiplier);
+      const parsedMinStock = parseInt(localMinStock, 10);
 
       if (isNaN(parsedBcv) || parsedBcv <= 0) {
         toast.error('La tasa BCV debe ser mayor a 0');
@@ -62,11 +78,16 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
         toast.error('El multiplicador debe ser mayor o igual a 1');
         return;
       }
+      if (isNaN(parsedMinStock) || parsedMinStock < 0) {
+        toast.error('El stock mínimo debe ser un número entero mayor o igual a 0');
+        return;
+      }
 
       await Promise.all([
         updateBcvRate.mutateAsync(parsedBcv),
         updateMargin.mutateAsync(parsedMargin),
-        updateBcvMultiplier.mutateAsync(parsedMultiplier)
+        updateBcvMultiplier.mutateAsync(parsedMultiplier),
+        updateDefaultMinStock.mutateAsync(parsedMinStock),
       ]);
 
       toast.success('Configuraciones guardadas exitosamente');
@@ -120,8 +141,36 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
             </p>
           </div>
 
+          {/* Stock Mínimo Global y Asignación Masiva */}
+          <div className="grid gap-2 border-t border-slate-200 pt-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-slate-700">Stock Mínimo por Defecto (Global)</label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsBulkMinStockOpen(true)}
+                className="text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 h-7 px-2 font-bold cursor-pointer"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 mr-1" />
+                Asignación Masiva
+              </Button>
+            </div>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              value={localMinStock}
+              onChange={(e) => setLocalMinStock(e.target.value)}
+              className="col-span-3 font-semibold"
+            />
+            <p className="text-xs text-slate-500">
+              Valor base aplicado a los productos que no tienen stock mínimo individual configurado.
+            </p>
+          </div>
+
           {/* Separator */}
-          <div className="border-t border-slate-200 pt-4 mt-2">
+          <div className="border-t border-slate-200 pt-3">
             <label className="text-sm font-medium text-slate-700 mb-2.5 block">Gestión de Datos</label>
             <div className="grid grid-cols-2 gap-2">
               <Button
@@ -218,6 +267,8 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
           onOpenChange(false);
           onImportComplete?.();
         }} />
+
+        <BulkMinStockDialog open={isBulkMinStockOpen} onOpenChange={setIsBulkMinStockOpen} />
       </DialogContent>
     </Dialog>
   );

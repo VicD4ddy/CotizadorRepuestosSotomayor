@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Quote, QuoteItem } from '@/types';
 import { useUpdateQuote, useBcvMultiplier, useBcvRate } from '@/hooks/use-supabase';
-import { formatUSD, formatBs } from '@/lib/utils';
+import { formatUSD, formatBs, calculateBcvPrice } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Calendar, User, Phone, CheckCircle, XCircle, FileText, MessageCircle, ShoppingCart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -91,18 +91,26 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
         console.error('Failed to copy image to clipboard', err);
       }
 
-      const totalBs = (quote.total_usd || 0) * bcvMultiplier * bcvRate;
+      const itemsSum = quote.quote_items?.reduce(
+        (sum, item) => sum + (item.unit_price_usd || 0) * (item.quantity || 1), 0
+      );
+      const baseSubtotal = (itemsSum !== undefined && itemsSum > 0) ? itemsSum : (quote.total_usd || 0);
+      const subtotalBcv = quote.quote_items?.reduce(
+        (sum, item) => sum + calculateBcvPrice(item.unit_price_usd || 0, bcvMultiplier) * (item.quantity || 1), 0
+      ) || (baseSubtotal * bcvMultiplier);
+      const totalBs = subtotalBcv * bcvRate;
       let msg = `*REPUESTOS SOTOMAYOR*\n_Cotización en *DIVISAS Y BOLÍVARES*_\n\n`;
       if (quote.client_name) msg += `*Cliente:* ${quote.client_name}\n`;
       msg += `*Fecha:* ${date}\n\n`;
       msg += `*Detalle:*\n`;
       quote.quote_items?.forEach((item) => {
         const priceUSD = item.unit_price_usd || 0;
-        const priceBs = priceUSD * bcvMultiplier * bcvRate;
+        const priceUsdBcv = calculateBcvPrice(priceUSD, bcvMultiplier);
+        const priceBs = priceUsdBcv * bcvRate;
         const brandSuffix = item.brand_name ? ` (${item.brand_name})` : '';
         msg += `- ${item.quantity}x ${item.product_name}${brandSuffix}\n  USD: ${formatUSD(priceUSD)} | Bs: ${formatBs(priceBs)}\n`;
       });
-      msg += `\n*Total USD:* ${formatUSD(quote.total_usd || 0)}\n`;
+      msg += `\n*Total USD:* ${formatUSD(baseSubtotal)}\n`;
       msg += `*Total Bs:* ${formatBs(totalBs)}\n`;
       msg += `\n_${randomPhrase}_`;
 
@@ -182,6 +190,10 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
     onOpenChange(false);
   };
 
+  const itemsSum = quote.quote_items?.reduce(
+    (sum, item) => sum + (item.unit_price_usd || 0) * (item.quantity || 1), 0
+  );
+  const baseSubtotal = (itemsSum !== undefined && itemsSum > 0) ? itemsSum : (quote.total_usd || 0);
   const status = quote.status?.toLowerCase() || 'cotizada';
 
   return (
@@ -268,7 +280,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
                   <tr>
                     <td colSpan={4} className="px-4 py-3 text-right text-[13px] font-bold text-slate-600">Total Cotizado:</td>
                     <td className="px-4 py-3 text-right text-[15px] font-bold text-slate-900">
-                      {formatUSD(quote.total_usd || 0)}
+                      {formatUSD(baseSubtotal)}
                     </td>
                   </tr>
                 </tfoot>
