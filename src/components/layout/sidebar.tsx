@@ -13,6 +13,7 @@ import {
   History,
   Droplets,
   AlertTriangle,
+  Disc3,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useProducts, useDefaultMinStock } from '@/hooks/use-supabase';
@@ -24,6 +25,7 @@ const navItems = [
   { icon: FilePlus2, label: 'Cotiz. Manual', id: 'manual_quote' },
   { icon: ShoppingCart, label: 'Ventas', id: 'sales' },
   { icon: Cog, label: 'Motor', id: 'motor_kits' },
+  { icon: Disc3, label: 'Clutch', id: 'clutch_kits' },
   { icon: Wrench, label: 'T. Delantero', id: 'tren_delantero_kits' },
   { icon: Droplets, label: 'Misceláneos', id: 'miscellaneous' },
   { icon: AlertTriangle, label: 'Alerta Stock', id: 'min_stock_alert' },

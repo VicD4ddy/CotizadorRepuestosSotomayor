@@ -412,6 +412,17 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
     });
   }, [kits, suggestedKitIds]);
 
+  const sortedClutchKits = useMemo(() => {
+    const clutchKits = kits.filter((k: Kit) => k.category === 'Clutch');
+    return [...clutchKits].sort((a: Kit, b: Kit) => {
+      const aSuggested = suggestedKitIds.has(a.id);
+      const bSuggested = suggestedKitIds.has(b.id);
+      if (aSuggested && !bSuggested) return -1;
+      if (!aSuggested && bSuggested) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [kits, suggestedKitIds]);
+
   const sortedTrenKits = useMemo(() => {
     const trenKits = kits.filter((k: Kit) => k.category === 'Tren Delantero');
     return [...trenKits].sort((a: Kit, b: Kit) => {
@@ -1021,7 +1032,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
               {/* Compatibilidad con Cotizadores (Kits) */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                  <h3 className="font-semibold text-[15px] text-slate-900">Cotizadores (Motores / T. Delantero)</h3>
+                  <h3 className="font-semibold text-[15px] text-slate-900">Cotizadores (Motores / Clutch / T. Delantero)</h3>
                   {suggestedKitIds.size > 0 && (
                     <button
                       type="button"
@@ -1055,9 +1066,41 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <p className="text-[13px] font-semibold text-slate-900 truncate">{kit.name}</p>
                                 {suggestedKitIds.has(kit.id) && (
-                                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 py-0.25 rounded shrink-0">
-                                    Sugerido
-                                  </span>
+                                   <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 py-0.25 rounded shrink-0">
+                                     Sugerido
+                                   </span>
+                                )}
+                              </div>
+                              {kit.description && (
+                                <p className="text-[11px] text-slate-500 truncate mt-0.5">{kit.description}</p>
+                              )}
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Clutch */}
+                  {sortedClutchKits.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Clutch / Embrague</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {sortedClutchKits.map((kit) => (
+                          <label key={kit.id} className="flex items-start gap-2 p-2 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              value={kit.id}
+                              {...register('compatible_kits')}
+                              className="mt-1 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <p className="text-[13px] font-semibold text-slate-900 truncate">{kit.name}</p>
+                                {suggestedKitIds.has(kit.id) && (
+                                   <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 py-0.25 rounded shrink-0">
+                                     Sugerido
+                                   </span>
                                 )}
                               </div>
                               {kit.description && (

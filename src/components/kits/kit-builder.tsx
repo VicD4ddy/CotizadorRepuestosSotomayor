@@ -1,15 +1,16 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Kit, Product, CartItem } from '@/types';
-import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useUpdateProduct, useProducts, useBcvRate, useBcvMultiplier, useKitCombos, useCreateKitCombo, useUpdateKitCombo, useDeleteKitCombo, useSaveComboItems, useDeleteKitComboItem, useUpdateKitComboItemQuantity } from '@/hooks/use-supabase';
+import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useUpdateProduct, useProducts, useBcvRate, useBcvMultiplier, useKitCombos, useCreateKitCombo, useUpdateKitCombo, useDeleteKitCombo, useSaveComboItems, useDeleteKitComboItem, useUpdateKitComboItemQuantity, useKits } from '@/hooks/use-supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
 import { formatUSD } from '@/lib/utils';
-import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
 import { ProductFormDialog } from '@/components/inventory/product-form-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ClutchKitView } from './clutch-kit-view';
 
 interface KitBuilderProps {
   kit: Kit;
@@ -28,6 +29,40 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const { data: bcvMultiplier = 1.4 } = useBcvMultiplier();
   const queryClient = useQueryClient();
 
+  // Clutch Kits (para vincular/mostrar en motores)
+  const { data: allClutchKits = [] } = useKits('Clutch');
+  const [selectedClutchKitId, setSelectedClutchKitId] = useState<string | null>(null);
+
+  const matchingClutchKits = useMemo(() => {
+    if (kit.category?.toLowerCase() !== 'motor') return [];
+    const motorName = kit.name.toLowerCase();
+    
+    // 1. Coincidencia por palabras clave conocidas de motor
+    const keywords = ['300', '350', '351', '360', '302', '258', '4.3', '4.6', '5.4', 'c10', 'c30', 'c60', 'c70', 'd600', 'ram', 'cargo', 'cj'];
+    const matchedByKeyword = allClutchKits.filter(ck => {
+      const ckName = ck.name.toLowerCase();
+      const ckDesc = (ck.description || '').toLowerCase();
+      return keywords.some(k => motorName.includes(k) && (ckName.includes(k) || ckDesc.includes(k)));
+    });
+
+    if (matchedByKeyword.length > 0) return matchedByKeyword;
+
+    // 2. Coincidencia por marca de vehículo
+    if (kit.vehicle_brand_id) {
+      const matchedByBrand = allClutchKits.filter(ck => ck.vehicle_brand_id === kit.vehicle_brand_id);
+      if (matchedByBrand.length > 0) return matchedByBrand;
+    }
+
+    return allClutchKits;
+  }, [kit, allClutchKits]);
+
+  const currentClutchKit = useMemo(() => {
+    if (selectedClutchKitId) {
+      return allClutchKits.find(c => c.id === selectedClutchKitId) || null;
+    }
+    return matchingClutchKits[0] || allClutchKits[0] || null;
+  }, [selectedClutchKitId, matchingClutchKits, allClutchKits]);
+
   // Combos
   const { data: kitCombos = [], isLoading: isLoadingCombos } = useKitCombos(kit.id);
   const createKitCombo = useCreateKitCombo();
@@ -37,7 +72,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const deleteKitComboItem = useDeleteKitComboItem();
   const updateKitComboItemQuantity = useUpdateKitComboItemQuantity();
 
-  const [activeTab, setActiveTab] = useState<'inventory' | 'combos'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'combos' | 'clutch'>('inventory');
   const [selectedComboId, setSelectedComboId] = useState<string | null>(null);
   const [newComboName, setNewComboName] = useState('');
   const [comboItemsState, setComboItemsState] = useState<Record<string, number>>({});
@@ -623,25 +658,42 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-white border-b border-slate-200 px-4 md:px-6 flex items-center gap-6">
-        <button
-          onClick={() => setActiveTab('inventory')}
-          className={`py-3 text-sm font-semibold border-b-2 transition-colors ${
-            activeTab === 'inventory' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Inventario del Cotizador
-        </button>
-        <button
-          onClick={() => setActiveTab('combos')}
-          className={`py-3 text-sm font-semibold border-b-2 transition-colors ${
-            activeTab === 'combos' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Configurar Combos
-        </button>
-      </div>
+      {kit.category === 'Clutch' ? (
+        <div className="flex-1 overflow-auto p-4 md:p-6 max-w-5xl mx-auto w-full">
+          <ClutchKitView kit={kit} />
+        </div>
+      ) : (
+        <>
+          {/* Tabs */}
+          <div className="bg-white border-b border-slate-200 px-4 md:px-6 flex items-center gap-6">
+            <button
+              onClick={() => setActiveTab('inventory')}
+              className={`py-3 text-sm font-semibold border-b-2 transition-colors ${
+                activeTab === 'inventory' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {kit.category.toLowerCase() === 'motor' ? 'Inventario del Motor' : 'Inventario del Cotizador'}
+            </button>
+            <button
+              onClick={() => setActiveTab('combos')}
+              className={`py-3 text-sm font-semibold border-b-2 transition-colors ${
+                activeTab === 'combos' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Configurar Combos
+            </button>
+            {kit.category.toLowerCase() === 'motor' && (
+              <button
+                onClick={() => setActiveTab('clutch')}
+                className={`py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+                  activeTab === 'clutch' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <Disc3 className="w-4 h-4 text-emerald-600" />
+                Clutch / Embrague
+              </button>
+            )}
+          </div>
 
       {/* Body: Inventory */}
       {activeTab === 'inventory' && (
@@ -1228,6 +1280,61 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
           </div>
         </div>
       )}
+
+      {/* Body: Clutch Integrado para Motores */}
+      {kit.category.toLowerCase() === 'motor' && activeTab === 'clutch' && (
+        <div className="flex-1 overflow-auto p-4 md:p-6">
+          <div className="max-w-5xl mx-auto space-y-4">
+            {/* Selector de Kit de Clutch compatible */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                  <Disc3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Clutch para {kit.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {matchingClutchKits.length > 0 
+                      ? 'Kit de clutch asociado automáticamente según el motor y marca del vehículo'
+                      : 'Selecciona una aplicación de clutch compatible'}
+                  </p>
+                </div>
+              </div>
+
+              {allClutchKits.length > 0 && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-semibold text-slate-500 hidden sm:inline">Aplicación:</span>
+                  <select
+                    value={currentClutchKit?.id || ''}
+                    onChange={(e) => setSelectedClutchKitId(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    {allClutchKits.map((ck) => (
+                      <option key={ck.id} value={ck.id}>
+                        {ck.name} {ck.vehicle_brands ? `(${ck.vehicle_brands.name})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {currentClutchKit ? (
+              <ClutchKitView kit={currentClutchKit} />
+            ) : (
+              <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
+                <Disc3 className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-slate-700">No hay kits de clutch creados en la sección Clutch</p>
+                <p className="text-xs text-slate-400 mt-1">Crea kits en la sección Clutch para verlos asociados a este motor</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  )}
 
       <ImageGalleryDialog
         open={!!galleryProduct}

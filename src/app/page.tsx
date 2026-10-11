@@ -75,6 +75,13 @@ export default function HomePage() {
                 <KitTable category="Motor" onSelectKit={setSelectedKit} />
               )
             )}
+            {activeTab === 'clutch_kits' && (
+              selectedKit ? (
+                <KitBuilder kit={selectedKit} onBack={() => setSelectedKit(null)} />
+              ) : (
+                <KitTable category="Clutch" onSelectKit={setSelectedKit} />
+              )
+            )}
             {activeTab === 'tren_delantero_kits' && (
               selectedKit ? (
                 <KitBuilder kit={selectedKit} onBack={() => setSelectedKit(null)} />

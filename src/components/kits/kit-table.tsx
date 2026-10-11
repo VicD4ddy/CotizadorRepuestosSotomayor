@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useKits, useDeleteKit, useUpdateKit } from '@/hooks/use-supabase';
 import { Kit } from '@/types';
-import { Search, Plus, Trash2, Edit, Package, ShoppingCart, X, ChevronLeft, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
+import { Search, Plus, Trash2, Edit, Package, ShoppingCart, X, ChevronLeft, ChevronRight, CheckCircle2, Circle, Disc3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { KitFormDialog } from './kit-form-dialog';
+import { cn } from '@/lib/utils';
 
 interface KitTableProps {
   category: string;
@@ -16,6 +17,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
   const deleteKit = useDeleteKit();
   const updateKit = useUpdateKit();
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedBrandId, setSelectedBrandId] = useState('all');
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedKitForEdit, setSelectedKitForEdit] = useState<Kit | null>(null);
@@ -23,23 +25,21 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [initialGalleryIndex, setInitialGalleryIndex] = useState(0);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (galleryImages.length === 0) return;
-      if (e.key === 'Escape') {
-        setGalleryImages([]);
-      } else if (e.key === 'ArrowLeft') {
-        setInitialGalleryIndex((prev) => (prev === 0 ? galleryImages.length - 1 : prev - 1));
-      } else if (e.key === 'ArrowRight') {
-        setInitialGalleryIndex((prev) => (prev === galleryImages.length - 1 ? 0 : prev + 1));
+  const availableBrands = useMemo(() => {
+    const brandsMap = new Map<string, { id: string; name: string }>();
+    kits.forEach((k) => {
+      if (k.vehicle_brands) {
+        brandsMap.set(k.vehicle_brands.id, { id: k.vehicle_brands.id, name: k.vehicle_brands.name });
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [galleryImages]);
+    });
+    return Array.from(brandsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [kits]);
 
   const filteredKits = useMemo(() => {
     const result = kits.filter((k) => {
+      if (selectedBrandId !== 'all' && k.vehicle_brand_id !== selectedBrandId) {
+        return false;
+      }
       if (!searchQuery) return true;
       const search = searchQuery.toLowerCase();
       return (
@@ -54,7 +54,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
       if (brandA !== brandB) return brandA.localeCompare(brandB);
       return a.name.trim().localeCompare(b.name.trim());
     });
-  }, [kits, searchQuery]);
+  }, [kits, searchQuery, selectedBrandId]);
 
   const handleDelete = async (e: React.MouseEvent, kit: Kit) => {
     e.stopPropagation();
@@ -119,15 +119,56 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          placeholder="Buscar cotizador..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-9 pr-3 h-[42px] rounded-lg bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
-        />
+      {/* Search and Brand Filters */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            placeholder={`Buscar en ${category.toLowerCase()}...`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-3 h-[42px] rounded-lg bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
+          />
+        </div>
+
+        {availableBrands.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap overflow-x-auto pb-1 sm:pb-0">
+            <button
+              onClick={() => setSelectedBrandId('all')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm shrink-0",
+                selectedBrandId === 'all'
+                  ? "bg-slate-900 text-white"
+                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+              )}
+            >
+              Todas las marcas ({kits.length})
+            </button>
+            {availableBrands.map((b) => {
+              const count = kits.filter((k) => k.vehicle_brand_id === b.id).length;
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => setSelectedBrandId(b.id)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm shrink-0 flex items-center gap-1",
+                    selectedBrandId === b.id
+                      ? "bg-emerald-600 text-white"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                  )}
+                >
+                  <span>{b.name}</span>
+                  <span className={cn(
+                    "text-[10px] px-1 py-0.2 rounded-full",
+                    selectedBrandId === b.id ? "bg-emerald-700 text-white" : "bg-slate-100 text-slate-500"
+                  )}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Grid of Kits */}
@@ -144,7 +185,10 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
                   <img src={kit.vehicle_brands.logo_url} alt={kit.vehicle_brands.name} className="max-w-full h-full object-contain mix-blend-multiply" />
                 </div>
               ) : (
-                <div />
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 text-slate-600 text-[11px] font-bold">
+                  {category === 'Clutch' && <Disc3 className="w-3.5 h-3.5 text-emerald-600" />}
+                  {kit.vehicle_brands?.name || category}
+                </div>
               )}
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
@@ -162,10 +206,49 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
               </div>
             </div>
             
-            <h3 className="text-[15px] font-bold text-slate-900 mb-1">{kit.name}</h3>
-            <p className="text-[12px] text-slate-500 line-clamp-2 mb-4 flex-1">
-              {kit.description || 'Sin descripción'}
-            </p>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-[15px] font-bold text-slate-900">{kit.name}</h3>
+              {category === 'Clutch' && (
+                <span className="text-[9px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded">
+                  Clutch
+                </span>
+              )}
+            </div>
+
+            {kit.description ? (
+              <div className="mb-4 flex-1">
+                {category === 'Clutch' && kit.description.includes('|') ? (
+                  <div className="space-y-1 my-2">
+                    {kit.description.split('|').map((part: string, idx: number) => {
+                      const trimmed = part.trim();
+                      const isPlato = /plato/i.test(trimmed);
+                      const isDisco = /disco/i.test(trimmed);
+                      const isCollarin = /collarin/i.test(trimmed);
+                      return (
+                        <div 
+                          key={idx} 
+                          className={cn(
+                            "text-[11px] font-semibold px-2 py-1 rounded border flex items-center justify-between",
+                            isPlato ? "bg-blue-50 text-blue-800 border-blue-200" :
+                            isDisco ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
+                            isCollarin ? "bg-purple-50 text-purple-800 border-purple-200" :
+                            "bg-slate-50 text-slate-700 border-slate-200"
+                          )}
+                        >
+                          <span>{trimmed}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[12px] text-slate-500 line-clamp-2">
+                    {kit.description}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-[12px] text-slate-400 italic mb-4 flex-1">Sin códigos de referencia</p>
+            )}
 
             {kit.image_urls && kit.image_urls.length > 0 && (
               <div className="flex gap-2 mb-4">
