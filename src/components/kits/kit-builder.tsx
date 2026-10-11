@@ -1,16 +1,17 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Kit, Product, CartItem } from '@/types';
-import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useUpdateProduct, useProducts, useBcvRate, useBcvMultiplier, useKitCombos, useCreateKitCombo, useUpdateKitCombo, useDeleteKitCombo, useSaveComboItems, useDeleteKitComboItem, useUpdateKitComboItemQuantity, useKits } from '@/hooks/use-supabase';
+import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useUpdateProduct, useProducts, useBcvRate, useBcvMultiplier, useKitCombos, useCreateKitCombo, useUpdateKitCombo, useDeleteKitCombo, useSaveComboItems, useDeleteKitComboItem, useUpdateKitComboItemQuantity, useKits, useUpdateKit } from '@/hooks/use-supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
-import { formatUSD } from '@/lib/utils';
-import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3 } from 'lucide-react';
+import { formatUSD, cn } from '@/lib/utils';
+import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
 import { ProductFormDialog } from '@/components/inventory/product-form-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ClutchKitView } from './clutch-kit-view';
+import { isMotorAssociatedWithClutch, formatKitDescription, parseKitDescription } from '@/lib/kit-associations';
 
 interface KitBuilderProps {
   kit: Kit;
@@ -23,6 +24,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const createKitItem = useCreateKitItem();
   const deleteProduct = useDeleteProduct();
   const updateProduct = useUpdateProduct();
+  const updateKit = useUpdateKit();
   const { data: products = [] } = useProducts();
   const { addItem } = useCartStore();
   const { data: bcvRate = 36.5 } = useBcvRate();
@@ -37,7 +39,11 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     if (kit.category?.toLowerCase() !== 'motor') return [];
     const motorName = kit.name.toLowerCase();
     
-    // 1. Coincidencia por palabras clave conocidas de motor
+    // 1. Coincidencia explícita por motor asociado
+    const explicitlyAssociated = allClutchKits.filter(ck => isMotorAssociatedWithClutch(ck.description, kit.name));
+    if (explicitlyAssociated.length > 0) return explicitlyAssociated;
+
+    // 2. Coincidencia por palabras clave conocidas de motor
     const keywords = ['300', '350', '351', '360', '302', '258', '4.3', '4.6', '5.4', 'c10', 'c30', 'c60', 'c70', 'd600', 'ram', 'cargo', 'cj'];
     const matchedByKeyword = allClutchKits.filter(ck => {
       const ckName = ck.name.toLowerCase();
@@ -47,7 +53,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
 
     if (matchedByKeyword.length > 0) return matchedByKeyword;
 
-    // 2. Coincidencia por marca de vehículo
+    // 3. Coincidencia por marca de vehículo
     if (kit.vehicle_brand_id) {
       const matchedByBrand = allClutchKits.filter(ck => ck.vehicle_brand_id === kit.vehicle_brand_id);
       if (matchedByBrand.length > 0) return matchedByBrand;
@@ -62,6 +68,28 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     }
     return matchingClutchKits[0] || allClutchKits[0] || null;
   }, [selectedClutchKitId, matchingClutchKits, allClutchKits]);
+
+  const handleToggleClutchAssociation = async (clutchKit: Kit) => {
+    const { cleanDescription, associatedMotors } = parseKitDescription(clutchKit.description);
+    const isCurrentlyLinked = associatedMotors.some(m => m.toLowerCase().trim() === kit.name.toLowerCase().trim());
+    let nextMotors: string[];
+    if (isCurrentlyLinked) {
+      nextMotors = associatedMotors.filter(m => m.toLowerCase().trim() !== kit.name.toLowerCase().trim());
+    } else {
+      nextMotors = [...associatedMotors, kit.name];
+    }
+    const nextDescription = formatKitDescription(cleanDescription, nextMotors);
+    try {
+      await updateKit.mutateAsync({
+        id: clutchKit.id,
+        description: nextDescription,
+      });
+      queryClient.invalidateQueries({ queryKey: ['kits'] });
+      toast.success(isCurrentlyLinked ? `Desvinculado de ${kit.name}` : `Vinculado exitosamente a ${kit.name}`);
+    } catch (err: any) {
+      toast.error('Error al actualizar vinculación: ' + err.message);
+    }
+  };
 
   // Combos
   const { data: kitCombos = [], isLoading: isLoadingCombos } = useKitCombos(kit.id);
@@ -1304,7 +1332,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
               </div>
 
               {allClutchKits.length > 0 && (
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 flex-wrap">
                   <span className="text-xs font-semibold text-slate-500 hidden sm:inline">Aplicación:</span>
                   <select
                     value={currentClutchKit?.id || ''}
@@ -1317,6 +1345,37 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                       </option>
                     ))}
                   </select>
+
+                  {currentClutchKit && (() => {
+                    const isLinked = isMotorAssociatedWithClutch(currentClutchKit.description, kit.name);
+                    return (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isLinked ? "outline" : "default"}
+                        onClick={() => handleToggleClutchAssociation(currentClutchKit)}
+                        className={cn(
+                          "h-8 text-xs font-bold gap-1.5 shadow-2xs transition-all",
+                          isLinked 
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-red-50 hover:text-red-700 hover:border-red-300" 
+                            : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        )}
+                        title={isLinked ? `Clic para desvincular este clutch de ${kit.name}` : `Clic para vincular este clutch a ${kit.name}`}
+                      >
+                        {isLinked ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>✓ Vinculado a {kit.name}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Vincular a {kit.name}</span>
+                          </>
+                        )}
+                      </Button>
+                    );
+                  })()}
                 </div>
               )}
             </div>

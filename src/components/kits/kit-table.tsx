@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useKits, useDeleteKit, useUpdateKit } from '@/hooks/use-supabase';
 import { Kit } from '@/types';
-import { Search, Plus, Trash2, Edit, Package, ShoppingCart, X, ChevronLeft, ChevronRight, CheckCircle2, Circle, Disc3 } from 'lucide-react';
+import { Search, Plus, Trash2, Edit, Package, ShoppingCart, X, ChevronLeft, ChevronRight, CheckCircle2, Circle, Disc3, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { KitFormDialog } from './kit-form-dialog';
 import { cn } from '@/lib/utils';
+import { parseKitDescription } from '@/lib/kit-associations';
 
 interface KitTableProps {
   category: string;
@@ -41,11 +42,14 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
         return false;
       }
       if (!searchQuery) return true;
-      const search = searchQuery.toLowerCase();
-      return (
-        k.name.toLowerCase().includes(search) ||
-        k.description?.toLowerCase().includes(search)
-      );
+      const search = searchQuery.toLowerCase().trim();
+      const { associatedMotors, cleanDescription } = parseKitDescription(k.description);
+      
+      const matchName = k.name.toLowerCase().includes(search);
+      const matchDesc = cleanDescription.toLowerCase().includes(search);
+      const matchMotors = associatedMotors.some((m) => m.toLowerCase().includes(search));
+
+      return matchName || matchDesc || matchMotors;
     });
     
     return result.sort((a, b) => {
@@ -206,49 +210,85 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
               </div>
             </div>
             
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-[15px] font-bold text-slate-900">{kit.name}</h3>
-              {category === 'Clutch' && (
-                <span className="text-[9px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded">
-                  Clutch
-                </span>
-              )}
-            </div>
-
-            {kit.description ? (
-              <div className="mb-4 flex-1">
-                {category === 'Clutch' && kit.description.includes('|') ? (
-                  <div className="space-y-1 my-2">
-                    {kit.description.split('|').map((part: string, idx: number) => {
-                      const trimmed = part.trim();
-                      const isPlato = /plato/i.test(trimmed);
-                      const isDisco = /disco/i.test(trimmed);
-                      const isCollarin = /collarin/i.test(trimmed);
-                      return (
-                        <div 
-                          key={idx} 
-                          className={cn(
-                            "text-[11px] font-semibold px-2 py-1 rounded border flex items-center justify-between",
-                            isPlato ? "bg-blue-50 text-blue-800 border-blue-200" :
-                            isDisco ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
-                            isCollarin ? "bg-purple-50 text-purple-800 border-purple-200" :
-                            "bg-slate-50 text-slate-700 border-slate-200"
-                          )}
-                        >
-                          <span>{trimmed}</span>
-                        </div>
-                      );
-                    })}
+            {(() => {
+              const { associatedMotors, cleanDescription } = parseKitDescription(kit.description);
+              return (
+                <>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <h3 className="text-[15px] font-bold text-slate-900">{kit.name}</h3>
+                    {category === 'Clutch' && (
+                      <span className="text-[9px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded">
+                        Clutch
+                      </span>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-[12px] text-slate-500 line-clamp-2">
-                    {kit.description}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-[12px] text-slate-400 italic mb-4 flex-1">Sin códigos de referencia</p>
-            )}
+
+                  {/* Opción A: Etiqueta de Motores Asociados */}
+                  {category === 'Clutch' && (
+                    <div className="mb-2.5">
+                      {associatedMotors.length > 0 ? (
+                        <div className="p-2 bg-amber-50/70 border border-amber-200/80 rounded-lg flex flex-col gap-1.5">
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-900">
+                            <Wrench className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span>{associatedMotors.length === 1 ? 'Motor Asociado:' : 'Motores Asociados:'}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {associatedMotors.map((m, idx) => (
+                              <span 
+                                key={idx}
+                                className="inline-flex items-center text-[11px] font-semibold bg-white text-slate-800 border border-amber-200 px-1.5 py-0.5 rounded shadow-2xs"
+                              >
+                                {m}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-400 italic flex items-center gap-1 py-0.5">
+                          <span>⚙️ Sin motor asignado</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {cleanDescription ? (
+                    <div className="mb-4 flex-1">
+                      {category === 'Clutch' && cleanDescription.includes('|') ? (
+                        <div className="space-y-1 my-1">
+                          {cleanDescription.split('|').map((part: string, idx: number) => {
+                            const trimmed = part.trim();
+                            if (!trimmed) return null;
+                            const isPlato = /plato/i.test(trimmed);
+                            const isDisco = /disco/i.test(trimmed);
+                            const isCollarin = /collarin/i.test(trimmed);
+                            return (
+                              <div 
+                                key={idx} 
+                                className={cn(
+                                  "text-[11px] font-semibold px-2 py-1 rounded border flex items-center justify-between",
+                                  isPlato ? "bg-blue-50 text-blue-800 border-blue-200" :
+                                  isDisco ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
+                                  isCollarin ? "bg-purple-50 text-purple-800 border-purple-200" :
+                                  "bg-slate-50 text-slate-700 border-slate-200"
+                                )}
+                              >
+                                <span>{trimmed}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[12px] text-slate-500 line-clamp-2">
+                          {cleanDescription}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[12px] text-slate-400 italic mb-4 flex-1">Sin códigos de referencia</p>
+                  )}
+                </>
+              );
+            })()}
 
             {kit.image_urls && kit.image_urls.length > 0 && (
               <div className="flex gap-2 mb-4">

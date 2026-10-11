@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { parseKitDescription } from '@/lib/kit-associations';
 
 interface ClutchKitViewProps {
   kit: Kit;
@@ -52,7 +53,8 @@ export function ClutchKitView({ kit, readOnly = false }: ClutchKitViewProps) {
 
   // 1. Extraer códigos especificados en la descripción (ej: "PLATO: 1930 o 1770 | DISCO: 768 | COLLARIN: 1054 HV")
   const parsedSpecs = useMemo<ParsedClutchSpecs>(() => {
-    const desc = kit.description || '';
+    const { cleanDescription } = parseKitDescription(kit.description);
+    const desc = cleanDescription;
     const specs: ParsedClutchSpecs = {
       platos: [],
       discos: [],
@@ -282,9 +284,32 @@ export function ClutchKitView({ kit, readOnly = false }: ClutchKitViewProps) {
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {kit.description || 'Configuración de plato, disco, collarín y complementos'}
-              </p>
+              {(() => {
+                const { cleanDescription, associatedMotors } = parseKitDescription(kit.description);
+                return (
+                  <>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {cleanDescription || 'Configuración de plato, disco, collarín y complementos'}
+                    </p>
+                    {associatedMotors.length > 0 && (
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1">
+                          <Wrench className="w-3 h-3 text-amber-600" />
+                          Motores:
+                        </span>
+                        {associatedMotors.map((m, idx) => (
+                          <span
+                            key={idx}
+                            className="bg-amber-50 text-amber-900 border border-amber-200 text-[10.5px] font-bold px-2 py-0.5 rounded shadow-2xs"
+                          >
+                            {m}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
 
