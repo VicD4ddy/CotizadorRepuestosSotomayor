@@ -404,32 +404,6 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     toast.success('SKU copiado al portapapeles', { duration: 2000 });
   };
 
-  const handleAddAllToCart = () => {
-    if (!filteredItems || filteredItems.length === 0) {
-      toast.error('No hay repuestos para añadir');
-      return;
-    }
-    let addedCount = 0;
-    filteredItems.forEach((item) => {
-      if (item.products) {
-        const product = item.products;
-        addItem({
-          product_id: product.id,
-          product_name: product.name,
-          product_code: product.code,
-          quantity: item.quantity || 1,
-          unit_price_usd: product.price_usd || 0,
-          image_url: product.image_url,
-          brand_name: product.brands?.name,
-          brand_logo_url: product.brands?.logo_url,
-          stock: product.stock,
-        });
-        addedCount++;
-      }
-    });
-    toast.success(`${addedCount} repuestos añadidos al carrito`);
-  };
-
   const handleLoadCombo = (comboId: string) => {
     const combo = kitCombos.find(c => c.id === comboId);
     if (!combo || !combo.kit_combo_items || combo.kit_combo_items.length === 0) {
@@ -660,7 +634,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             Vincular Repuesto
           </Button>
           
-          {kitCombos.length > 0 ? (
+          {kitCombos.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap justify-end">
               {kitCombos.map((combo) => (
                 <Button
@@ -673,15 +647,6 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                 </Button>
               ))}
             </div>
-          ) : (
-            <Button 
-              onClick={handleAddAllToCart}
-              disabled={filteredItems.length === 0}
-              className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm h-[36px]"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              Cargar Todo
-            </Button>
           )}
         </div>
       </div>
