@@ -15,14 +15,14 @@ import { useProducts, useBcvRate, useCategories, useBcvMultiplier, useUpdateProd
 import { useCartStore } from '@/store/cart-store';
 import { Badge } from '@/components/ui/badge';
 import { formatUSD, calculateBcvPrice } from '@/lib/utils';
-import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff, AlertTriangle, PackageX, PackageMinus, Bell, Check, ClipboardCheck, ShoppingBag, Loader2 } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff, AlertTriangle, PackageX, PackageMinus, Bell, Check, ClipboardCheck, Loader2 } from 'lucide-react';
 import { ProductFormDialog } from './product-form-dialog';
 import { ProductHistoryDialog } from './product-history-dialog';
 import { ImageGalleryDialog } from './image-gallery-dialog';
 import { BulkMinStockDialog } from './bulk-min-stock-dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { generatePhysicalAuditReportPDF, generatePurchaseOrderReportPDF } from '@/lib/generate-stock-reports-pdf';
+import { generatePhysicalAuditReportPDF } from '@/lib/generate-stock-reports-pdf';
 
 const columnHelper = createColumnHelper<Product>();
 
@@ -71,7 +71,6 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
   const { data: defaultMinStock = 0 } = useDefaultMinStock();
   const [isBulkMinStockOpen, setIsBulkMinStockOpen] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-  const [isGeneratingOrder, setIsGeneratingOrder] = useState(false);
 
   // Identify categories for Misceláneos (Aceites y Lubricantes)
   const miscCategoryIds = useMemo(() => {
@@ -343,27 +342,6 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
       toast.error('Error al generar el reporte PDF: ' + err.message);
     } finally {
       setIsGeneratingReport(false);
-    }
-  };
-
-  const handleGeneratePurchaseOrder = async () => {
-    const { products: target, filterTitle } = getStockReportContext();
-    if (target.length === 0) {
-      toast.warning('No hay productos para generar la orden de pedido con los filtros actuales.');
-      return;
-    }
-    setIsGeneratingOrder(true);
-    try {
-      await generatePurchaseOrderReportPDF({
-        products: target,
-        filterTitle,
-        getEffectiveMinStock,
-      });
-      toast.success(`Orden de pedido descargada (${target.length} repuestos)`);
-    } catch (err: any) {
-      toast.error('Error al generar la orden de pedido: ' + err.message);
-    } finally {
-      setIsGeneratingOrder(false);
     }
   };
 
@@ -803,7 +781,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
             <>
               <Button
                 onClick={handleGeneratePhysicalAuditReport}
-                disabled={isGeneratingReport || isGeneratingOrder}
+                disabled={isGeneratingReport}
                 variant="outline"
                 className="gap-2 h-[36px] text-[13px] px-3 md:px-4 rounded-md border-slate-300 text-slate-700 bg-white hover:bg-slate-50 font-semibold shadow-xs"
                 title="Generar reporte PDF para verificar y contar el stock físico en el almacén"
@@ -816,25 +794,6 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
                 <span>Generar Reporte</span>
                 {selectedIds.size > 0 && (
                   <span className="text-[10px] bg-slate-100 text-slate-700 font-bold px-1.5 py-0.2 rounded-full border border-slate-200">
-                    {selectedIds.size}
-                  </span>
-                )}
-              </Button>
-
-              <Button
-                onClick={handleGeneratePurchaseOrder}
-                disabled={isGeneratingReport || isGeneratingOrder}
-                className="gap-2 h-[36px] text-[13px] px-3 md:px-4 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-xs"
-                title="Generar orden de reposición y lista de pedido para comprar los repuestos faltantes"
-              >
-                {isGeneratingOrder ? (
-                  <Loader2 className="w-4 h-4 text-white animate-spin" />
-                ) : (
-                  <ShoppingBag className="w-4 h-4 text-white" />
-                )}
-                <span>Generar Pedido</span>
-                {selectedIds.size > 0 && (
-                  <span className="text-[10px] bg-amber-700 text-white font-bold px-1.5 py-0.2 rounded-full">
                     {selectedIds.size}
                   </span>
                 )}
