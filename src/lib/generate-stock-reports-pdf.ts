@@ -70,9 +70,6 @@ export async function generatePhysicalAuditReportPDF({
     compress: true,
   });
 
-  const totalPagesExp = '{totalPages}';
-  doc.putTotalPages(totalPagesExp);
-
   const pageWidth = 595.28;
   const pageHeight = 841.89;
   const margin = 35;
@@ -213,10 +210,6 @@ export async function generatePhysicalAuditReportPDF({
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
       doc.text('Sotomayor Repuestos - Documento de Control Interno para Auditoría de Inventario', margin, footerY);
-
-      const pageStr = `Página ${data.pageNumber} de ${totalPagesExp}`;
-      doc.setFont('helvetica', 'bold');
-      doc.text(pageStr, pageWidth - margin, footerY, { align: 'right' });
     },
   });
 
@@ -250,8 +243,26 @@ export async function generatePhysicalAuditReportPDF({
   const lineY = signY + 40;
 
   doc.text('Responsable del Conteo: _______________________', col1X, lineY);
-  doc.text('Firma / Huella: ___________________', col2X, lineY);
+  doc.text('Firma: ___________________', col2X, lineY);
   doc.text('Fecha Realizado: ____/____/2026', col3X, lineY);
+
+  // Numeración exacta de páginas y aseguramiento de pie de página (Pase 2)
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    const footerY = pageHeight - 24;
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(margin, footerY - 10, pageWidth - margin, footerY - 10);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Sotomayor Repuestos - Documento de Control Interno para Auditoría de Inventario', margin, footerY);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Página ${i} de ${totalPages}`, pageWidth - margin, footerY, { align: 'right' });
+  }
 
   const cleanFilterName = filterTitle.replace(/[^a-zA-Z0-9]/g, '_');
   const fileName = `Reporte_Conteo_Fisico_${cleanFilterName}_${dateFormatted.replace(/\//g, '-')}.pdf`;
@@ -275,9 +286,6 @@ export async function generatePurchaseOrderReportPDF({
     format: 'a4',
     compress: true,
   });
-
-  const totalPagesExp = '{totalPages}';
-  doc.putTotalPages(totalPagesExp);
 
   const pageWidth = 595.28;
   const pageHeight = 841.89;
@@ -419,10 +427,6 @@ export async function generatePurchaseOrderReportPDF({
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
       doc.text('Sotomayor Repuestos - Documento de Solicitud de Pedido y Reposición de Almacén', margin, footerY);
-
-      const pageStr = `Página ${data.pageNumber} de ${totalPagesExp}`;
-      doc.setFont('helvetica', 'bold');
-      doc.text(pageStr, pageWidth - margin, footerY, { align: 'right' });
     },
   });
 
@@ -456,6 +460,24 @@ export async function generatePurchaseOrderReportPDF({
   doc.text('Solicitado por: _______________________', col1X, lineY);
   doc.text('Aprobado por: _______________________', col2X, lineY);
   doc.text('Fecha Envío a Proveedor: ____/____/2026', col3X, lineY);
+
+  // Numeración exacta de páginas y aseguramiento de pie de página (Pase 2)
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    const footerY = pageHeight - 24;
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(margin, footerY - 10, pageWidth - margin, footerY - 10);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Sotomayor Repuestos - Documento de Solicitud de Pedido y Reposición de Almacén', margin, footerY);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Página ${i} de ${totalPages}`, pageWidth - margin, footerY, { align: 'right' });
+  }
 
   const cleanFilterName = filterTitle.replace(/[^a-zA-Z0-9]/g, '_');
   const fileName = `Orden_Pedido_${cleanFilterName}_${dateFormatted.replace(/\//g, '-')}.pdf`;
