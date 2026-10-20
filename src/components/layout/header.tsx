@@ -3,6 +3,7 @@
 import { Search, RefreshCw, User } from 'lucide-react';
 import { NotificationPanel } from './notification-panel';
 import { DailyBcvDialog } from './daily-bcv-dialog';
+import { ProfileDialog } from './profile-dialog';
 import { useBcvRate, useUpdateBcvRate } from '@/hooks/use-supabase';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
@@ -12,6 +13,7 @@ export function Header() {
   const updateBcv = useUpdateBcvRate();
   const [rateInput, setRateInput] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   useEffect(() => {
     if (bcvRate) {
@@ -110,11 +112,16 @@ export function Header() {
           <RefreshCw className="w-[15px] h-[15px]" />
         </button>
         <NotificationPanel />
-        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center">
+        <button
+          onClick={() => setIsProfileOpen(true)}
+          className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-95 flex items-center justify-center transition-all cursor-pointer ring-2 ring-transparent hover:ring-emerald-500/60 shadow-xs"
+          title="Perfil y Actualizaciones del Sistema"
+        >
           <User className="w-4 h-4 text-white" />
-        </div>
+        </button>
       </div>
       <DailyBcvDialog />
+      <ProfileDialog open={isProfileOpen} onOpenChange={setIsProfileOpen} />
     </header>
   );
 }
