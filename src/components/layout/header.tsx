@@ -4,6 +4,7 @@ import { Search, RefreshCw, User } from 'lucide-react';
 import { NotificationPanel } from './notification-panel';
 import { DailyBcvDialog } from './daily-bcv-dialog';
 import { ProfileDialog } from './profile-dialog';
+import { BcvAutoSyncDialog, type BcvApiResult } from './bcv-auto-sync-dialog';
 import { useBcvRate, useUpdateBcvRate } from '@/hooks/use-supabase';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
@@ -14,6 +15,11 @@ export function Header() {
   const [rateInput, setRateInput] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  // Auto BCV API sync state
+  const [isSyncingBcv, setIsSyncingBcv] = useState(false);
+  const [bcvApiResult, setBcvApiResult] = useState<BcvApiResult | null>(null);
+  const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
 
   useEffect(() => {
     if (bcvRate) {
@@ -34,6 +40,28 @@ export function Header() {
       },
       onError: () => toast.error('Error al actualizar la tasa'),
     });
+  };
+
+  const handleSyncBcv = async () => {
+    setIsSyncingBcv(true);
+    try {
+      const res = await fetch('/api/bcv-rate');
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'No se pudo obtener la tasa oficial');
+      }
+      setBcvApiResult({
+        rate: data.rate,
+        rawRate: data.rawRate,
+        date: data.date,
+        source: data.source,
+      });
+      setIsSyncDialogOpen(true);
+    } catch (err: any) {
+      toast.error('Error al consultar la tasa del BCV: ' + err.message);
+    } finally {
+      setIsSyncingBcv(false);
+    }
   };
 
   return (
@@ -98,6 +126,7 @@ export function Header() {
           <button
             onClick={() => setIsEditing(true)}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 transition-colors"
+            title="Hacer clic para editar la tasa manualmente"
           >
             <span className="text-[11px] text-emerald-600 font-medium">BCV:</span>
             <span className="text-[14px] font-mono font-bold text-emerald-600">
@@ -106,11 +135,20 @@ export function Header() {
           </button>
         )}
 
+        {/* Botón de sincronización automática con API BCV */}
+        <button
+          onClick={handleSyncBcv}
+          disabled={isSyncingBcv}
+          className="flex items-center gap-1.5 h-[30px] px-2 md:px-2.5 rounded-md border border-emerald-300/90 bg-emerald-50/60 hover:bg-emerald-100 hover:border-emerald-400 text-emerald-700 hover:text-emerald-800 text-[11.5px] font-semibold transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
+          title="Consultar y actualizar tasa automáticamente desde la API oficial del BCV"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncingBcv ? 'animate-spin' : ''}`} />
+          <span className="hidden sm:inline">Actualizar BCV</span>
+          <span className="sm:hidden">Auto</span>
+        </button>
+
         <div className="w-px h-5 bg-slate-200 hidden md:block" />
 
-        <button className="w-8 h-8 rounded-full hidden md:flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
-          <RefreshCw className="w-[15px] h-[15px]" />
-        </button>
         <NotificationPanel />
         <button
           onClick={() => setIsProfileOpen(true)}
@@ -120,8 +158,15 @@ export function Header() {
           <User className="w-4 h-4 text-white" />
         </button>
       </div>
+
       <DailyBcvDialog />
       <ProfileDialog open={isProfileOpen} onOpenChange={setIsProfileOpen} />
+      <BcvAutoSyncDialog
+        open={isSyncDialogOpen}
+        onOpenChange={setIsSyncDialogOpen}
+        currentRate={bcvRate || 0}
+        apiResult={bcvApiResult}
+      />
     </header>
   );
 }

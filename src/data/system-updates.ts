@@ -24,8 +24,16 @@ export const SYSTEM_UPDATES_DATA: DailyUpdateGroup[] = [
     displayDate: 'Hoy - 20 de Octubre de 2026',
     isToday: true,
     badge: 'HOY',
-    summary: 'Reportes de auditoría en almacén, mejoras de PDF y limpieza de cotizadores.',
+    summary: 'Sincronización automática de tasa BCV con API oficial, reportes de auditoría y mejoras en PDF.',
     items: [
+      {
+        id: 'upd-2026-10-20-0',
+        title: 'Sincronización automática de tasa BCV con API oficial',
+        description: 'Nuevo botón "Actualizar BCV" en la cabecera que consulta en tiempo real el valor oficial publicado por el Banco Central de Venezuela a través de la API DolarApi y permite confirmar la actualización antes de aplicarla al sistema.',
+        type: 'feature',
+        tag: 'API BCV',
+        module: 'General',
+      },
       {
         id: 'upd-2026-10-20-1',
         title: 'Línea de conteo físico ubicada al fondo de la casilla',
