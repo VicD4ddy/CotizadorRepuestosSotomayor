@@ -114,7 +114,7 @@ export async function generatePhysicalAuditReportPDF({
       brandName,
       String(stockVal),
       String(minStock > 0 ? minStock : '—'),
-      '[   ___   ]', // Box for writing physical count
+      '', // Box for writing physical count (drawn in didDrawCell)
       '[ ] OK  [ ] DIF',
     ];
   });
@@ -147,11 +147,33 @@ export async function generatePhysicalAuditReportPDF({
       3: { cellWidth: 60, halign: 'center', fontSize: 7.5 }, // Marca
       4: { cellWidth: 46, halign: 'center', fontStyle: 'bold' }, // Sistema
       5: { cellWidth: 44, halign: 'center', textColor: [180, 83, 9] }, // Mínimo
-      6: { cellWidth: 60, halign: 'center', font: 'courier', fontStyle: 'bold', textColor: [15, 23, 42] }, // Conteo
+      6: { cellWidth: 60, halign: 'center' }, // Conteo
       7: { cellWidth: 50, halign: 'center', fontSize: 7 }, // Estado
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252],
+    },
+    didDrawCell: (data) => {
+      // Dibujar corchetes y línea de conteo físico bien abajo en la casilla
+      if (data.section === 'body' && data.column.index === 6) {
+        const { x, y, width, height } = data.cell;
+        const lineY = Math.round(y + height - 6.5);
+        
+        const bracketLeftX = x + 10;
+        const bracketRightX = x + width - 14;
+        const lineStartX = bracketLeftX + 5;
+        const lineEndX = bracketRightX - 2;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(100, 116, 139);
+        doc.text('[', bracketLeftX, lineY);
+        doc.text(']', bracketRightX, lineY);
+
+        doc.setDrawColor(71, 85, 105);
+        doc.setLineWidth(0.75);
+        doc.line(lineStartX, lineY, lineEndX, lineY);
+      }
     },
     didDrawPage: (data) => {
       // Header top bar
@@ -331,7 +353,7 @@ export async function generatePurchaseOrderReportPDF({
       brandName,
       String(stockVal),
       String(minStock > 0 ? minStock : '—'),
-      '[    ____    ]', // Field for buyer/supplier to annotate the quantity to order
+      '', // Field for buyer/supplier to annotate the quantity to order (drawn in didDrawCell)
       '', // Blank note line
     ];
   });
@@ -364,11 +386,32 @@ export async function generatePurchaseOrderReportPDF({
       3: { cellWidth: 60, halign: 'center', fontSize: 7.5 }, // Marca
       4: { cellWidth: 50, halign: 'center', fontStyle: 'bold' }, // Existencia
       5: { cellWidth: 50, halign: 'center', textColor: [180, 83, 9] }, // Mínimo
-      6: { cellWidth: 55, halign: 'center', font: 'courier', fontStyle: 'bold', textColor: [15, 23, 42] }, // Cantidad a Pedir
+      6: { cellWidth: 55, halign: 'center' }, // Cantidad a Pedir
       7: { cellWidth: 35, halign: 'left' }, // Observaciones
     },
     alternateRowStyles: {
       fillColor: [254, 252, 248], // Warm subtle alternate
+    },
+    didDrawCell: (data) => {
+      if (data.section === 'body' && data.column.index === 6) {
+        const { x, y, width, height } = data.cell;
+        const lineY = Math.round(y + height - 6.5);
+        
+        const bracketLeftX = x + 8;
+        const bracketRightX = x + width - 12;
+        const lineStartX = bracketLeftX + 5;
+        const lineEndX = bracketRightX - 2;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(180, 83, 9);
+        doc.text('[', bracketLeftX, lineY);
+        doc.text(']', bracketRightX, lineY);
+
+        doc.setDrawColor(180, 83, 9);
+        doc.setLineWidth(0.75);
+        doc.line(lineStartX, lineY, lineEndX, lineY);
+      }
     },
     didDrawPage: (data) => {
       // Header top bar
