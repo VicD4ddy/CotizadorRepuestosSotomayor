@@ -11,13 +11,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useBcvRate, useUpdateBcvRate } from '@/hooks/use-supabase';
-import { DollarSign, Calendar } from 'lucide-react';
+import { DollarSign, Calendar, RefreshCw, Sparkles } from 'lucide-react';
 
 export function DailyBcvDialog() {
   const { data: bcvRate, isLoading } = useBcvRate();
   const updateBcv = useUpdateBcvRate();
   const [open, setOpen] = useState(false);
   const [rateInput, setRateInput] = useState('');
+  const [isFetchingBcv, setIsFetchingBcv] = useState(false);
+  const [apiFetchedInfo, setApiFetchedInfo] = useState<{ rate: number; date?: string; source?: string } | null>(null);
 
   useEffect(() => {
     if (isLoading || bcvRate === undefined) return;
@@ -29,8 +31,47 @@ export function DailyBcvDialog() {
     if (lastPromptDate !== today) {
       setRateInput(bcvRate.toFixed(2));
       setOpen(true);
+
+      // Precargar automáticamente la tasa oficial del BCV
+      fetch('/api/bcv-rate')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.success && typeof data.rate === 'number') {
+            setRateInput(data.rate.toFixed(2));
+            setApiFetchedInfo({
+              rate: data.rate,
+              date: data.date,
+              source: data.source,
+            });
+          }
+        })
+        .catch(() => {
+          // Si no hay conexión o falla, mantiene la tasa actual del sistema
+        });
     }
   }, [bcvRate, isLoading]);
+
+  const handleFetchAutoBcv = async () => {
+    setIsFetchingBcv(true);
+    try {
+      const res = await fetch('/api/bcv-rate');
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'No se pudo obtener la tasa oficial');
+      }
+      setRateInput(data.rate.toFixed(2));
+      setApiFetchedInfo({
+        rate: data.rate,
+        date: data.date,
+        source: data.source,
+      });
+      toast.success(`Tasa oficial del BCV obtenida: Bs. ${data.rate.toFixed(2)}`);
+    } catch (err: any) {
+      toast.error('Error al consultar la API del BCV: ' + err.message);
+    } finally {
+      setIsFetchingBcv(false);
+    }
+  };
 
   const handleKeepRate = () => {
     const today = new Date().toLocaleDateString('en-CA');
@@ -93,12 +134,12 @@ export function DailyBcvDialog() {
             ¡Buenos días! Al ingresar por primera vez hoy, verifica si deseas actualizar o mantener la tasa del Banco Central de Venezuela (<strong className="text-slate-800">BCV</strong>) para el cálculo de cotizaciones e inventario.
           </p>
 
-          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2">
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-3">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
               Tasa Oficial para Hoy (Bs/$)
             </label>
-            <div className="relative max-w-[180px] mx-auto">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">Bs.</span>
+            <div className="relative max-w-[190px] mx-auto">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">Bs.</span>
               <Input
                 type="number"
                 step="0.01"
@@ -110,9 +151,29 @@ export function DailyBcvDialog() {
                 autoFocus
               />
             </div>
-            <span className="text-[11px] text-slate-400 block">
-              Tasa anterior en sistema: <strong className="text-slate-600">Bs. {bcvRate?.toFixed(2)}</strong>
-            </span>
+
+            {/* Botón para actualizar tasa automáticamente desde la API */}
+            <button
+              type="button"
+              onClick={handleFetchAutoBcv}
+              disabled={isFetchingBcv}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg border border-emerald-300/80 bg-white hover:bg-emerald-50/80 text-emerald-700 hover:text-emerald-800 transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
+              title="Consultar y rellenar automáticamente con la tasa oficial del BCV"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isFetchingBcv ? 'animate-spin' : ''}`} />
+              <span>Actualizar tasa automáticamente</span>
+            </button>
+
+            {apiFetchedInfo ? (
+              <div className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-700 bg-emerald-100/60 border border-emerald-200 py-1 px-2.5 rounded-lg w-fit mx-auto">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>API Oficial BCV: <strong>Bs. {apiFetchedInfo.rate.toFixed(2)}</strong></span>
+              </div>
+            ) : (
+              <span className="text-[11px] text-slate-400 block text-center">
+                Tasa anterior en sistema: <strong className="text-slate-600">Bs. {bcvRate?.toFixed(2)}</strong>
+              </span>
+            )}
           </div>
         </div>
 
