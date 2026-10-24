@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCartStore } from '@/store/cart-store';
 import { useBcvRate, useCreateQuote, useBcvMultiplier } from '@/hooks/use-supabase';
+import { sortQuoteItems } from '@/lib/tren-delantero';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
 
@@ -43,7 +44,7 @@ export function QuoteSaveDialog({ open, onOpenChange }: QuoteSaveDialogProps) {
           bcv_rate: bcvRate,
           status: 'Cotizada', // Default status for saved quotes
         },
-        items: items.map((item) => ({
+        items: sortQuoteItems(items).map((item) => ({
           product_id: item.product_id,
           product_name: item.product_name,
           product_code: item.product_code,

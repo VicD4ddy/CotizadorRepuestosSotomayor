@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { generateQuotePDF } from '@/lib/generate-quote-pdf';
 import { copyQuoteToClipboard } from '@/lib/capture-quote';
 import { useCartStore } from '@/store/cart-store';
+import { sortQuoteItems } from '@/lib/tren-delantero';
 
 interface QuoteDetailsDialogProps {
   open: boolean;
@@ -262,7 +263,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {quote.quote_items?.map((item: QuoteItem) => (
+                  {sortQuoteItems(quote.quote_items || []).map((item: QuoteItem) => (
                     <tr key={item.id}>
                       <td className="px-4 py-2 font-mono text-[11px] text-slate-500 truncate">{item.product_code}</td>
                       <td className="px-4 py-2 text-[12px] font-medium text-slate-900 truncate">{item.product_name}</td>

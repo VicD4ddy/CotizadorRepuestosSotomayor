@@ -6,7 +6,7 @@ export interface SystemUpdateItem {
   description: string;
   type: UpdateType;
   tag?: string;
-  module?: 'Inventario' | 'PDF & Reportes' | 'Clutch' | 'Cotizador Motor' | 'Cotización Manual' | 'Carrito' | 'General';
+  module?: 'Inventario' | 'PDF & Reportes' | 'Clutch' | 'Cotizador Motor' | 'Cotización Manual' | 'Carrito' | 'General' | 'Tren Delantero';
 }
 
 export interface DailyUpdateGroup {
@@ -20,10 +20,34 @@ export interface DailyUpdateGroup {
 
 export const SYSTEM_UPDATES_DATA: DailyUpdateGroup[] = [
   {
-    date: '2026-10-20',
-    displayDate: 'Hoy - 20 de Octubre de 2026',
+    date: '2026-10-24',
+    displayDate: 'Hoy - 24 de Octubre de 2026',
     isToday: true,
     badge: 'HOY',
+    summary: 'Orden por defecto en Tren Delantero (13 categorías) y prioridad de marcas Moog > Elgin > TVA.',
+    items: [
+      {
+        id: 'upd-2026-10-24-1',
+        title: 'Orden por defecto de 13 categorías en Tren Delantero',
+        description: 'Se configuró el orden oficial de componentes: Mesetas (Superior/Inferior), Muñones (Superior/Inferior), Bujes (Superior/Inferior), Terminales, Rótulas, Brazo Loco, Brazo Pitman, Lápiz estabilizador, Gomas y Amortiguadores. El sistema reconoce y subdivide automáticamente piezas superiores e inferiores según su descripción.',
+        type: 'feature',
+        tag: 'Tren Delantero',
+        module: 'Tren Delantero',
+      },
+      {
+        id: 'upd-2026-10-24-2',
+        title: 'Jerarquía de marcas Moog > Elgin > TVA',
+        description: 'Dentro de cada categoría y en la exportación de cotizaciones (PDF, WhatsApp y Carrito), los repuestos se organizan con prioridad estricta: 1° Moog, 2° Elgin, 3° TVA, y el resto de marcas alfabéticamente.',
+        type: 'improvement',
+        tag: 'Marcas',
+        module: 'Tren Delantero',
+      },
+    ],
+  },
+  {
+    date: '2026-10-20',
+    displayDate: '20 de Octubre de 2026',
+    isToday: false,
     summary: 'Sincronización automática de tasa BCV con API oficial, reportes de auditoría y mejoras en PDF.',
     items: [
       {

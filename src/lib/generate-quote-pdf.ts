@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Quote } from '@/types';
 import { formatUSD, calculateBcvPrice } from '@/lib/utils';
+import { sortQuoteItems } from '@/lib/tren-delantero';
 
 interface GenerateQuotePDFOptions {
   quote: Quote;
@@ -255,7 +256,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   // ============================================================
   // ITEMS TABLE
   // ============================================================
-  const items = quote.quote_items || [];
+  const items = sortQuoteItems(quote.quote_items || []);
 
   // Pre-load brand logos
   const brandLogoCache: Record<string, string | null> = {};

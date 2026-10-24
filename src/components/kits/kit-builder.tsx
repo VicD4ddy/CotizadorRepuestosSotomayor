@@ -12,6 +12,11 @@ import { ProductFormDialog } from '@/components/inventory/product-form-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ClutchKitView } from './clutch-kit-view';
 import { isMotorAssociatedWithClutch, formatKitDescription, parseKitDescription } from '@/lib/kit-associations';
+import {
+  resolveTrenDelanteroCategory,
+  getTrenDelanteroCategoryRank,
+  getBrandRank,
+} from '@/lib/tren-delantero';
 
 interface KitBuilderProps {
   kit: Kit;
@@ -333,12 +338,17 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     return 9999;
   };
 
+  const isTrenDelantero = kit.category?.toLowerCase() === 'tren delantero';
+
   const groupedItems = useMemo(() => {
     const groups: Record<string, any[]> = {};
     filteredItems.forEach((item) => {
       const product = item.products;
       if (!product) return;
-      const categoryName = product.categories?.name || 'Sin Categoría';
+      const rawCategoryName = product.categories?.name;
+      const categoryName = isTrenDelantero
+        ? resolveTrenDelanteroCategory(rawCategoryName, product.name, product.code)
+        : (rawCategoryName || 'Sin Categoría');
       if (!groups[categoryName]) {
         groups[categoryName] = [];
       }
@@ -349,6 +359,12 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     const sorted: Record<string, any[]> = {};
     const keys = Object.keys(groups);
     keys.sort((a, b) => {
+      if (isTrenDelantero) {
+        const aRank = getTrenDelanteroCategoryRank(a);
+        const bRank = getTrenDelanteroCategoryRank(b);
+        if (aRank !== bRank) return aRank - bRank;
+        return a.localeCompare(b);
+      }
       const aIdx = CATEGORY_ORDER.findIndex(c => a.toLowerCase().includes(c));
       const bIdx = CATEGORY_ORDER.findIndex(c => b.toLowerCase().includes(c));
       const aOrder = aIdx === -1 ? 999 : aIdx;
@@ -358,7 +374,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     });
     keys.forEach(k => { sorted[k] = groups[k]; });
     return sorted;
-  }, [filteredItems]);
+  }, [filteredItems, isTrenDelantero]);
 
   const handleRemoveItem = async (itemId: string, productName: string) => {
     if (confirm(`¿Desvincular "${productName}" de este cotizador?\n\n(El repuesto seguirá existiendo en tu inventario general).`)) {
@@ -741,11 +757,18 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                 if (!brandGroups[brandName]) brandGroups[brandName] = [];
                 brandGroups[brandName].push(item);
               });
-              const brandEntries = Object.entries(brandGroups).sort((a, b) => a[0].localeCompare(b[0]));
+              const brandEntries = Object.entries(brandGroups).sort((a, b) => {
+                if (isTrenDelantero) {
+                  const aBrandRank = getBrandRank(a[0]);
+                  const bBrandRank = getBrandRank(b[0]);
+                  if (aBrandRank !== bBrandRank) return aBrandRank - bBrandRank;
+                }
+                return a[0].localeCompare(b[0]);
+              });
               const hasManyBrands = brandEntries.length > 1;
               const isBulkCategory = BULK_PRICE_CATEGORIES.some(c => categoryName.toLowerCase().includes(c));
 
-              // Sort items by measurement for relevant categories
+              // Sort items by measurement for relevant categories (or by name for Tren Delantero)
               const shouldSortByMeasure = MEASURE_SORTED_CATEGORIES.some(c => categoryName.toLowerCase().includes(c));
               if (shouldSortByMeasure) {
                 brandEntries.forEach(([, bItems]) => {
@@ -754,6 +777,12 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                     const bOrder = getMeasureOrder(b.products?.name || '', b.products?.code || '');
                     if (aOrder !== bOrder) return aOrder - bOrder;
                     return (a.products?.code || '').localeCompare(b.products?.code || '');
+                  });
+                });
+              } else {
+                brandEntries.forEach(([, bItems]) => {
+                  bItems.sort((a: any, b: any) => {
+                    return (a.products?.name || '').localeCompare(b.products?.name || '');
                   });
                 });
               }
@@ -1175,19 +1204,40 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                             <div className="flex flex-col gap-3 mt-3">
                               {(() => {
                                 const grouped = combo.kit_combo_items.reduce((acc: any, item: any) => {
-                                  const cat = item.products?.categories?.name || 'Sin Categoría';
+                                  const rawCat = item.products?.categories?.name;
+                                  const cat = isTrenDelantero
+                                    ? resolveTrenDelanteroCategory(rawCat, item.products?.name, item.products?.code)
+                                    : (rawCat || 'Sin Categoría');
                                   if (!acc[cat]) acc[cat] = [];
                                   acc[cat].push(item);
                                   return acc;
                                 }, {});
 
-                                return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([categoryName, items]: [string, any]) => (
+                                return Object.entries(grouped).sort(([a], [b]) => {
+                                  if (isTrenDelantero) {
+                                    const aRank = getTrenDelanteroCategoryRank(a);
+                                    const bRank = getTrenDelanteroCategoryRank(b);
+                                    if (aRank !== bRank) return aRank - bRank;
+                                  }
+                                  return a.localeCompare(b);
+                                }).map(([categoryName, items]: [string, any]) => {
+                                  // Sort combo items by brand if Tren Delantero
+                                  const sortedComboItems = isTrenDelantero
+                                    ? [...items].sort((a: any, b: any) => {
+                                        const aBrandRank = getBrandRank(a.products?.brands?.name);
+                                        const bBrandRank = getBrandRank(b.products?.brands?.name);
+                                        if (aBrandRank !== bBrandRank) return aBrandRank - bBrandRank;
+                                        return (a.products?.name || '').localeCompare(b.products?.name || '');
+                                      })
+                                    : items;
+
+                                  return (
                                   <div key={categoryName} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                                     <h4 className="text-[13px] font-bold text-emerald-700 uppercase tracking-wider mb-2 px-1">
                                       {categoryName}
                                     </h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                      {items.map((item: any) => {
+                                      {sortedComboItems.map((item: any) => {
                                         const displayQuantity = pendingQuantityChanges[item.id] !== undefined ? pendingQuantityChanges[item.id] : item.quantity;
                                         return (
                                           <div 
@@ -1259,7 +1309,8 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                 })}
                                 </div>
                               </div>
-                            ));
+                            );
+                          });
                           })()}
                         </div>
                       )}

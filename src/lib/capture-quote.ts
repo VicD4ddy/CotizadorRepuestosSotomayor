@@ -1,5 +1,6 @@
 import html2canvas from 'html2canvas';
 import { calculateBcvPrice } from '@/lib/utils';
+import { sortQuoteItems } from '@/lib/tren-delantero';
 
 const WHATSAPP_PHRASES = [
   "La pasión por servirte es el motor que nunca se apaga.",
@@ -31,7 +32,8 @@ export async function copyQuoteToClipboard(quoteData: any, bcvMultiplier: number
   const dateStr = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' });
   const quoteId = quoteData.id ? quoteData.id.substring(0,8).toUpperCase() : 'TEMP';
   
-  const itemsList = quoteData.quote_items || quoteData.items || [];
+  const rawItems = quoteData.quote_items || quoteData.items || [];
+  const itemsList = sortQuoteItems(rawItems);
   const baseSubtotal = itemsList.reduce((sum: number, it: any) => sum + (it.unit_price_usd || 0) * (it.quantity || 1), 0);
   const subtotalBcv = itemsList.reduce((sum: number, it: any) => sum + calculateBcvPrice(it.unit_price_usd || 0, bcvMultiplier) * (it.quantity || 1), 0);
   const subtotalBs = subtotalBcv * bcvRate;

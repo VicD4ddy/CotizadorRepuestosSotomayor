@@ -24,6 +24,8 @@ import { User, Phone } from 'lucide-react';
 import { generateQuotePDF } from '@/lib/generate-quote-pdf';
 import { copyQuoteToClipboard } from '@/lib/capture-quote';
 import { Quote } from '@/types';
+import { sortQuoteItems } from '@/lib/tren-delantero';
+import { useMemo } from 'react';
 
 export function QuoteCart() {
   const {
@@ -50,6 +52,8 @@ export function QuoteCart() {
   const createQuote = useCreateQuote();
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
+  const sortedItems = useMemo(() => sortQuoteItems(items), [items]);
+
   const subtotal = getSubtotal(bcvMultiplier);
   const total = subtotal;
   const totalBs = paymentMethod === 'bs' ? total * bcvRate : 0;
@@ -75,7 +79,7 @@ export function QuoteCart() {
       bcv_rate: bcvRate,
       status: 'Cotizada',
       created_at: new Date().toISOString(),
-      quote_items: items.map((item, i) => ({
+      quote_items: sortedItems.map((item, i) => ({
         id: `item-${i}`,
         quote_id: '',
         product_id: item.product_id,
@@ -196,7 +200,7 @@ export function QuoteCart() {
       if (clientName) msg += `*Cliente:* ${clientName}\n`;
       msg += `*Fecha:* ${new Date().toLocaleDateString('es-VE')}\n\n`;
       msg += `*Detalle:*\n`;
-      items.forEach((item) => {
+      sortedItems.forEach((item) => {
         const priceUSD = item.unit_price_usd;
         const priceBs = item.unit_price_usd * bcvMultiplier * bcvRate;
         const brandSuffix = item.brand_name ? ` (${item.brand_name})` : '';
@@ -221,7 +225,7 @@ export function QuoteCart() {
           bcv_rate: bcvRate,
           status: 'Enviada por WhatsApp',
         },
-        items: items.map((item) => ({
+        items: sortedItems.map((item) => ({
           product_id: item.product_id,
           product_name: item.product_name,
           product_code: item.product_code,
@@ -323,7 +327,7 @@ export function QuoteCart() {
           </div>
         ) : (
           <div className="p-4 space-y-3">
-            {items.map((item) => {
+            {sortedItems.map((item) => {
               const dbProduct = products.find((p) => p.id === item.product_id);
               const activeStock = dbProduct ? (dbProduct.stock ?? 0) : (item.stock ?? 0);
               const itemPrice = paymentMethod === 'bs' ? calculateBcvPrice(item.unit_price_usd, bcvMultiplier) : item.unit_price_usd;
