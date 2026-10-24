@@ -126,10 +126,10 @@ export const QuotePDFLayout = forwardRef<HTMLDivElement, QuotePDFLayoutProps>(
                 <th style={{ padding: '12px 14px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px', width: '90px' }}>MARCA</th>
                 <th style={{ padding: '12px 14px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px', width: '50px' }}>CANT.</th>
                 {isBcv && (
-                  <th style={{ padding: '12px 14px', textAlign: 'right', fontSize: '10px', fontWeight: 700, color: '#34d399', backgroundColor: '#0f172a', letterSpacing: '1px', width: '90px' }}>USD BCV</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#34d399', backgroundColor: '#0f172a', letterSpacing: '1px', width: '90px' }}>USD BCV</th>
                 )}
-                <th style={{ padding: '12px 14px', textAlign: 'right', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px', width: '100px' }}>P. UNIT.</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px', width: '100px', borderRadius: '0 8px 0 0' }}>TOTAL</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px', width: '100px' }}>P. UNIT.</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#ffffff', backgroundColor: '#0f172a', letterSpacing: '1px', width: '100px', borderRadius: '0 8px 0 0' }}>TOTAL</th>
               </tr>
             </thead>
             <tbody>
@@ -151,14 +151,14 @@ export const QuotePDFLayout = forwardRef<HTMLDivElement, QuotePDFLayoutProps>(
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', textAlign: 'center', color: '#475569', borderBottom: '1px solid #f1f5f9' }}>{item.quantity}</td>
                     {isBcv && (
-                      <td style={{ padding: '11px 14px', fontSize: '12px', textAlign: 'right', color: '#10b981', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '11px 14px', fontSize: '12px', textAlign: 'center', color: '#10b981', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>
                         {formatUSD(unitUsdBcv)}
                       </td>
                     )}
-                    <td style={{ padding: '11px 14px', fontSize: '13px', textAlign: 'right', color: '#475569', borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '11px 14px', fontSize: '13px', textAlign: 'center', color: '#475569', borderBottom: '1px solid #f1f5f9' }}>
                       {isBcv ? formatBsVal(unitBs) : formatUSD(item.unit_price_usd)}
                     </td>
-                    <td style={{ padding: '11px 14px', fontSize: '13px', textAlign: 'right', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '11px 14px', fontSize: '13px', textAlign: 'center', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
                       {isBcv ? formatBsVal(totalBs) : formatUSD(totalUsd)}
                     </td>
                   </tr>
@@ -178,8 +178,8 @@ export const QuotePDFLayout = forwardRef<HTMLDivElement, QuotePDFLayoutProps>(
                   <span style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>{formatBsVal(subtotalBs)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #f1f5f9' }}>
-                  <span style={{ fontSize: '13px', color: '#64748b' }}>Ref. USD BCV:</span>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#10b981' }}>{formatUSD(subtotalUsdBcv)}</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>Ref. USD BCV:</span>
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#059669' }}>{formatUSD(subtotalUsdBcv)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #f1f5f9' }}>
                   <span style={{ fontSize: '12px', color: '#94a3b8' }}>Ref. USD base:</span>

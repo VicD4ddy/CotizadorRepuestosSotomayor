@@ -124,6 +124,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
 
   // Page dimensions (pt) — Letter-like
   const pageWidth = 595; // ~A4 width in pt
+  const pageHeight = 842; // ~A4 height in pt
   const margin = 40;
   const contentWidth = pageWidth - margin * 2;
 
@@ -209,18 +210,19 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   // ============================================================
   // CLIENT INFO
   // ============================================================
-  const clientBoxH = 65;
+  const clientBoxH = 62;
+  const clientBoxW = (isBcv || isBoth) ? contentWidth - 195 : contentWidth;
+  
   // Client box
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.5);
-  const clientBoxW = (isBcv || isBoth) ? contentWidth - 200 : contentWidth;
   roundedRect(doc, margin, y, clientBoxW, clientBoxH, 6, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text('CLIENTE', margin + 16, y + 18);
+  doc.setTextColor(100, 116, 139);
+  doc.text('DATOS DEL CLIENTE', margin + 16, y + 18);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
@@ -228,30 +230,36 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   doc.text(quote.client_name || 'Cliente Mostrador', margin + 16, y + 34);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Tel: ${quote.client_phone || 'No especificado'}`, margin + 16, y + 48);
+  doc.text(`Tel: ${quote.client_phone || 'No especificado'}`, margin + 16, y + 49);
 
   // BCV rate box (only for BCV / Both)
   if (isBcv || isBoth) {
     const bcvBoxX = margin + clientBoxW + 12;
     const bcvBoxW = contentWidth - clientBoxW - 12;
-    doc.setFillColor(239, 246, 255);
+    doc.setFillColor(240, 247, 255);
     doc.setDrawColor(191, 219, 254);
+    doc.setLineWidth(0.5);
     roundedRect(doc, bcvBoxX, y, bcvBoxW, clientBoxH, 6, 'FD');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
-    doc.setTextColor(37, 99, 235);
-    doc.text('TASA BCV', bcvBoxX + 16, y + 18);
+    doc.setTextColor(29, 78, 216);
+    doc.text('TASA OFICIAL BCV', bcvBoxX + 14, y + 18);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.setTextColor(29, 78, 216);
-    doc.text(`Bs ${rate.toFixed(2)}`, bcvBoxX + 16, y + 36);
+    doc.setTextColor(30, 64, 175);
+    doc.text(`Bs ${rate.toFixed(2)}`, bcvBoxX + 14, y + 37);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(59, 130, 246);
+    doc.text('Vigencia: 24h · Tasa oficial del día', bcvBoxX + 14, y + 50);
   }
 
-  y += clientBoxH + 20;
+  y += clientBoxH + 18;
 
   // ============================================================
   // ITEMS TABLE
@@ -267,40 +275,36 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     })
   );
 
-  // Prepare table data
+  // Prepare table data (5 columns)
   const tableHead = isBoth
-    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'PRECIO DIVISAS', 'P. UNIT. BCV ($)', 'TOTAL EN USD AL BCV', 'TOTAL EN VES']]
+    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'TOTAL DIVISAS ($)', 'TOTAL EN DÓLARES BCV']]
     : isBcv
-    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNIT. BCV ($)', 'TOTAL EN USD AL BCV', 'TOTAL EN VES']]
-    : [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNIT.', 'TOTAL EN DÓLARES']];
+    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'TOTAL EN DÓLARES BCV', 'TOTAL EN VES']]
+    : [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNITARIO ($)', 'TOTAL DIVISAS ($)']];
 
   const tableBody = items.map((item) => {
+    const unitDivisas = item.unit_price_usd || 0;
+    const totalDivisas = unitDivisas * (item.quantity || 1);
     const unitUsdBcv = (isBcv || isBoth)
-      ? calculateBcvPrice(item.unit_price_usd || 0, mult)
-      : (item.unit_price_usd || 0);
-    const unitBs = unitUsdBcv * rate;
-    const totalBs = unitBs * (item.quantity || 1);
-    const totalUsd = (item.unit_price_usd || 0) * (item.quantity || 1);
+      ? calculateBcvPrice(unitDivisas, mult)
+      : unitDivisas;
     const totalUsdBcv = unitUsdBcv * (item.quantity || 1);
+    const totalBs = totalUsdBcv * rate;
     const brand = item.brand_name || '—';
 
     if (isBoth) {
-      const unitDivisas = item.unit_price_usd || 0;
       return [
         item.product_name || '',
         brand,
         String(item.quantity || 1),
-        formatUSD(unitDivisas),
-        formatUSD(unitUsdBcv),
+        formatUSD(totalDivisas),
         formatUSD(totalUsdBcv),
-        formatBsVal(totalBs),
       ];
     } else if (isBcv) {
       return [
         item.product_name || '',
         brand,
         String(item.quantity || 1),
-        formatUSD(unitUsdBcv),
         formatUSD(totalUsdBcv),
         formatBsVal(totalBs),
       ];
@@ -309,8 +313,8 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
         item.product_name || '',
         brand,
         String(item.quantity || 1),
-        formatUSD(item.unit_price_usd || 0),
-        formatUSD(totalUsd),
+        formatUSD(unitDivisas),
+        formatUSD(totalDivisas),
       ];
     }
   });
@@ -318,28 +322,25 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   const colStyles: Record<number, Partial<{ cellWidth: number; halign: 'left' | 'center' | 'right' }>> = isBoth
     ? {
         0: { halign: 'left' },
-        1: { cellWidth: 68, halign: 'center' },
-        2: { cellWidth: 36, halign: 'center' },
-        3: { cellWidth: 62, halign: 'center' },
-        4: { cellWidth: 64, halign: 'center' },
-        5: { cellWidth: 76, halign: 'center' },
-        6: { cellWidth: 76, halign: 'center' },
+        1: { cellWidth: 70, halign: 'center' },
+        2: { cellWidth: 42, halign: 'center' },
+        3: { cellWidth: 95, halign: 'center' },
+        4: { cellWidth: 105, halign: 'center' },
       }
     : isBcv
     ? {
         0: { halign: 'left' },
-        1: { cellWidth: 80, halign: 'center' },
+        1: { cellWidth: 70, halign: 'center' },
         2: { cellWidth: 42, halign: 'center' },
-        3: { cellWidth: 78, halign: 'center' },
-        4: { cellWidth: 92, halign: 'center' },
-        5: { cellWidth: 88, halign: 'center' },
+        3: { cellWidth: 100, halign: 'center' },
+        4: { cellWidth: 100, halign: 'center' },
       }
     : {
         0: { halign: 'left' },
-        1: { cellWidth: 100, halign: 'center' },
+        1: { cellWidth: 80, halign: 'center' },
         2: { cellWidth: 44, halign: 'center' },
-        3: { cellWidth: 85, halign: 'center' },
-        4: { cellWidth: 85, halign: 'center' },
+        3: { cellWidth: 90, halign: 'center' },
+        4: { cellWidth: 90, halign: 'center' },
       };
 
   autoTable(doc, {
@@ -350,17 +351,19 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     theme: 'plain',
     styles: {
       font: 'helvetica',
-      fontSize: isBoth ? 8 : 9,
-      cellPadding: { top: 7, bottom: 7, left: isBoth ? 5 : 8, right: isBoth ? 5 : 8 },
+      fontSize: 9,
+      cellPadding: { top: 8, bottom: 8, left: 6, right: 6 },
       textColor: [30, 41, 59],
       lineWidth: 0,
+      halign: 'center',
     },
     headStyles: {
       fillColor: darkBg,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 8,
-      cellPadding: { top: 8, bottom: 8, left: 4, right: 4 },
+      fontSize: 8.5,
+      cellPadding: { top: 9, bottom: 9, left: 6, right: 6 },
+      halign: 'center',
     },
     columnStyles: colStyles,
     alternateRowStyles: {
@@ -384,8 +387,8 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
         const logoUrl = item?.brand_logo_url;
         if (logoUrl && brandLogoCache[logoUrl]) {
           try {
-            const maxW = isBoth ? 55 : 70;
-            const maxH = isBoth ? 22 : 26;
+            const maxW = 56;
+            const maxH = 22;
             
             const props = doc.getImageProperties(brandLogoCache[logoUrl]!);
             const imgRatio = props.width / props.height;
@@ -411,40 +414,31 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
       }
     },
     didParseCell: (data) => {
-      // Both mode styling for USD ($) columns
-      if (isBoth) {
-        if (data.section === 'body' && (data.column.index === 3 || data.column.index === 4 || data.column.index === 5)) {
-          data.cell.styles.textColor = hexToRGB('#10b981');
-          if (data.column.index === 5) data.cell.styles.fontStyle = 'bold';
-        }
-        if (data.section === 'head' && (data.column.index === 3 || data.column.index === 4 || data.column.index === 5)) {
-          data.cell.styles.textColor = hexToRGB('#34d399');
-        }
-        // Both mode styling for VES column (index 6)
-        if (data.section === 'body' && data.column.index === 6) {
-          data.cell.styles.textColor = hexToRGB('#2563eb');
-          data.cell.styles.fontStyle = 'bold';
-        }
-        if (data.section === 'head' && data.column.index === 6) {
-          data.cell.styles.textColor = hexToRGB('#60a5fa');
-        }
+      if (data.section === 'head') {
+        data.cell.styles.textColor = [255, 255, 255]; // Crisp pure white header
+        data.cell.styles.halign = data.column.index === 0 ? 'left' : 'center';
       }
 
-      // BCV mode styling
-      if (isBcv) {
-        if (data.section === 'body' && (data.column.index === 3 || data.column.index === 4)) {
-          data.cell.styles.textColor = hexToRGB('#10b981');
-          if (data.column.index === 4) data.cell.styles.fontStyle = 'bold';
-        }
-        if (data.section === 'head' && (data.column.index === 3 || data.column.index === 4)) {
-          data.cell.styles.textColor = hexToRGB('#34d399');
-        }
-        if (data.section === 'body' && data.column.index === 5) {
-          data.cell.styles.textColor = hexToRGB('#2563eb');
-          data.cell.styles.fontStyle = 'bold';
-        }
-        if (data.section === 'head' && data.column.index === 5) {
-          data.cell.styles.textColor = hexToRGB('#60a5fa');
+      if (data.section === 'body') {
+        data.cell.styles.halign = data.column.index === 0 ? 'left' : 'center';
+        if (isBoth) {
+          if (data.column.index === 3) {
+            data.cell.styles.textColor = hexToRGB('#059669'); // emerald
+            data.cell.styles.fontStyle = 'bold';
+          }
+          if (data.column.index === 4) {
+            data.cell.styles.textColor = hexToRGB('#0f172a'); // dark slate
+            data.cell.styles.fontStyle = 'bold';
+          }
+        } else if (isBcv) {
+          if (data.column.index === 3) {
+            data.cell.styles.textColor = hexToRGB('#059669');
+            data.cell.styles.fontStyle = 'bold';
+          }
+          if (data.column.index === 4) {
+            data.cell.styles.textColor = hexToRGB('#2563eb');
+            data.cell.styles.fontStyle = 'bold';
+          }
         }
       }
 
@@ -476,177 +470,173 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   // ============================================================
   // TOTALS BOX
   // ============================================================
-  const totalsBoxW = 240;
+  const neededHeight = isBoth ? 130 : 90;
+  if (y + neededHeight > pageHeight - 80) {
+    doc.addPage();
+    y = margin + 20;
+  }
+
+  const totalsBoxW = 280;
   const totalsX = pageWidth - margin - totalsBoxW;
 
   if (isBoth) {
-    const rowH = 24;
-    const bothBoxW = 270;
-    const bothTotalsX = pageWidth - margin - bothBoxW;
-    
-    doc.setDrawColor(226, 232, 240);
+    // Card 1: Opción Pago en Divisas
+    const card1H = 46;
+    doc.setFillColor(240, 253, 244); // soft emerald
+    doc.setDrawColor(187, 247, 208); // border emerald-200
+    doc.setLineWidth(0.75);
+    roundedRect(doc, totalsX, y, totalsBoxW, card1H, 6, 'FD');
+
+    // Left indicator bar
+    doc.setFillColor(5, 150, 105);
+    doc.rect(totalsX, y, 4, card1H, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(4, 120, 87);
+    doc.text('OPCIÓN 1: PAGO EN DIVISAS (EFECTIVO / ZELLE)', totalsX + 14, y + 16);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Total neto en divisas:', totalsX + 14, y + 33);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.setTextColor(4, 120, 87);
+    doc.text(formatUSD(subtotalUsd), totalsX + totalsBoxW - 14, y + 32, { align: 'right' });
+
+    // Card 2: Opción Pago en Bolívares (Tasa BCV)
+    const card2Y = y + card1H + 10;
+    const card2H = 58;
+
+    doc.setFillColor(...darkBg); // Dark navy
+    doc.setDrawColor(30, 41, 59);
+    doc.setLineWidth(0.75);
+    roundedRect(doc, totalsX, card2Y, totalsBoxW, card2H, 6, 'FD');
+
+    // Left indicator bar
+    doc.setFillColor(59, 130, 246);
+    doc.rect(totalsX, card2Y, 4, card2H, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(56, 189, 248); // sky-400
+    doc.text('OPCIÓN 2: PAGO EN BOLÍVARES (TASA BCV)', totalsX + 14, card2Y + 15);
+
+    // High contrast Ref Badge Box
+    const badgeW = totalsBoxW - 28;
+    const badgeH = 17;
+    const badgeY = card2Y + 20;
+    doc.setFillColor(30, 41, 59); // slate-800
+    doc.setDrawColor(51, 65, 85); // slate-700
     doc.setLineWidth(0.5);
-    doc.setFillColor(255, 255, 255);
-    roundedRect(doc, bothTotalsX, y, bothBoxW, rowH * 3 + 94, 6, 'FD');
+    roundedRect(doc, totalsX + 14, badgeY, badgeW, badgeH, 3, 'FD');
 
-    // Subtotal Divisas
+    // Ref text inside badge
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(255, 255, 255); // pure white
+    doc.text('Ref:', totalsX + 20, badgeY + 12);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(52, 211, 153); // bright emerald #34d399
+    doc.text(formatUSD(subtotalUsdBcv), totalsX + 44, badgeY + 12);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(147, 197, 253); // sky-300
+    doc.text(`Tasa: Bs ${rate.toFixed(2)}`, totalsX + totalsBoxW - 20, badgeY + 12, { align: 'right' });
+
+    // Total VES bottom line
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(100, 116, 139);
-    doc.text('Subtotal Divisas ($):', bothTotalsX + 12, y + 16);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(16, 185, 129);
-    doc.text(formatUSD(subtotalUsd), bothTotalsX + bothBoxW - 12, y + 16, { align: 'right' });
-    doc.setDrawColor(241, 245, 249);
-    doc.line(bothTotalsX + 8, y + rowH, bothTotalsX + bothBoxW - 8, y + rowH);
+    doc.setFontSize(8);
+    doc.setTextColor(203, 213, 225); // slate-300
+    doc.text('TOTAL EN VES:', totalsX + 14, card2Y + 50);
 
-    // Subtotal Dólares BCV
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 116, 139);
-    doc.text('Subtotal Dólares BCV ($):', bothTotalsX + 12, y + rowH + 16);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(5, 150, 105);
-    doc.text(formatUSD(subtotalUsdBcv), bothTotalsX + bothBoxW - 12, y + rowH + 16, { align: 'right' });
-    doc.line(bothTotalsX + 8, y + rowH * 2, bothTotalsX + bothBoxW - 8, y + rowH * 2);
-
-    // Subtotal Bs
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Subtotal VES (Tasa: ${rate.toFixed(2)}):`, bothTotalsX + 12, y + rowH * 2 + 16);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(37, 99, 235);
-    doc.text(formatBsVal(subtotalBs), bothTotalsX + bothBoxW - 12, y + rowH * 2 + 16, { align: 'right' });
-
-    // Total Divisas bar
-    const bar1Y = y + rowH * 3 + 4;
-    const barH = 30;
-    doc.setFillColor(...hexToRGB('#047857')); // green
-    doc.rect(bothTotalsX, bar1Y, bothBoxW, barH, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
+    doc.setFontSize(15);
     doc.setTextColor(255, 255, 255);
-    doc.text('TOTAL DIVISAS:', bothTotalsX + 12, bar1Y + 19);
-    doc.setFontSize(13);
-    doc.setTextColor(...hexToRGB('#a7f3d0'));
-    doc.text(formatUSD(subtotalUsd), bothTotalsX + bothBoxW - 12, bar1Y + 19, { align: 'right' });
+    doc.text(formatBsVal(subtotalBs), totalsX + totalsBoxW - 14, card2Y + 50, { align: 'right' });
 
-    // Total Dólares BCV bar
-    const bar2Y = bar1Y + barH;
-    doc.setFillColor(...hexToRGB('#065f46')); // darker green/teal
-    doc.rect(bothTotalsX, bar2Y, bothBoxW, barH, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(255, 255, 255);
-    doc.text('TOTAL EN USD AL BCV:', bothTotalsX + 12, bar2Y + 19);
-    doc.setFontSize(13);
-    doc.setTextColor(...hexToRGB('#34d399'));
-    doc.text(formatUSD(subtotalUsdBcv), bothTotalsX + bothBoxW - 12, bar2Y + 19, { align: 'right' });
-
-    // Total Bs bar
-    const bar3Y = bar2Y + barH;
-    doc.setFillColor(...darkBg);
-    roundedRect(doc, bothTotalsX, bar3Y, bothBoxW, barH, 6, 'F');
-    doc.rect(bothTotalsX, bar3Y, bothBoxW, 6, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(255, 255, 255);
-    doc.text('TOTAL EN VES:', bothTotalsX + 12, bar3Y + 19);
-    doc.setFontSize(13);
-    doc.setTextColor(...hexToRGB('#60a5fa'));
-    doc.text(formatBsVal(subtotalBs), bothTotalsX + bothBoxW - 12, bar3Y + 19, { align: 'right' });
-
-    y = bar3Y + barH + 20;
+    y = card2Y + card2H + 20;
   } else if (isBcv) {
-    // Subtotal Bs row
-    const rowH = 28;
+    const rowH = 32;
+    const cardH = rowH + 42;
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.5);
     doc.setFillColor(255, 255, 255);
-    roundedRect(doc, totalsX, y, totalsBoxW, rowH * 2 + 38, 6, 'FD');
+    roundedRect(doc, totalsX, y, totalsBoxW, cardH, 6, 'FD');
 
-    // Subtotal Bs
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text('Subtotal VES:', totalsX + 14, y + 19);
+    // Ref. USD BCV - larger & higher contrast
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(51, 65, 85);
-    doc.text(formatBsVal(subtotalBs), totalsX + totalsBoxW - 14, y + 19, { align: 'right' });
-    doc.setDrawColor(241, 245, 249);
-    doc.line(totalsX + 8, y + rowH, totalsX + totalsBoxW - 8, y + rowH);
-
-    // Ref. USD BCV
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 116, 139);
-    doc.text('Ref. Total en USD al BCV:', totalsX + 14, y + rowH + 19);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...hexToRGB('#10b981'));
-    doc.text(formatUSD(subtotalUsdBcv), totalsX + totalsBoxW - 14, y + rowH + 19, { align: 'right' });
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42); // dark navy/slate
+    doc.text(`Ref. Total en USD al BCV:`, totalsX + 14, y + 20);
+    doc.setFontSize(12);
+    doc.setTextColor(5, 150, 105);
+    doc.text(formatUSD(subtotalUsdBcv), totalsX + totalsBoxW - 14, y + 20, { align: 'right' });
 
     // Total dark bar
-    const totalBarY = y + rowH * 2 + 2;
-    const totalBarH = 36;
-    // Draw dark rounded bottom
-    doc.setFillColor(...darkBg);
-    doc.rect(totalsX, totalBarY, totalsBoxW, totalBarH, 'F');
-    // Round bottom corners
+    const totalBarY = y + rowH;
+    const totalBarH = 42;
     doc.setFillColor(...darkBg);
     roundedRect(doc, totalsX, totalBarY, totalsBoxW, totalBarH, 6, 'F');
-    // Cover top corners (they should be straight)
     doc.rect(totalsX, totalBarY, totalsBoxW, 6, 'F');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setTextColor(255, 255, 255);
-    doc.text('TOTAL EN VES:', totalsX + 14, totalBarY + 23);
+    doc.text('TOTAL EN VES:', totalsX + 14, totalBarY + 26);
     doc.setFontSize(15);
     doc.setTextColor(...hexToRGB(accentLight));
-    doc.text(formatBsVal(subtotalBs), totalsX + totalsBoxW - 14, totalBarY + 23, { align: 'right' });
+    doc.text(formatBsVal(subtotalBs), totalsX + totalsBoxW - 14, totalBarY + 26, { align: 'right' });
 
     y = totalBarY + totalBarH + 20;
   } else {
-    // USD mode — simpler
+    // USD mode
     const rowH = 28;
+    const cardH = rowH + 42;
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.5);
     doc.setFillColor(255, 255, 255);
-    roundedRect(doc, totalsX, y, totalsBoxW, rowH + 38, 6, 'FD');
+    roundedRect(doc, totalsX, y, totalsBoxW, cardH, 6, 'FD');
 
     // Subtotal
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setTextColor(100, 116, 139);
-    doc.text('Subtotal:', totalsX + 14, y + 19);
+    doc.text('Subtotal Divisas:', totalsX + 14, y + 18);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(51, 65, 85);
-    doc.text(formatUSD(subtotalUsd), totalsX + totalsBoxW - 14, y + 19, { align: 'right' });
+    doc.text(formatUSD(subtotalUsd), totalsX + totalsBoxW - 14, y + 18, { align: 'right' });
 
     // Total dark bar
-    const totalBarY = y + rowH + 2;
-    const totalBarH = 36;
+    const totalBarY = y + rowH;
+    const totalBarH = 42;
     doc.setFillColor(...darkBg);
     roundedRect(doc, totalsX, totalBarY, totalsBoxW, totalBarH, 6, 'F');
     doc.rect(totalsX, totalBarY, totalsBoxW, 6, 'F');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setTextColor(255, 255, 255);
-    doc.text('Total USD:', totalsX + 14, totalBarY + 23);
+    doc.text('TOTAL DIVISAS ($):', totalsX + 14, totalBarY + 26);
     doc.setFontSize(15);
     doc.setTextColor(...hexToRGB(accentLight));
-    doc.text(formatUSD(subtotalUsd), totalsX + totalsBoxW - 14, totalBarY + 23, { align: 'right' });
+    doc.text(formatUSD(subtotalUsd), totalsX + totalsBoxW - 14, totalBarY + 26, { align: 'right' });
 
     y = totalBarY + totalBarH + 20;
   }
 
   // ============================================================
-  // FOOTER
+  // FOOTER & MULTI-PAGE NUMBERING
   // ============================================================
-  // Footer separator line
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.5);
   doc.line(margin, y, pageWidth - margin, y);
-  y += 16;
+  y += 14;
 
   const WHATSAPP_PHRASES = [
     "La pasión por servirte es el motor que nunca se apaga.",
@@ -667,29 +657,37 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text(`"${footerPhrase}"`, pageWidth / 2, y + 6, { align: 'center' });
-  y += 12;
+  doc.text(`"${footerPhrase}"`, pageWidth / 2, y + 4, { align: 'center' });
 
-  // Page badge
-  doc.setFillColor(241, 245, 249);
-  const pageBadgeW = 70;
-  const pageBadgeH = 18;
-  const pageBadgeX = pageWidth - margin - pageBadgeW;
-  roundedRect(doc, pageBadgeX, y - 12, pageBadgeW, pageBadgeH, 4, 'F');
-  doc.setFont('helvetica', 'bold');
+  // Store information trust line
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Página 1 de 1', pageBadgeX + pageBadgeW / 2, y + 1, { align: 'center' });
-  y += 20;
+  doc.setTextColor(148, 163, 184);
+  doc.text('Repuestos Sotomayor · Especialistas en Repuestos Automotrices · Cotización emitida por sistema', pageWidth / 2, y + 16, { align: 'center' });
 
-  // ============================================================
-  // ACCENT BAR BOTTOM
-  // ============================================================
-  doc.setFillColor(...hexToRGB(accentColor));
-  doc.rect(0, y, pageWidth, 4, 'F');
-  doc.setFillColor(...darkBg);
-  doc.rect(0, y, pageWidth * 0.2, 4, 'F');
-  doc.rect(pageWidth * 0.8, y, pageWidth * 0.2, 4, 'F');
+  // Number all pages at standard bottom position
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    
+    // Bottom Accent Bar on every page
+    doc.setFillColor(...hexToRGB(accentColor));
+    doc.rect(0, 836, pageWidth, 4, 'F');
+    doc.setFillColor(...darkBg);
+    doc.rect(0, 836, pageWidth * 0.2, 4, 'F');
+    doc.rect(pageWidth * 0.8, 836, pageWidth * 0.2, 4, 'F');
+
+    // Page badge
+    doc.setFillColor(241, 245, 249);
+    const pageBadgeW = 70;
+    const pageBadgeH = 16;
+    const pageBadgeX = pageWidth - margin - pageBadgeW;
+    roundedRect(doc, pageBadgeX, 814, pageBadgeW, pageBadgeH, 3, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Página ${i} de ${totalPages}`, pageBadgeX + pageBadgeW / 2, 825, { align: 'center' });
+  }
 
   const suffix = isBoth ? '_USD_Bs' : (currency === 'bcv' ? '_Bs' : '_USD');
   const fileName = `Cotizacion${suffix}_${quote.client_name?.replace(/\s+/g, '_') || 'Mostrador'}_${quote.id.substring(0, 6)}.pdf`;

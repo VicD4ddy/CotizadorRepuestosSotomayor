@@ -74,25 +74,26 @@ export async function copyQuoteToClipboard(quoteData: any, bcvMultiplier: number
         </div>
         
         ${(currency === 'bcv' || currency === 'both') ? `
-        <div style="width: 200px; background: #eff6ff; border: 1px solid #bfdbfe; padding: 16px; border-radius: 8px;">
-          <div style="font-size: 11px; color: #2563eb; margin-bottom: 4px; font-weight: 700; letter-spacing: 0.5px;">TASA BCV</div>
-          <div style="font-size: 18px; font-weight: 800; color: #1d4ed8;">${formatBs(bcvRate)}</div>
+        <div style="width: 220px; background: #eff6ff; border: 1px solid #bfdbfe; padding: 16px; border-radius: 8px;">
+          <div style="font-size: 11px; color: #2563eb; margin-bottom: 4px; font-weight: 700; letter-spacing: 0.5px;">TASA OFICIAL BCV</div>
+          <div style="font-size: 18px; font-weight: 800; color: #1d4ed8;">Bs ${formatBs(bcvRate)}</div>
+          <div style="font-size: 10px; color: #3b82f6; margin-top: 2px;">Vigencia: 24h · Tasa oficial del día</div>
         </div>
         ` : ''}
       </div>
 
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; table-layout: fixed;">
         <thead>
-          <tr style="background: #0f172a; color: white; text-align: left;">
-            <th style="padding: 12px 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; width: 33%;">DESCRIPCIÓN</th>
-            <th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: 13%;">MARCA</th>
-            <th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: 6%;">CANT.</th>
-            ${currency === 'both' ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 12%;">PRECIO<br/>DIVISAS</th>` : ''}
-            ${(currency === 'both' || currency === 'bcv') ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 12%;">P. UNIT.<br/>BCV ($)</th>` : ''}
-            ${currency === 'usd' ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399;">P. UNIT.</th>` : ''}
-            ${(currency === 'both' || currency === 'bcv') ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 12%;">TOTAL EN<br/>USD AL BCV</th>` : ''}
-            ${(currency === 'both' || currency === 'bcv') ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #60a5fa; width: 12%;">TOTAL EN<br/>VES</th>` : ''}
-            ${currency === 'usd' ? `<th style="padding: 12px 16px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399;">TOTAL EN<br/>DÓLARES</th>` : ''}
+          <tr style="background: #0f172a; color: white;">
+            <th style="padding: 12px 14px; font-size: 11px; text-align: left; font-weight: 700; letter-spacing: 0.5px; width: ${currency === 'both' ? '40%' : (currency === 'bcv' ? '42%' : '44%')};">DESCRIPCIÓN</th>
+            <th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: ${currency === 'both' ? '16%' : (currency === 'bcv' ? '16%' : '18%')};">MARCA</th>
+            <th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: 8%;">CANT.</th>
+            ${currency === 'both' ? `<th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 18%;">TOTAL DIVISAS ($)</th>` : ''}
+            ${currency === 'both' ? `<th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #ffffff; width: 18%;">TOTAL EN DÓLARES BCV</th>` : ''}
+            ${currency === 'bcv' ? `<th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 17%;">TOTAL EN DÓLARES BCV</th>` : ''}
+            ${currency === 'bcv' ? `<th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #60a5fa; width: 17%;">TOTAL EN VES</th>` : ''}
+            ${currency === 'usd' ? `<th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #ffffff; width: 15%;">P. UNITARIO ($)</th>` : ''}
+            ${currency === 'usd' ? `<th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 15%;">TOTAL DIVISAS ($)</th>` : ''}
           </tr>
         </thead>
         <tbody>
@@ -105,88 +106,85 @@ export async function copyQuoteToClipboard(quoteData: any, bcvMultiplier: number
             const unitUsdBcv = calculateBcvPrice(unitUsd, bcvMultiplier);
             const totalUsdBcv = unitUsdBcv * item.quantity;
             
-            const unitBs = unitUsdBcv * bcvRate;
             const totalBs = totalUsdBcv * bcvRate;
             
             const brandContent = item.brand_logo_url 
-              ? `<img src="${item.brand_logo_url}" crossorigin="anonymous" style="height: 26px; object-fit: contain; max-width: 90px;" />` 
-              : (item.brand_name ? `<span style="font-size: 11px; color: #2563eb; font-weight: 700;">${item.brand_name}</span>` : '');
+              ? `<img src="${item.brand_logo_url}" crossorigin="anonymous" style="height: 24px; object-fit: contain; max-width: 80px;" />` 
+              : (item.brand_name ? `<span style="font-size: 11px; color: #64748b; font-weight: 700;">${item.brand_name}</span>` : '—');
 
             return `
             <tr style="background-color: ${rowBg}; border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 14px 16px; font-size: 13px; font-weight: 500;">${item.product_name}</td>
-              <td style="padding: 14px 16px; text-align: center;">${brandContent}</td>
-              <td style="padding: 14px 16px; text-align: center; font-size: 13px; font-weight: 600;">${item.quantity}</td>
-              ${currency === 'both' ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; color: #10b981;">${formatUSD(unitUsd)}</td>` : ''}
-              ${(currency === 'both' || currency === 'bcv') ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; color: #10b981;">${formatUSD(unitUsdBcv)}</td>` : ''}
-              ${currency === 'usd' ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; color: #10b981;">${formatUSD(unitUsd)}</td>` : ''}
-              ${(currency === 'both' || currency === 'bcv') ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; font-weight: 800; color: #10b981;">${formatUSD(totalUsdBcv)}</td>` : ''}
-              ${(currency === 'both' || currency === 'bcv') ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; font-weight: 800; color: #2563eb;">${formatBs(totalBs)}</td>` : ''}
-              ${currency === 'usd' ? `<td style="padding: 14px 16px; text-align: center; font-size: 13px; font-weight: 800; color: #10b981;">${formatUSD(totalUsd)}</td>` : ''}
+              <td style="padding: 12px 14px; text-align: left; font-size: 13px; font-weight: 500; color: #0f172a;">${item.product_name}</td>
+              <td style="padding: 12px 14px; text-align: center;">${brandContent}</td>
+              <td style="padding: 12px 14px; text-align: center; font-size: 13px; font-weight: 600; color: #334155;">${item.quantity}</td>
+              ${currency === 'both' ? `
+                <td style="padding: 12px 14px; text-align: center; font-size: 13px; font-weight: 700; color: #059669;">${formatUSD(totalUsd)}</td>
+                <td style="padding: 12px 14px; text-align: center; font-size: 13px; font-weight: 700; color: #0f172a;">${formatUSD(totalUsdBcv)}</td>
+              ` : ''}
+              ${currency === 'bcv' ? `
+                <td style="padding: 12px 14px; text-align: center; font-size: 13px; font-weight: 700; color: #059669;">${formatUSD(totalUsdBcv)}</td>
+                <td style="padding: 12px 14px; text-align: center; font-size: 13px; font-weight: 700; color: #2563eb;">${formatBs(totalBs)}</td>
+              ` : ''}
+              ${currency === 'usd' ? `
+                <td style="padding: 12px 14px; text-align: center; font-size: 13px; color: #475569;">${formatUSD(unitUsd)}</td>
+                <td style="padding: 12px 14px; text-align: center; font-size: 13px; font-weight: 700; color: #0f172a;">${formatUSD(totalUsd)}</td>
+              ` : ''}
             </tr>
           `}).join('')}
         </tbody>
       </table>
       
       <div style="display: flex; justify-content: flex-end;">
-        <div style="width: 400px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+        <div style="width: 420px; display: flex; flex-direction: column; gap: 12px;">
           
           ${currency === 'both' ? `
-          <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
-            <span style="color: #64748b; font-size: 13px;">Subtotal Divisas ($):</span>
-            <span style="font-weight: 700; color: #10b981; font-size: 13px;">${formatUSD(baseSubtotal)}</span>
+          <!-- Card Opción 1: Divisas -->
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 5px solid #059669; padding: 14px 16px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="font-size: 11px; font-weight: 800; color: #047857; letter-spacing: 0.5px; margin-bottom: 4px;">OPCIÓN 1: PAGO EN DIVISAS (EFECTIVO / ZELLE)</div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <span style="font-size: 12px; color: #64748b;">Total neto en divisas:</span>
+              <span style="font-size: 20px; font-weight: 900; color: #047857;">${formatUSD(baseSubtotal)}</span>
+            </div>
           </div>
-          ` : ''}
-          
-          ${(currency === 'both') ? `
-          <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
-            <span style="color: #64748b; font-size: 13px;">Subtotal Dólares BCV ($):</span>
-            <span style="font-weight: 700; color: #10b981; font-size: 13px;">${formatUSD(subtotalBcv)}</span>
-          </div>
-          ` : ''}
-          
-          ${(currency === 'usd') ? `
-          <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
-            <span style="color: #64748b; font-size: 13px;">Subtotal ($):</span>
-            <span style="font-weight: 700; color: #10b981; font-size: 13px;">${formatUSD(baseSubtotal)}</span>
-          </div>
-          <div style="background: #047857; padding: 12px 16px; display: flex; justify-content: space-between; color: white;">
-            <span style="font-weight: 700; font-size: 14px;">TOTAL DIVISAS:</span>
-            <span style="font-weight: 800; font-size: 15px;">${formatUSD(baseSubtotal)}</span>
+
+          <!-- Card Opción 2: Bolívares -->
+          <div style="background: #0f172a; border: 1px solid #1e293b; border-left: 5px solid #3b82f6; padding: 14px 16px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+            <div style="font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 0.5px; margin-bottom: 8px;">OPCIÓN 2: PAGO EN BOLÍVARES (TASA BCV)</div>
+            <div style="display: inline-flex; align-items: center; gap: 8px; background: #1e293b; border: 1px solid #334155; padding: 5px 12px; border-radius: 6px; margin-bottom: 10px;">
+              <span style="font-size: 14px; font-weight: 800; color: #ffffff;">Ref: <span style="color: #34d399; font-weight: 900; font-size: 16px;">${formatUSD(subtotalBcv)}</span></span>
+              <span style="font-size: 12px; color: #64748b;">·</span>
+              <span style="font-size: 13px; font-weight: 700; color: #93c5fd;">Tasa: Bs ${formatBs(bcvRate)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <span style="font-size: 12px; color: #cbd5e1; font-weight: 600;">TOTAL EN VES:</span>
+              <span style="font-size: 22px; font-weight: 900; color: #ffffff;">${formatBs(subtotalBs)}</span>
+            </div>
           </div>
           ` : ''}
 
-          ${(currency === 'both') ? `
-          <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
-            <span style="color: #64748b; font-size: 13px;">Subtotal VES (Tasa: ${formatBs(bcvRate)}):</span>
-            <span style="font-weight: 700; color: #2563eb; font-size: 13px;">${formatBs(subtotalBs)}</span>
-          </div>
-          <div style="background: #047857; padding: 12px 16px; display: flex; justify-content: space-between; color: white;">
-            <span style="font-weight: 700; font-size: 14px;">TOTAL DIVISAS:</span>
-            <span style="font-weight: 800; font-size: 15px;">${formatUSD(baseSubtotal)}</span>
-          </div>
-          <div style="background: #065f46; padding: 12px 16px; display: flex; justify-content: space-between; color: white;">
-            <span style="font-weight: 700; font-size: 14px;">TOTAL EN USD AL BCV:</span>
-            <span style="font-weight: 800; font-size: 15px;">${formatUSD(subtotalBcv)}</span>
-          </div>
-          <div style="background: #0f172a; padding: 12px 16px; display: flex; justify-content: space-between; color: white;">
-            <span style="font-weight: 700; font-size: 14px;">TOTAL EN VES:</span>
-            <span style="font-weight: 800; font-size: 15px;">${formatBs(subtotalBs)}</span>
+          ${currency === 'bcv' ? `
+          <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <div style="padding: 12px 16px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0;">
+              <span style="color: #0f172a; font-size: 14px; font-weight: 700;">Ref. Total en USD al BCV:</span>
+              <span style="font-weight: 900; color: #047857; font-size: 16px; background: #ecfdf5; padding: 4px 12px; border-radius: 6px; border: 1px solid #a7f3d0;">${formatUSD(subtotalBcv)}</span>
+            </div>
+            <div style="background: #0f172a; padding: 14px 16px; display: flex; justify-content: space-between; align-items: baseline; color: white;">
+              <span style="font-weight: 700; font-size: 13px; color: #94a3b8;">TOTAL EN VES:</span>
+              <span style="font-weight: 900; font-size: 22px; color: #60a5fa;">${formatBs(subtotalBs)}</span>
+            </div>
           </div>
           ` : ''}
-          
-          ${(currency === 'bcv') ? `
-          <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
-            <span style="color: #64748b; font-size: 13px;">Subtotal VES (Tasa: ${formatBs(bcvRate)}):</span>
-            <span style="font-weight: 700; color: #2563eb; font-size: 13px;">${formatBs(subtotalBs)}</span>
-          </div>
-          <div style="padding: 12px 16px; background: white; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
-            <span style="color: #64748b; font-size: 13px;">Ref. Total en USD al BCV:</span>
-            <span style="font-weight: 700; color: #10b981; font-size: 13px;">${formatUSD(subtotalBcv)}</span>
-          </div>
-          <div style="background: #0f172a; padding: 12px 16px; display: flex; justify-content: space-between; color: white;">
-            <span style="font-weight: 700; font-size: 14px;">TOTAL EN VES:</span>
-            <span style="font-weight: 800; font-size: 15px;">${formatBs(subtotalBs)}</span>
+
+          ${currency === 'usd' ? `
+          <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <div style="padding: 12px 16px; background: #ffffff; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;">
+              <span style="color: #64748b; font-size: 13px;">Subtotal Divisas:</span>
+              <span style="font-weight: 700; color: #059669; font-size: 14px;">${formatUSD(baseSubtotal)}</span>
+            </div>
+            <div style="background: #0f172a; padding: 14px 16px; display: flex; justify-content: space-between; align-items: baseline; color: white;">
+              <span style="font-weight: 700; font-size: 13px; color: #94a3b8;">TOTAL DIVISAS ($):</span>
+              <span style="font-weight: 900; font-size: 20px; color: #34d399;">${formatUSD(baseSubtotal)}</span>
+            </div>
           </div>
           ` : ''}
 

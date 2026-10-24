@@ -24,8 +24,16 @@ export const SYSTEM_UPDATES_DATA: DailyUpdateGroup[] = [
     displayDate: 'Hoy - 24 de Octubre de 2026',
     isToday: true,
     badge: 'HOY',
-    summary: 'Orden por defecto en Tren Delantero (13 categorías) y prioridad de marcas Moog > Elgin > TVA.',
+    summary: 'Rediseño visual de cotizaciones PDF/WhatsApp (5 columnas con "Total en Dólares BCV"), orden por defecto en Tren Delantero y jerarquía de marcas.',
     items: [
+      {
+        id: 'upd-2026-10-24-3',
+        title: 'Rediseño visual de cotizaciones y simplificación a 5 columnas',
+        description: 'La tabla de cotización en PDF y WhatsApp se simplificó a 5 columnas claras: Descripción (alineada a la izquierda), Marca, Cantidad, Total Divisas ($) y Total en Dólares BCV (con encabezados y montos centrados). Se incorporó una tarjeta de totales moderna con desglose dual (Opción 1: Divisas / Opción 2: Bolívares con tasa BCV), tarjeta de tasa con vigencia 24h y paginación numerada "Página X de Y".',
+        type: 'design',
+        tag: 'PDF & WhatsApp',
+        module: 'PDF & Reportes',
+      },
       {
         id: 'upd-2026-10-24-1',
         title: 'Orden por defecto de 13 categorías en Tren Delantero',
