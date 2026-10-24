@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Upload, X, Plus, Image as ImageIcon, Save, RefreshCw, Sparkles, Search as SearchIcon, ListPlus, ChevronDown, Check, Eye, EyeOff, Bell } from 'lucide-react';
+import { Upload, X, Plus, Image as ImageIcon, Save, RefreshCw, Sparkles, Search as SearchIcon, ListPlus, ChevronDown, Check, Eye, EyeOff, Bell, Store } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useAiQueueStore } from '@/store/ai-queue-store';
 
@@ -100,6 +100,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
       stock: 0,
       min_stock: 0,
       is_active: false,
+      is_wholesale: false,
     },
   });
 
@@ -139,6 +140,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
           stock: product.stock || 0,
           min_stock: product.min_stock ?? 0,
           is_active: product.is_active === true,
+          is_wholesale: product.is_wholesale === true,
         });
         setPreviewUrl(syncedMainUrl);
       } else {
@@ -158,6 +160,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
           stock: 0,
           min_stock: 0,
           is_active: false,
+          is_wholesale: false,
         });
         setPreviewUrl('');
       }
@@ -1318,7 +1321,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                       </div>
                     )}
 
-                    <div className="pt-2 border-t border-slate-100">
+                    <div className="pt-2 border-t border-slate-100 space-y-2">
                       <label className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50/50 cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="flex flex-col pr-3">
                           <span className="text-[12px] font-bold text-slate-800 flex items-center gap-1.5">
@@ -1341,6 +1344,39 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                           className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer shrink-0"
                         />
                       </label>
+
+                      <label className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50/50 cursor-pointer hover:bg-slate-50 transition-colors">
+                        <div className="flex flex-col pr-3">
+                          <span className="text-[12px] font-bold text-slate-800 flex items-center gap-1.5">
+                            <Store className={`w-4 h-4 shrink-0 ${watch('is_wholesale') ? 'text-blue-600' : 'text-slate-400'}`} />
+                            Disponible en Mayorista
+                          </span>
+                          <span className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                            {watch('is_wholesale')
+                              ? 'Habilitado en el catálogo y portal de ventas al mayor.'
+                              : 'No ofertado en el canal mayorista (exclusivo para detal/mostrador).'}
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          {...register('is_wholesale')}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer shrink-0"
+                        />
+                      </label>
+
+                      {watch('is_wholesale') && product && (product.wholesale_stock != null || product.wholesale_price != null) && (
+                        <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-blue-50/70 border border-blue-200/80 text-[11px] text-blue-900">
+                          <span className="text-blue-700 font-medium">Canal Mayorista:</span>
+                          <div className="flex items-center gap-3">
+                            {product.wholesale_stock != null && (
+                              <span>Stock: <strong>{product.wholesale_stock} unid.</strong></span>
+                            )}
+                            {product.wholesale_price != null && (
+                              <span>Precio: <strong>${Number(product.wholesale_price).toFixed(2)}</strong></span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">

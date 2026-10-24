@@ -15,7 +15,7 @@ import { useProducts, useBcvRate, useCategories, useBcvMultiplier, useUpdateProd
 import { useCartStore } from '@/store/cart-store';
 import { Badge } from '@/components/ui/badge';
 import { formatUSD, calculateBcvPrice } from '@/lib/utils';
-import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff, AlertTriangle, PackageX, PackageMinus, Bell, Check, ClipboardCheck, Loader2 } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff, AlertTriangle, PackageX, PackageMinus, Bell, Check, ClipboardCheck, Loader2, Store } from 'lucide-react';
 import { ProductFormDialog } from './product-form-dialog';
 import { ProductHistoryDialog } from './product-history-dialog';
 import { ImageGalleryDialog } from './image-gallery-dialog';
@@ -47,6 +47,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
   const [brandFilter, setBrandFilter] = useState<string>('all');
   const [stockFilter, setStockFilter] = useState<string>('all');
   const [webStatusFilter, setWebStatusFilter] = useState<string>('all');
+  const [wholesaleFilter, setWholesaleFilter] = useState<string>('all');
   const [priceFilter, setPriceFilter] = useState<string>('all');
   const [imageFilter, setImageFilter] = useState<string>('all');
   const [recentsOnly, setRecentsOnly] = useState(!!showRecentsOnMount);
@@ -229,6 +230,12 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
       result = result.filter((p) => p.is_active !== false);
     } else if (webStatusFilter === 'hidden') {
       result = result.filter((p) => p.is_active === false);
+    }
+
+    if (wholesaleFilter === 'wholesale') {
+      result = result.filter((p) => p.is_wholesale === true);
+    } else if (wholesaleFilter === 'non_wholesale') {
+      result = result.filter((p) => !p.is_wholesale);
     }
 
     if (priceFilter === 'zero_price') {
@@ -476,6 +483,11 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
             {row.original.is_active === false ? (
               <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
                 <EyeOff className="w-3 h-3" /> WEB: OCULTO
+              </span>
+            ) : null}
+            {row.original.is_wholesale ? (
+              <span className="inline-flex items-center gap-1 mt-1.5 ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
+                <Store className="w-3 h-3" /> MAYORISTA
               </span>
             ) : null}
           </div>
@@ -1028,6 +1040,19 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
               <option value="all">Todos</option>
               <option value="visible">Visibles en Web</option>
               <option value="hidden">Ocultos en Web</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[12px] text-slate-600 font-medium">Mayorista:</span>
+            <select
+              value={wholesaleFilter}
+              onChange={(e) => setWholesaleFilter(e.target.value)}
+              className="h-8 px-2 text-[12px] rounded-md bg-white border border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+            >
+              <option value="all">Todos</option>
+              <option value="wholesale">Solo Mayorista</option>
+              <option value="non_wholesale">Solo Detal</option>
             </select>
           </div>
 

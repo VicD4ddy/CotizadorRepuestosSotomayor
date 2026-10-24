@@ -22,6 +22,7 @@ export const productSchema = z.object({
   stock: z.coerce.number().int('La existencia debe ser un número entero').min(0, 'La existencia no puede ser negativa').default(0),
   min_stock: z.coerce.number().int('El stock mínimo debe ser un número entero').min(0, 'El stock mínimo no puede ser negativo').default(0),
   is_active: z.boolean().default(false),
+  is_wholesale: z.boolean().default(false),
 });
 
 export type ProductFormValues = z.infer<typeof productSchema>;

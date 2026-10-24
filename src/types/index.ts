@@ -31,6 +31,12 @@ export interface Product {
   stock?: number;
   min_stock?: number;
   is_active?: boolean | null;
+  // Campos para canal mayorista (Supabase compartida)
+  is_wholesale?: boolean | null;
+  wholesale_stock?: number | null;
+  wholesale_cost?: number | null;
+  wholesale_price?: number | null;
+  wholesale_min_stock?: number | null;
   created_at?: string;
   updated_at?: string;
   // Joined fields
