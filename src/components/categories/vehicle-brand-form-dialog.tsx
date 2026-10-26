@@ -6,7 +6,9 @@ import { VehicleBrand } from '@/types';
 import { useCreateVehicleBrand, useUpdateVehicleBrand } from '@/hooks/use-supabase';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { Save, Upload, Loader2, X } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import save from 'react-useanimations/lib/save';
+import { Upload, Loader2, X } from 'lucide-react';
 
 interface VehicleBrandFormDialogProps {
   open: boolean;
@@ -213,7 +215,7 @@ export function VehicleBrandFormDialog({ open, onOpenChange, brand }: VehicleBra
               disabled={createVehicleBrand.isPending || updateVehicleBrand.isPending || uploading}
               className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2"
             >
-              <Save className="w-4 h-4" />
+              <UseAnimations animation={save} size={18} strokeColor="currentColor" />
               {createVehicleBrand.isPending || updateVehicleBrand.isPending ? 'Guardando...' : 'Guardar Marca de Vehículo'}
             </Button>
           </div>

@@ -1,6 +1,9 @@
 'use client';
 
-import { Search, RefreshCw, User } from 'lucide-react';
+import { Search } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import refresh from 'react-useanimations/lib/refresh';
+import user from 'react-useanimations/lib/user';
 import { NotificationPanel } from './notification-panel';
 import { DailyBcvDialog } from './daily-bcv-dialog';
 import { ProfileDialog } from './profile-dialog';
@@ -142,7 +145,7 @@ export function Header() {
           className="flex items-center gap-1.5 h-[30px] px-2 md:px-2.5 rounded-md border border-emerald-300/90 bg-emerald-50/60 hover:bg-emerald-100 hover:border-emerald-400 text-emerald-700 hover:text-emerald-800 text-[11.5px] font-semibold transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
           title="Consultar y actualizar tasa automáticamente desde la API oficial del BCV"
         >
-          <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncingBcv ? 'animate-spin' : ''}`} />
+          <UseAnimations animation={refresh} size={15} strokeColor="#059669" interaction="hover-replay" className={isSyncingBcv ? 'animate-spin' : ''} />
           <span className="hidden sm:inline">Actualizar BCV</span>
           <span className="sm:hidden">Auto</span>
         </button>
@@ -152,10 +155,10 @@ export function Header() {
         <NotificationPanel />
         <button
           onClick={() => setIsProfileOpen(true)}
-          className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-95 flex items-center justify-center transition-all cursor-pointer ring-2 ring-transparent hover:ring-emerald-500/60 shadow-xs"
+          className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-95 flex items-center justify-center transition-all cursor-pointer ring-2 ring-transparent hover:ring-emerald-500/60 shadow-xs text-white"
           title="Perfil y Actualizaciones del Sistema"
         >
-          <User className="w-4 h-4 text-white" />
+          <UseAnimations animation={user} size={16} strokeColor="#ffffff" interaction="hover-replay" />
         </button>
       </div>
 

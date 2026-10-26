@@ -1,7 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useKits, useDeleteKit, useUpdateKit } from '@/hooks/use-supabase';
 import { Kit } from '@/types';
-import { Search, Plus, Trash2, Edit, Package, ShoppingCart, X, ChevronLeft, ChevronRight, CheckCircle2, Circle, Disc3, Wrench } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import plusCircle from 'react-useanimations/lib/plusCircle';
+import edit from 'react-useanimations/lib/edit';
+import trash2 from 'react-useanimations/lib/trash2';
+import { Search, Package, ShoppingCart, X, ChevronLeft, ChevronRight, CheckCircle2, Circle, Disc3, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { KitFormDialog } from './kit-form-dialog';
@@ -118,7 +122,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
           }}
           className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2"
         >
-          <Plus className="w-4 h-4" />
+          <UseAnimations animation={plusCircle} size={18} strokeColor="currentColor" />
           Nuevo Cotizador
         </Button>
       </div>
@@ -197,15 +201,17 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={(e) => openEdit(e, kit)}
-                  className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                  className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded flex items-center justify-center"
+                  title="Editar"
                 >
-                  <Edit className="w-4 h-4" />
+                  <UseAnimations animation={edit} size={18} strokeColor="currentColor" />
                 </button>
                 <button
                   onClick={(e) => handleDelete(e, kit)}
-                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
+                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded flex items-center justify-center"
+                  title="Eliminar"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <UseAnimations animation={trash2} size={18} strokeColor="currentColor" />
                 </button>
               </div>
             </div>
@@ -362,7 +368,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
             }}
             className="bg-emerald-500 hover:bg-emerald-600 text-white"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <UseAnimations animation={plusCircle} size={18} strokeColor="currentColor" className="mr-2" />
             Crear Cotizador
           </Button>
         </div>

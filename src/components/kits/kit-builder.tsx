@@ -4,6 +4,10 @@ import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useU
 import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
 import { formatUSD, cn } from '@/lib/utils';
+import UseAnimations from 'react-useanimations';
+import arrowLeft from 'react-useanimations/lib/arrowLeft';
+import plusCircle from 'react-useanimations/lib/plusCircle';
+import shoppingCart from 'react-useanimations/lib/shoppingCart';
 import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -583,7 +587,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             onClick={onBack}
             className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <UseAnimations animation={arrowLeft} size={20} strokeColor="currentColor" />
           </button>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -646,7 +650,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             variant="outline"
             className="gap-2 border-slate-300 text-slate-700 font-semibold h-[36px]"
           >
-            <Plus className="w-4 h-4" />
+            <UseAnimations animation={plusCircle} size={18} strokeColor="currentColor" />
             Vincular Repuesto
           </Button>
           
@@ -658,7 +662,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                   onClick={() => handleLoadCombo(combo.id)}
                   className="bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold h-[36px] gap-2 px-3 shadow-sm"
                 >
-                  <ShoppingCart className="w-4 h-4" />
+                  <UseAnimations animation={shoppingCart} size={18} strokeColor="currentColor" />
                   Cargar {combo.name} al carrito
                 </Button>
               ))}

@@ -8,7 +8,9 @@ import { categorySchema, CategoryFormValues } from '@/lib/schemas';
 import { useCreateCategory, useUpdateCategory, useCategories } from '@/hooks/use-supabase';
 import { Category } from '@/types';
 import { toast } from 'sonner';
-import { Save, X, ChevronDown, Check, Search } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import save from 'react-useanimations/lib/save';
+import { X, ChevronDown, Check, Search } from 'lucide-react';
 
 interface CategoryFormDialogProps {
   open: boolean;
@@ -243,7 +245,7 @@ export function CategoryFormDialog({ open, onOpenChange, category }: CategoryFor
               disabled={isSubmitting}
               className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2"
             >
-              <Save className="w-4 h-4" />
+              <UseAnimations animation={save} size={18} strokeColor="currentColor" />
               {isSubmitting ? 'Guardando...' : 'Guardar Categoría'}
             </Button>
           </div>

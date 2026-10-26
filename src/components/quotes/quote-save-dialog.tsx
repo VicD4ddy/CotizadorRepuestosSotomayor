@@ -6,7 +6,9 @@ import { useCartStore } from '@/store/cart-store';
 import { useBcvRate, useCreateQuote, useBcvMultiplier } from '@/hooks/use-supabase';
 import { sortQuoteItems } from '@/lib/tren-delantero';
 import { toast } from 'sonner';
-import { Save, X } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import save from 'react-useanimations/lib/save';
+import { X } from 'lucide-react';
 
 interface QuoteSaveDialogProps {
   open: boolean;
@@ -116,7 +118,7 @@ export function QuoteSaveDialog({ open, onOpenChange }: QuoteSaveDialogProps) {
               disabled={isSubmitting}
               className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2"
             >
-              <Save className="w-4 h-4" />
+              <UseAnimations animation={save} size={18} strokeColor="currentColor" />
               {isSubmitting ? 'Guardando...' : 'Guardar Cotización'}
             </Button>
           </div>

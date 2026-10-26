@@ -4,23 +4,25 @@ import { useCartStore } from '@/store/cart-store';
 import { useBcvRate, useCreateQuote, useBcvMultiplier, useProducts } from '@/hooks/use-supabase';
 import { formatUSD, formatBs, calculateBcvPrice } from '@/lib/utils';
 import {
-  ShoppingCart,
-  Trash2,
-  Plus,
-  Minus,
   FileText,
   MessageCircle,
-  CheckCircle,
   X,
   Save,
-  Download,
 } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import shoppingCart from 'react-useanimations/lib/shoppingCart';
+import trash2 from 'react-useanimations/lib/trash2';
+import plusCircle from 'react-useanimations/lib/plusCircle';
+import minusCircle from 'react-useanimations/lib/minusCircle';
+import checkmark from 'react-useanimations/lib/checkmark';
+import download from 'react-useanimations/lib/download';
+import user from 'react-useanimations/lib/user';
+import phone from 'react-useanimations/lib/phone';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { QuoteSaveDialog } from './quote-save-dialog';
 import { Input } from '@/components/ui/input';
-import { User, Phone } from 'lucide-react';
 import { generateQuotePDF } from '@/lib/generate-quote-pdf';
 import { copyQuoteToClipboard } from '@/lib/capture-quote';
 import { Quote } from '@/types';
@@ -254,15 +256,15 @@ export function QuoteCart() {
       <div className="flex flex-col px-5 py-4 border-b border-slate-200">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <ShoppingCart className="w-4 h-4 text-slate-800" />
+            <UseAnimations animation={shoppingCart} size={18} strokeColor="currentColor" interaction="hover-replay" className="text-slate-800" />
             <h3 className="font-bold text-[14px] text-slate-900">Cotización Actual</h3>
           </div>
           {items.length > 0 && (
             <button
               onClick={clearCart}
-              className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors"
+              className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <UseAnimations animation={trash2} size={15} strokeColor="currentColor" interaction="hover-replay" />
               Limpiar
             </button>
           )}
@@ -297,7 +299,9 @@ export function QuoteCart() {
         {/* Client Info Inputs */}
         <div className="mt-4 space-y-2">
           <div className="relative">
-            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center justify-center">
+              <UseAnimations animation={user} size={14} strokeColor="currentColor" />
+            </span>
             <Input
               placeholder="Nombre del Cliente"
               value={clientName}
@@ -306,7 +310,9 @@ export function QuoteCart() {
             />
           </div>
           <div className="relative">
-            <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center justify-center">
+              <UseAnimations animation={phone} size={14} strokeColor="currentColor" />
+            </span>
             <Input
               placeholder="Teléfono (Opcional)"
               value={clientPhone}
@@ -321,8 +327,8 @@ export function QuoteCart() {
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
-            <ShoppingCart className="w-10 h-10 mb-3 opacity-30" />
-            <p className="text-[13px] text-slate-600">Sin productos</p>
+            <UseAnimations animation={shoppingCart} size={42} strokeColor="#94a3b8" interaction="hover-loop" className="mb-3 opacity-40" />
+            <p className="text-[13px] text-slate-600 font-medium">Sin productos</p>
             <p className="text-[11px]">Usa el botón + en la tabla</p>
           </div>
         ) : (
@@ -433,16 +439,18 @@ export function QuoteCart() {
                     <div className="flex items-center gap-0.5">
                       <button
                         onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                        className="w-7 h-7 rounded border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                        className="w-7 h-7 rounded border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
+                        title="Disminuir"
                       >
-                        <Minus className="w-3 h-3" />
+                        <UseAnimations animation={minusCircle} size={15} strokeColor="currentColor" interaction="hover-replay" />
                       </button>
                       <span className="w-8 text-center text-[12px] font-bold text-slate-900">{item.quantity}</span>
                       <button
                         onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                        className="w-7 h-7 rounded border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                        className="w-7 h-7 rounded border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
+                        title="Aumentar"
                       >
-                        <Plus className="w-3 h-3" />
+                        <UseAnimations animation={plusCircle} size={15} strokeColor="currentColor" interaction="hover-replay" />
                       </button>
                     </div>
                     <span className="text-[12px] font-bold text-slate-900">
@@ -483,15 +491,15 @@ export function QuoteCart() {
           <div className="flex gap-2 mt-4">
             <button
               onClick={handleOpenSaveDialog}
-              className="flex-1 min-w-0 h-[40px] px-2 rounded border border-slate-900 bg-[#0f172a] hover:bg-[#1e293b] text-white font-semibold text-[12px] flex items-center justify-center gap-1.5 transition-colors active:scale-[0.98] disabled:opacity-50 truncate"
+              className="flex-1 min-w-0 h-[40px] px-2 rounded border border-slate-900 bg-[#0f172a] hover:bg-[#1e293b] text-white font-semibold text-[12px] flex items-center justify-center gap-1.5 transition-colors active:scale-[0.98] disabled:opacity-50 truncate cursor-pointer"
             >
-              <CheckCircle className="w-4 h-4 shrink-0" />
+              <UseAnimations animation={checkmark} size={16} strokeColor="#ffffff" interaction="hover-replay" className="shrink-0" />
               <span className="truncate">Guardar</span>
             </button>
             <button
               onClick={handleWhatsApp}
               title="Enviar por WhatsApp"
-              className="w-[40px] h-[40px] shrink-0 rounded border border-slate-200 bg-[#25D366] hover:bg-[#20b858] text-white flex items-center justify-center transition-colors shadow-sm"
+              className="w-[40px] h-[40px] shrink-0 rounded border border-slate-200 bg-[#25D366] hover:bg-[#20b858] text-white flex items-center justify-center transition-colors shadow-sm cursor-pointer"
             >
               <MessageCircle className="w-4 h-4" />
             </button>
@@ -503,27 +511,27 @@ export function QuoteCart() {
               onClick={() => handleExportPdf('usd')}
               disabled={isGeneratingPdf}
               title="Descargar PDF en Divisas (USD)"
-              className="flex-1 min-w-0 h-[36px] px-2 rounded border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50"
+              className="flex-1 min-w-0 h-[36px] px-2 rounded border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50 cursor-pointer"
             >
-              <FileText className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+              <UseAnimations animation={download} size={14} strokeColor="#059669" interaction="hover-replay" className="shrink-0" />
               <span className="truncate">PDF USD</span>
             </button>
             <button
               onClick={() => handleExportPdf('bcv')}
               disabled={isGeneratingPdf}
               title="Descargar PDF en Bolívares (BCV)"
-              className="flex-1 min-w-0 h-[36px] px-2 rounded border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50"
+              className="flex-1 min-w-0 h-[36px] px-2 rounded border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50 cursor-pointer"
             >
-              <FileText className="w-3.5 h-3.5 shrink-0 text-blue-600" />
+              <UseAnimations animation={download} size={14} strokeColor="#2563eb" interaction="hover-replay" className="shrink-0" />
               <span className="truncate">PDF Bs</span>
             </button>
             <button
               onClick={() => handleExportPdf('both')}
               disabled={isGeneratingPdf}
               title="Descargar ambos formatos (USD y Bolívares)"
-              className="flex-1 min-w-0 h-[36px] px-2 rounded border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50"
+              className="flex-1 min-w-0 h-[36px] px-2 rounded border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50 cursor-pointer"
             >
-              <FileText className="w-3.5 h-3.5 shrink-0 text-slate-600" />
+              <UseAnimations animation={download} size={14} strokeColor="#475569" interaction="hover-replay" className="shrink-0" />
               <span className="truncate">Ambos</span>
             </button>
           </div>

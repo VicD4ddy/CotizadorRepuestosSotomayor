@@ -11,7 +11,11 @@ import Fuse from 'fuse.js';
 import { Category } from '@/types';
 import { useCategories, useDeleteCategory } from '@/hooks/use-supabase';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import plusCircle from 'react-useanimations/lib/plusCircle';
+import edit from 'react-useanimations/lib/edit';
+import trash2 from 'react-useanimations/lib/trash2';
+import { Search, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CategoryFormDialog } from './category-form-dialog';
 import { toast } from 'sonner';
@@ -88,7 +92,7 @@ export function CategoryTable() {
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <button
-              className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+              className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center"
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedCategory(row.original);
@@ -96,14 +100,14 @@ export function CategoryTable() {
               }}
               title="Editar"
             >
-              <Pencil className="w-4 h-4" />
+              <UseAnimations animation={edit} size={18} strokeColor="currentColor" />
             </button>
             <button
-              className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center"
               onClick={(e) => handleDelete(e, row.original)}
               title="Eliminar"
             >
-              <Trash2 className="w-4 h-4" />
+              <UseAnimations animation={trash2} size={18} strokeColor="currentColor" />
             </button>
           </div>
         ),
@@ -148,7 +152,7 @@ export function CategoryTable() {
           </Badge>
         </div>
         <Button onClick={handleAddCategory} className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2 h-[36px] text-[13px] px-4 rounded-md">
-          <Plus className="w-4 h-4" />
+          <UseAnimations animation={plusCircle} size={18} strokeColor="currentColor" />
           Añadir Categoría
         </Button>
       </div>

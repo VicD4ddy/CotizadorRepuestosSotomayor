@@ -8,7 +8,9 @@ import { useCreateKit, useUpdateKit, useVehicleBrands, useUploadKitImage, useKit
 import { useQueryClient } from '@tanstack/react-query';
 import { parseKitDescription, formatKitDescription, isMotorAssociatedWithClutch } from '@/lib/kit-associations';
 import { toast } from 'sonner';
-import { X, Save, Upload, Loader2, Wrench, Disc3, Plus, Search } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import save from 'react-useanimations/lib/save';
+import { X, Upload, Loader2, Wrench, Disc3, Plus, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface KitFormDialogProps {
@@ -548,7 +550,7 @@ export function KitFormDialog({ open, onOpenChange, kit, category }: KitFormDial
               disabled={createKit.isPending || updateKit.isPending}
               className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2 font-semibold shadow-sm"
             >
-              <Save className="w-4 h-4" />
+              <UseAnimations animation={save} size={18} strokeColor="currentColor" />
               {createKit.isPending || updateKit.isPending ? 'Guardando...' : 'Guardar Combo'}
             </Button>
           </div>

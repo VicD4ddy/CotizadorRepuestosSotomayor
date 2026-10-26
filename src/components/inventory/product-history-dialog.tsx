@@ -5,7 +5,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Product } from '@/types';
 import { usePriceHistory } from '@/hooks/use-supabase';
 import { formatUSD } from '@/lib/utils';
-import { History, TrendingUp, TrendingDown, Minus, DollarSign, Type, FileText } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import rotateCcw from 'react-useanimations/lib/rotateCcw';
+import { TrendingUp, TrendingDown, Minus, DollarSign, Type, FileText } from 'lucide-react';
 
 interface ProductHistoryDialogProps {
   open: boolean;
@@ -50,7 +52,7 @@ export function ProductHistoryDialog({ open, onOpenChange, product }: ProductHis
       <DialogContent className="sm:max-w-[650px] w-[calc(100%-1rem)] md:w-full p-0 overflow-hidden bg-slate-50 flex flex-col max-h-[90vh]">
         <DialogHeader className="p-4 md:p-6 pb-3 md:pb-4 border-b border-slate-200 bg-white shrink-0">
           <DialogTitle className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2 md:gap-3">
-            <History className="w-5 h-5 text-slate-400" />
+            <UseAnimations animation={rotateCcw} size={20} strokeColor="#94a3b8" />
             Historial de Cambios
           </DialogTitle>
           <p className="text-xs md:text-sm text-slate-500 mt-1 line-clamp-2">
@@ -96,7 +98,7 @@ export function ProductHistoryDialog({ open, onOpenChange, product }: ProductHis
             </div>
           ) : activeRecords.length === 0 ? (
             <div className="text-center py-10 text-slate-400">
-              <History className="w-12 h-12 mx-auto mb-3 opacity-20" />
+              <UseAnimations animation={rotateCcw} size={48} strokeColor="#94a3b8" className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">
                 {activeTab === 'prices' && 'No hay cambios de precio registrados.'}
                 {activeTab === 'names' && 'No hay cambios de nombre registrados.'}

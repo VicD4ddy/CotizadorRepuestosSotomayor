@@ -4,7 +4,11 @@ import { useState, useEffect } from 'react';
 import { ImportExcelDialog } from '@/components/settings/import-excel-dialog';
 import { ImportStockDialog } from '@/components/settings/import-stock-dialog';
 import { BulkMinStockDialog } from '@/components/inventory/bulk-min-stock-dialog';
-import { FileSpreadsheet, Download, SlidersHorizontal } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import download from 'react-useanimations/lib/download';
+import settings2 from 'react-useanimations/lib/settings2';
+import fileText from 'react-useanimations/lib/fileText';
+import save from 'react-useanimations/lib/save';
 import * as XLSX from 'xlsx';
 import {
   Dialog,
@@ -152,7 +156,7 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
                 onClick={() => setIsBulkMinStockOpen(true)}
                 className="text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 h-7 px-2 font-bold cursor-pointer"
               >
-                <SlidersHorizontal className="w-3.5 h-3.5 mr-1" />
+                <UseAnimations animation={settings2} size={15} strokeColor="currentColor" className="mr-1" />
                 Asignación Masiva
               </Button>
             </div>
@@ -178,7 +182,7 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
                 onClick={() => setIsImportOpen(true)}
                 className="gap-2 border-slate-300 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 justify-center h-10 text-[13px]"
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <UseAnimations animation={fileText} size={16} strokeColor="#059669" />
                 Importar Productos
               </Button>
               <Button
@@ -186,7 +190,7 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
                 onClick={() => setIsImportStockOpen(true)}
                 className="gap-2 border-slate-300 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 justify-center h-10 text-[13px]"
               >
-                <FileSpreadsheet className="w-4 h-4 text-teal-600" />
+                <UseAnimations animation={fileText} size={16} strokeColor="#0d9488" />
                 Subir Existencias
               </Button>
               <Button
@@ -240,7 +244,7 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
                 }}
                 className="col-span-2 gap-2 border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 h-10 text-[13px] justify-center"
               >
-                <Download className="w-4 h-4 text-blue-600" />
+                <UseAnimations animation={download} size={18} strokeColor="#2563eb" />
                 Descargar Plantilla de Productos
               </Button>
             </div>
@@ -251,7 +255,8 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
         </div>
         <div className="flex justify-end gap-3 mt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={updateBcvRate.isPending || updateMargin.isPending || updateBcvMultiplier.isPending}>
+          <Button onClick={handleSave} disabled={updateBcvRate.isPending || updateMargin.isPending || updateBcvMultiplier.isPending} className="gap-2">
+            <UseAnimations animation={save} size={16} strokeColor="currentColor" />
             Guardar Cambios
           </Button>
         </div>

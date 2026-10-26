@@ -6,7 +6,9 @@ import { Brand } from '@/types';
 import { useCreateBrand, useUpdateBrand } from '@/hooks/use-supabase';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { Save, Upload, Loader2, X } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import save from 'react-useanimations/lib/save';
+import { Upload, Loader2, X } from 'lucide-react';
 
 interface BrandFormDialogProps {
   open: boolean;
@@ -213,7 +215,7 @@ export function BrandFormDialog({ open, onOpenChange, brand }: BrandFormDialogPr
               disabled={createBrand.isPending || updateBrand.isPending || uploading}
               className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2"
             >
-              <Save className="w-4 h-4" />
+              <UseAnimations animation={save} size={18} strokeColor="currentColor" />
               {createBrand.isPending || updateBrand.isPending ? 'Guardando...' : 'Guardar Marca'}
             </Button>
           </div>

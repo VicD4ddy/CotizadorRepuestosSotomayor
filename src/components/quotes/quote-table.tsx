@@ -11,7 +11,10 @@ import { Quote } from '@/types';
 import { useQuotes, useDeleteQuote } from '@/hooks/use-supabase';
 import { Badge } from '@/components/ui/badge';
 import { formatUSD } from '@/lib/utils';
-import { Search, ArrowUpDown, Eye, Trash2, Calendar } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import visibility from 'react-useanimations/lib/visibility';
+import trash2 from 'react-useanimations/lib/trash2';
+import { Search, ArrowUpDown, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { QuoteDetailsDialog } from './quote-details-dialog';
 
@@ -126,21 +129,21 @@ export function QuoteTable() {
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <button
-              className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+              className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center"
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedQuote(row.original);
               }}
               title="Ver detalles"
             >
-              <Eye className="w-4 h-4" />
+              <UseAnimations animation={visibility} size={18} strokeColor="currentColor" />
             </button>
             <button
-              className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center"
               onClick={(e) => handleDelete(e, row.original)}
               title="Eliminar"
             >
-              <Trash2 className="w-4 h-4" />
+              <UseAnimations animation={trash2} size={18} strokeColor="currentColor" />
             </button>
           </div>
         ),

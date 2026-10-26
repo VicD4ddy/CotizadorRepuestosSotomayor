@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Bell, ImageOff, FileText, DollarSign, Tag, AlertTriangle, X, ChevronRight, ArrowLeft, Unlink, Sparkles, PackageX } from 'lucide-react';
+import { ImageOff, FileText, DollarSign, Tag, AlertTriangle, X, ChevronRight, ArrowLeft, Unlink, Sparkles, PackageX } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import notification from 'react-useanimations/lib/notification';
 import { useProducts, useKits, useDefaultMinStock } from '@/hooks/use-supabase';
 import { Product, Kit } from '@/types';
 
@@ -249,9 +251,10 @@ export function NotificationPanel() {
       {/* Bell Button */}
       <button
         onClick={handleToggle}
-        className="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors relative"
+        className="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors relative cursor-pointer"
+        title="Alertas y Notificaciones"
       >
-        <Bell className="w-[15px] h-[15px]" />
+        <UseAnimations animation={notification} size={18} strokeColor="currentColor" interaction="hover-replay" />
         {totalAlerts > 0 && (
           <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] flex items-center justify-center text-[9px] font-bold text-white rounded-full px-1 ${
             criticalCount > 0 ? 'bg-red-500' : 'bg-amber-500'
@@ -346,8 +349,8 @@ export function NotificationPanel() {
 
               {notifications.length === 0 ? (
                 <div className="p-6 text-center">
-                  <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <Bell className="w-5 h-5 text-emerald-500" />
+                  <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-2 text-emerald-500">
+                    <UseAnimations animation={notification} size={20} strokeColor="#10b981" interaction="hover-replay" />
                   </div>
                   <p className="text-[13px] font-medium text-slate-700">¡Todo en orden!</p>
                   <p className="text-[11px] text-slate-400">No hay alertas pendientes.</p>

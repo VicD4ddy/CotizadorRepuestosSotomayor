@@ -16,6 +16,13 @@ import { useCartStore } from '@/store/cart-store';
 import { Badge } from '@/components/ui/badge';
 import { formatUSD, calculateBcvPrice } from '@/lib/utils';
 import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff, AlertTriangle, PackageX, PackageMinus, Bell, Check, ClipboardCheck, Loader2, Store } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import shoppingCart from 'react-useanimations/lib/shoppingCart';
+import rotateCcw from 'react-useanimations/lib/rotateCcw';
+import trash2 from 'react-useanimations/lib/trash2';
+import filter from 'react-useanimations/lib/filter';
+import clock from 'react-useanimations/lib/clock';
+import plusCircle from 'react-useanimations/lib/plusCircle';
 import { ProductFormDialog } from './product-form-dialog';
 import { ProductHistoryDialog } from './product-history-dialog';
 import { ImageGalleryDialog } from './image-gallery-dialog';
@@ -639,7 +646,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
               {row.original.is_active === false ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
             <button
-              className="w-7 h-7 rounded bg-slate-100 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
+              className="w-7 h-7 rounded bg-slate-100 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
               title="Ver Historial de Precios"
               onClick={(e) => {
                 e.stopPropagation();
@@ -647,10 +654,10 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
                 setIsHistoryOpen(true);
               }}
             >
-              <History className="w-4 h-4" />
+              <UseAnimations animation={rotateCcw} size={15} strokeColor="currentColor" interaction="hover-replay" />
             </button>
             <button
-              className="w-7 h-7 rounded bg-slate-800 flex items-center justify-center text-white hover:bg-slate-700 transition-all active:scale-95"
+              className="w-7 h-7 rounded bg-slate-800 flex items-center justify-center text-white hover:bg-slate-700 transition-all active:scale-95 cursor-pointer"
               title="Añadir al Carrito"
               onClick={(e) => {
                 e.stopPropagation();
@@ -668,7 +675,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
                 });
               }}
             >
-              <Plus className="w-4 h-4" />
+              <UseAnimations animation={plusCircle} size={15} strokeColor="#ffffff" interaction="hover-replay" />
             </button>
           </div>
         ),
@@ -821,8 +828,8 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
               </Button>
             </>
           )}
-          <Button onClick={handleAddProduct} className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2 h-[36px] text-[13px] px-3 md:px-4 rounded-md hidden md:flex">
-            <Plus className="w-4 h-4" />
+          <Button onClick={handleAddProduct} className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2 h-[36px] text-[13px] px-3 md:px-4 rounded-md hidden md:flex cursor-pointer">
+            <UseAnimations animation={plusCircle} size={16} strokeColor="#ffffff" interaction="hover-replay" />
             Añadir Producto
           </Button>
         </div>
@@ -928,9 +935,9 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
             size="sm"
             onClick={handleBulkDelete}
             disabled={isDeleting}
-            className="gap-1.5 h-8 text-[12px] bg-red-500 hover:bg-red-600"
+            className="gap-1.5 h-8 text-[12px] bg-red-500 hover:bg-red-600 cursor-pointer"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <UseAnimations animation={trash2} size={14} strokeColor="#ffffff" interaction="hover-replay" />
             {isDeleting ? 'Eliminando...' : `Eliminar ${selectedIds.size}`}
           </Button>
         </div>
@@ -955,24 +962,24 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
             </div>
             <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 h-[36px] px-3 rounded border text-[13px] font-medium transition-all shrink-0 ${
+            className={`flex items-center gap-1.5 h-[36px] px-3 rounded border text-[13px] font-medium transition-all shrink-0 cursor-pointer ${
                 showFilters
                 ? 'bg-slate-100 border-slate-300 text-slate-900'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
             >
-            <SlidersHorizontal className="w-4 h-4" />
+            <UseAnimations animation={filter} size={16} strokeColor="currentColor" interaction="hover-replay" />
             <span className="hidden sm:inline">Filtros</span>
             </button>
             <button
               onClick={() => setRecentsOnly(!recentsOnly)}
-              className={`hidden sm:flex items-center gap-1.5 h-[36px] px-3 rounded border text-[13px] font-medium transition-all shrink-0 ${
+              className={`hidden sm:flex items-center gap-1.5 h-[36px] px-3 rounded border text-[13px] font-medium transition-all shrink-0 cursor-pointer ${
                 recentsOnly
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <Clock className="w-3.5 h-3.5" />
+              <UseAnimations animation={clock} size={15} strokeColor="currentColor" interaction="hover-replay" />
               Últimos Subidos
             </button>
         </div>

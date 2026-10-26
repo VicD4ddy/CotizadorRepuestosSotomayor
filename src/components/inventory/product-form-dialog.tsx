@@ -29,6 +29,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Upload, X, Plus, Image as ImageIcon, Save, RefreshCw, Sparkles, Search as SearchIcon, ListPlus, ChevronDown, Check, Eye, EyeOff, Bell, Store } from 'lucide-react';
+import UseAnimations from 'react-useanimations';
+import save from 'react-useanimations/lib/save';
+import trash2 from 'react-useanimations/lib/trash2';
 import { Badge } from '@/components/ui/badge';
 import { useAiQueueStore } from '@/store/ai-queue-store';
 
@@ -720,16 +723,17 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                   }
                 }}
                 disabled={deleteProduct.isPending || isLoading}
-                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 font-medium px-3 text-[12px]"
+                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 font-medium px-3 text-[12px] gap-1.5 cursor-pointer"
               >
+                <UseAnimations animation={trash2} size={14} strokeColor="currentColor" interaction="hover-replay" />
                 {deleteProduct.isPending ? 'Eliminando...' : 'Eliminar'}
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="border-slate-300 text-slate-700 font-medium px-3 text-[12px]">
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="border-slate-300 text-slate-700 font-medium px-3 text-[12px] cursor-pointer">
               Cancelar
             </Button>
-            <Button size="sm" onClick={handleSubmit(onSubmit)} disabled={isLoading} className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 gap-1.5 text-[12px]">
-              <Save className="w-3.5 h-3.5" />
+            <Button size="sm" onClick={handleSubmit(onSubmit)} disabled={isLoading} className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 gap-1.5 text-[12px] cursor-pointer">
+              <UseAnimations animation={save} size={15} strokeColor="#ffffff" interaction="hover-replay" />
               {isLoading ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>
