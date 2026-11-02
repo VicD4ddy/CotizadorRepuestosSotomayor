@@ -112,12 +112,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
     name: "fitment",
   });
 
-  const watchCost = watch('cost');
-  const watchPriceUsd = watch('price_usd');
 
-  const roundedUsdBcv = watchPriceUsd ? calculateBcvPrice(watchPriceUsd, bcvMultiplier) : 0;
-  const priceUsdBcv = roundedUsdBcv.toFixed(2);
-  const priceBcv = (roundedUsdBcv * bcvRate).toFixed(2);
 
   useEffect(() => {
     if (open) {
@@ -175,8 +170,15 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
     }
   }, [open, product, reset, initialCompatibleKitId]);
 
+  const watchCost = watch('cost');
+  const watchPriceUsd = watch('price_usd');
+  const watchName = watch('name');
   const watchCategoryId = watch('category_id');
   const selectedCategory = categories.find((cat) => cat.id === watchCategoryId);
+
+  const roundedUsdBcv = watchPriceUsd ? calculateBcvPrice(watchPriceUsd, bcvMultiplier, selectedCategory?.name || watchName) : 0;
+  const priceUsdBcv = roundedUsdBcv.toFixed(2);
+  const priceBcv = (roundedUsdBcv * bcvRate).toFixed(2);
 
   // Handle click outside to close category dropdown
   useEffect(() => {

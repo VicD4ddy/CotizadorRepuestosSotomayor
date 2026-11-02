@@ -35,7 +35,7 @@ export async function copyQuoteToClipboard(quoteData: any, bcvMultiplier: number
   const rawItems = quoteData.quote_items || quoteData.items || [];
   const itemsList = sortQuoteItems(rawItems);
   const baseSubtotal = itemsList.reduce((sum: number, it: any) => sum + (it.unit_price_usd || 0) * (it.quantity || 1), 0);
-  const subtotalBcv = itemsList.reduce((sum: number, it: any) => sum + calculateBcvPrice(it.unit_price_usd || 0, bcvMultiplier) * (it.quantity || 1), 0);
+  const subtotalBcv = itemsList.reduce((sum: number, it: any) => sum + calculateBcvPrice(it.unit_price_usd || 0, bcvMultiplier, it.product_name) * (it.quantity || 1), 0);
   const subtotalBs = subtotalBcv * bcvRate;
 
   // Formatters
@@ -103,7 +103,7 @@ export async function copyQuoteToClipboard(quoteData: any, bcvMultiplier: number
             const unitUsd = item.unit_price_usd || 0;
             const totalUsd = unitUsd * item.quantity;
             
-            const unitUsdBcv = calculateBcvPrice(unitUsd, bcvMultiplier);
+            const unitUsdBcv = calculateBcvPrice(unitUsd, bcvMultiplier, item.product_name);
             const totalUsdBcv = unitUsdBcv * item.quantity;
             
             const totalBs = totalUsdBcv * bcvRate;

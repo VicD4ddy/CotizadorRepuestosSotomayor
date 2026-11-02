@@ -11,6 +11,7 @@ interface GenerateQuotePDFOptions {
   returnBlob?: boolean;
   randomPhrase?: string;
   bcvRate?: number;
+  documentType?: string;
 }
 
 // Helper to convert hex color to RGB array
@@ -95,7 +96,7 @@ function roundedRect(
   doc.roundedRect(x, y, w, h, r, r, style);
 }
 
-export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, returnBlob = false, randomPhrase, bcvRate }: GenerateQuotePDFOptions): Promise<{ fileName: string; blob?: Blob }> {
+export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, returnBlob = false, randomPhrase, bcvRate, documentType }: GenerateQuotePDFOptions): Promise<{ fileName: string; blob?: Blob }> {
   const isBcv = currency === 'bcv';
   const isBoth = currency === 'both';
   const rate = bcvRate || quote.bcv_rate || 1;
@@ -112,7 +113,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   ) || 0;
   const subtotalUsdBcv = (isBcv || isBoth)
     ? (quote.quote_items?.reduce(
-        (sum, item) => sum + calculateBcvPrice(item.unit_price_usd || 0, mult) * (item.quantity || 1), 0
+        (sum, item) => sum + calculateBcvPrice(item.unit_price_usd || 0, mult, item.product_name) * (item.quantity || 1), 0
       ) || 0)
     : subtotalUsd;
   const subtotalBs = subtotalUsdBcv * rate;
@@ -167,17 +168,8 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
 
   // Right side — Badges
   const badgeY = y;
-
-  // "COTIZACIÓN" badge
-  const cotBadgeW = 90;
-  const cotBadgeH = 22;
-  const cotBadgeX = pageWidth - margin - cotBadgeW;
-  doc.setFillColor(...darkBg);
-  roundedRect(doc, cotBadgeX - 110, badgeY, cotBadgeW, cotBadgeH, 4, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255);
-  doc.text('COTIZACIÓN', cotBadgeX - 110 + cotBadgeW / 2, badgeY + 15, { align: 'center' });
+  const docType = (documentType || quote.document_type || 'Cotización').toUpperCase();
+  const isDelivery = docType.includes('ENTREGA') || docType.includes('DESPACHO');
 
   // Currency badge
   const currLabel = isBoth ? 'DIVISAS Y BOLÍVARES' : (isBcv ? 'BOLÍVARES (BCV)' : 'DÓLARES (USD)');
@@ -185,12 +177,23 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   const currBadgeX = pageWidth - margin - currBadgeW;
   const currBadgeBg = isBoth ? hexToRGB('#e2e8f0') : (isBcv ? hexToRGB('#dbeafe') : hexToRGB('#d1fae5'));
   const currBadgeText = isBoth ? hexToRGB('#1e293b') : (isBcv ? hexToRGB('#1d4ed8') : hexToRGB('#047857'));
+  const cotBadgeH = 22;
   doc.setFillColor(...currBadgeBg);
   roundedRect(doc, currBadgeX, badgeY, currBadgeW, cotBadgeH, 4, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...currBadgeText);
   doc.text(currLabel, currBadgeX + currBadgeW / 2, badgeY + 14, { align: 'center' });
+
+  // Document Type badge (e.g. "COTIZACIÓN", "NOTA DE ENTREGA", "PRESUPUESTO", "ORDEN DE DESPACHO")
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  const docTypeW = Math.max(90, Math.round(doc.getTextWidth(docType) + 24));
+  const docBadgeX = currBadgeX - 8 - docTypeW;
+  doc.setFillColor(...darkBg);
+  roundedRect(doc, docBadgeX, badgeY, docTypeW, cotBadgeH, 4, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.text(docType, docBadgeX + docTypeW / 2, badgeY + 14.5, { align: 'center' });
 
   // Quote number and date
   doc.setFont('helvetica', 'normal');
@@ -210,7 +213,10 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   // ============================================================
   // CLIENT INFO
   // ============================================================
-  const clientBoxH = 62;
+  const hasCi = Boolean(quote.client_id_number && quote.client_id_number.trim());
+  const hasAddress = Boolean(quote.client_address && quote.client_address.trim());
+  const hasExtraInfo = hasCi || hasAddress;
+  const clientBoxH = hasExtraInfo ? 74 : 62;
   const clientBoxW = (isBcv || isBoth) ? contentWidth - 195 : contentWidth;
   
   // Client box
@@ -222,17 +228,32 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text('DATOS DEL CLIENTE', margin + 16, y + 18);
+  doc.text(isDelivery ? 'DATOS DEL RECEPTOR / CLIENTE' : 'DATOS DEL CLIENTE', margin + 16, y + 16);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
+  doc.setFontSize(12);
   doc.setTextColor(15, 23, 42);
-  doc.text(quote.client_name || 'Cliente Mostrador', margin + 16, y + 34);
+  const cleanClientName = (quote.client_name || 'Cliente Mostrador').replace(/^\[(.*?)\]\s*/, '');
+  doc.text(cleanClientName, margin + 16, y + 31);
+
+  // Line 2: Tel + CI/RIF
+  const detailsParts: string[] = [];
+  if (quote.client_phone) detailsParts.push(`Tel: ${quote.client_phone}`);
+  if (hasCi) detailsParts.push(`C.I./RIF: ${quote.client_id_number}`);
+  const contactText = detailsParts.length > 0 ? detailsParts.join('   |   ') : 'Tel: No especificado';
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(100, 116, 139);
-  doc.text(`Tel: ${quote.client_phone || 'No especificado'}`, margin + 16, y + 49);
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(contactText, margin + 16, y + 45);
+
+  // Line 3: Dirección (if provided)
+  if (hasAddress) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Dirección: ${quote.client_address}`, margin + 16, y + 58, { maxWidth: clientBoxW - 32 });
+  }
 
   // BCV rate box (only for BCV / Both)
   if (isBcv || isBoth) {
@@ -246,17 +267,17 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(29, 78, 216);
-    doc.text('TASA OFICIAL BCV', bcvBoxX + 14, y + 18);
+    doc.text('TASA OFICIAL BCV', bcvBoxX + 14, y + 16);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.setTextColor(30, 64, 175);
-    doc.text(`Bs ${rate.toFixed(2)}`, bcvBoxX + 14, y + 37);
+    doc.text(`Bs ${rate.toFixed(2)}`, bcvBoxX + 14, y + 36);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(59, 130, 246);
-    doc.text('Vigencia: 24h · Tasa oficial del día', bcvBoxX + 14, y + 50);
+    doc.text('Vigencia: 24h · Tasa oficial del día', bcvBoxX + 14, y + 52);
   }
 
   y += clientBoxH + 18;
@@ -286,7 +307,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     const unitDivisas = item.unit_price_usd || 0;
     const totalDivisas = unitDivisas * (item.quantity || 1);
     const unitUsdBcv = (isBcv || isBoth)
-      ? calculateBcvPrice(unitDivisas, mult)
+      ? calculateBcvPrice(unitDivisas, mult, item.product_name)
       : unitDivisas;
     const totalUsdBcv = unitUsdBcv * (item.quantity || 1);
     const totalBs = totalUsdBcv * rate;
@@ -652,18 +673,38 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     "Tu satisfacción es la fuerza que mueve cada uno de nuestros engranajes.",
     "Ajustamos cada solución con la precisión que tu trabajo merece."
   ];
-  const footerPhrase = randomPhrase || WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
+  // If delivery note or dispatch order, show delivery receipt signature fields
+  const isDeliveryDoc = (documentType || quote.document_type || '').toUpperCase().includes('ENTREGA') || (documentType || quote.document_type || '').toUpperCase().includes('DESPACHO');
+  
+  if (isDeliveryDoc) {
+    const sigColW = 160;
+    const leftSigX = margin + 30;
+    const rightSigX = pageWidth - margin - 30 - sigColW;
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(0.5);
+    doc.line(leftSigX, y + 24, leftSigX + sigColW, y + 24);
+    doc.line(rightSigX, y + 24, rightSigX + sigColW, y + 24);
 
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text(`"${footerPhrase}"`, pageWidth / 2, y + 4, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('DESPACHADO / ENTREGADO POR', leftSigX + sigColW / 2, y + 34, { align: 'center' });
+    doc.text('RECIBIDO CONFORME (FIRMA Y C.I.)', rightSigX + sigColW / 2, y + 34, { align: 'center' });
+    y += 42;
+  } else {
+    const footerPhrase = randomPhrase || WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`"${footerPhrase}"`, pageWidth / 2, y + 4, { align: 'center' });
+  }
 
   // Store information trust line
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text('Repuestos Sotomayor · Especialistas en Repuestos Automotrices · Cotización emitida por sistema', pageWidth / 2, y + 16, { align: 'center' });
+  const docTypeName = documentType || quote.document_type || 'Cotización';
+  doc.text(`Repuestos Sotomayor · Especialistas en Repuestos Automotrices · ${docTypeName} emitida por sistema`, pageWidth / 2, y + 16, { align: 'center' });
 
   // Number all pages at standard bottom position
   const totalPages = (doc as any).internal.getNumberOfPages();
@@ -690,7 +731,9 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   }
 
   const suffix = isBoth ? '_USD_Bs' : (currency === 'bcv' ? '_Bs' : '_USD');
-  const fileName = `Cotizacion${suffix}_${quote.client_name?.replace(/\s+/g, '_') || 'Mostrador'}_${quote.id.substring(0, 6)}.pdf`;
+  const rawDocPrefix = (documentType || quote.document_type || 'Cotizacion').replace(/\s+/g, '');
+  const cleanNameForFile = (quote.client_name || 'Mostrador').replace(/^\[(.*?)\]\s*/, '').replace(/\s+/g, '_');
+  const fileName = `${rawDocPrefix}${suffix}_${cleanNameForFile}_${quote.id.substring(0, 6)}.pdf`;
   
   if (returnBlob) {
     const blob = doc.output('blob');

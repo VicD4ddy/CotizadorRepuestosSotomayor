@@ -21,13 +21,13 @@ export const QuotePDFLayout = forwardRef<HTMLDivElement, QuotePDFLayoutProps>(
 
     // For BCV: price = calculateBcvPrice(usd, mult)
     // For USD: price = usd (dollars)
-    const getItemUsdBcv = (usd: number) => isBcv ? calculateBcvPrice(usd, mult) : usd;
+    const getItemUsdBcv = (usd: number, name?: string) => isBcv ? calculateBcvPrice(usd, mult, name) : usd;
     const getItemBs = (usd: number) => getItemUsdBcv(usd) * rate;
 
     // Calculate subtotal from items (without IVA)
     const subtotalUsd = quote.quote_items?.reduce((sum, item) => sum + (item.unit_price_usd || 0) * (item.quantity || 1), 0) || 0;
     const subtotalUsdBcv = isBcv
-      ? (quote.quote_items?.reduce((sum, item) => sum + calculateBcvPrice(item.unit_price_usd || 0, mult) * (item.quantity || 1), 0) || 0)
+      ? (quote.quote_items?.reduce((sum, item) => sum + calculateBcvPrice(item.unit_price_usd || 0, mult, item.product_name) * (item.quantity || 1), 0) || 0)
       : subtotalUsd;
     const subtotalBs = subtotalUsdBcv * rate;
 

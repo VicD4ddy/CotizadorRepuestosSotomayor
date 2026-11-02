@@ -72,7 +72,7 @@ export const useCartStore = create<CartStore>()(
         const isBs = get().paymentMethod === 'bs';
         return get().items.reduce(
           (sum, item) => {
-            const price = isBs ? calculateBcvPrice(item.unit_price_usd, bcvMultiplier) : item.unit_price_usd;
+            const price = isBs ? calculateBcvPrice(item.unit_price_usd, bcvMultiplier, item.product_name) : item.unit_price_usd;
             return sum + price * item.quantity;
           },
           0

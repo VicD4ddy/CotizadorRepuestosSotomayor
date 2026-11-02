@@ -51,10 +51,15 @@ export interface Setting {
   updated_at?: string;
 }
 
+export type DocumentType = 'Cotización' | 'Nota de Entrega' | 'Presupuesto' | 'Orden de Despacho';
+
 export interface Quote {
   id: string;
   client_name: string;
   client_phone: string;
+  client_id_number?: string;
+  client_address?: string;
+  document_type?: DocumentType | string;
   total_usd: number;
   bcv_rate: number;
   status: string;

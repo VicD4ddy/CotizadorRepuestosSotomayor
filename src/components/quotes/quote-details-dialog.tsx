@@ -79,7 +79,11 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
       const bcvRate = quote.bcv_rate || currentBcvRate;
 
       // Generate and download PDF first
-      const { blob, fileName } = await generateQuotePDF({ quote, currency: 'both', bcvMultiplier, returnBlob: true, bcvRate, randomPhrase });
+      const rawName = quote.client_name || '';
+      const match = rawName.match(/^\[(.*?)\]\s*(.*)$/);
+      const docBadge = match ? match[1] : (quote.document_type || 'Cotización');
+      const cleanClientName = match ? match[2] : rawName;
+      const { blob, fileName } = await generateQuotePDF({ quote, currency: 'both', bcvMultiplier, returnBlob: true, bcvRate, randomPhrase, documentType: docBadge });
 
       if (blob) {
         const url = URL.createObjectURL(blob);
@@ -103,7 +107,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
       );
       const baseSubtotal = (itemsSum !== undefined && itemsSum > 0) ? itemsSum : (quote.total_usd || 0);
       const subtotalBcv = quote.quote_items?.reduce(
-        (sum, item) => sum + calculateBcvPrice(item.unit_price_usd || 0, bcvMultiplier) * (item.quantity || 1), 0
+        (sum, item) => sum + calculateBcvPrice(item.unit_price_usd || 0, bcvMultiplier, item.product_name) * (item.quantity || 1), 0
       ) || (baseSubtotal * bcvMultiplier);
       const totalBs = subtotalBcv * bcvRate;
       let msg = `*REPUESTOS SOTOMAYOR*\n_Cotización en *DIVISAS Y BOLÍVARES*_\n\n`;
@@ -112,7 +116,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
       msg += `*Detalle:*\n`;
       quote.quote_items?.forEach((item) => {
         const priceUSD = item.unit_price_usd || 0;
-        const priceUsdBcv = calculateBcvPrice(priceUSD, bcvMultiplier);
+        const priceUsdBcv = calculateBcvPrice(priceUSD, bcvMultiplier, item.product_name);
         const priceBs = priceUsdBcv * bcvRate;
         const brandSuffix = item.brand_name ? ` (${item.brand_name})` : '';
         msg += `- ${item.quantity}x ${item.product_name}${brandSuffix}\n  USD: ${formatUSD(priceUSD)} | Bs: ${formatBs(priceBs)}\n`;
@@ -165,7 +169,10 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
         console.error('Failed to copy image to clipboard', err);
       }
 
-      await generateQuotePDF({ quote, currency, bcvMultiplier, randomPhrase, bcvRate: currentBcvRate });
+      const rawName = quote.client_name || '';
+      const match = rawName.match(/^\[(.*?)\]\s*(.*)$/);
+      const docBadge = match ? match[1] : (quote.document_type || 'Cotización');
+      await generateQuotePDF({ quote, currency, bcvMultiplier, randomPhrase, bcvRate: currentBcvRate, documentType: docBadge });
       toast.success(`📄 PDF y Captura en ${currency === 'both' ? 'ambos precios' : currency === 'bcv' ? 'Bolívares (Bs)' : 'Divisas (USD)'} generados`);
     } catch (error) {
       console.error('PDF generation error:', error);
@@ -209,7 +216,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
         <DialogHeader className="p-6 pb-4 border-b border-slate-200 bg-white">
           <DialogTitle className="text-xl font-bold text-slate-900 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              Detalle de Cotización
+              Detalle de {quote.client_name?.startsWith('[') ? (quote.client_name.match(/^\[(.*?)\]/)?.[1] || 'Cotización') : (quote.document_type || 'Cotización')}
               <Badge 
                 variant="secondary" 
                 className={`
@@ -233,7 +240,16 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-[13px] text-slate-600">
                 <User className="w-4 h-4 text-slate-400" />
-                <span className="font-medium text-slate-900">{quote.client_name || 'Sin especificar'}</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {quote.client_name?.startsWith('[') && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                      {quote.client_name.match(/^\[(.*?)\]/)?.[1]}
+                    </span>
+                  )}
+                  <span className="font-medium text-slate-900">
+                    {quote.client_name?.replace(/^\[(.*?)\]\s*/, '') || 'Sin especificar'}
+                  </span>
+                </div>
               </div>
               <div className="flex items-center gap-2 text-[13px] text-slate-600">
                 <Phone className="w-4 h-4 text-slate-400" />

@@ -3,7 +3,7 @@ import { Kit, Product, CartItem } from '@/types';
 import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useUpdateProduct, useProducts, useBcvRate, useBcvMultiplier, useKitCombos, useCreateKitCombo, useUpdateKitCombo, useDeleteKitCombo, useSaveComboItems, useDeleteKitComboItem, useUpdateKitComboItemQuantity, useKits, useUpdateKit } from '@/hooks/use-supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
-import { formatUSD, cn } from '@/lib/utils';
+import { formatUSD, cn, calculateBcvPrice } from '@/lib/utils';
 import UseAnimations from 'react-useanimations';
 import arrowLeft from 'react-useanimations/lib/arrowLeft';
 import plusCircle from 'react-useanimations/lib/plusCircle';
@@ -1039,7 +1039,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                       {formatUSD(product?.price_usd || 0)}
                                     </p>
                                     <p className="text-[11px] text-emerald-600 font-semibold">
-                                      {formatUSD((product?.price_usd || 0) * bcvMultiplier)} BCV
+                                      {formatUSD(calculateBcvPrice(product?.price_usd || 0, bcvMultiplier, product?.categories?.name || product?.name))} BCV
                                     </p>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -1599,7 +1599,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                 </div>
                 {bulkPriceValue && !isNaN(parseFloat(bulkPriceValue)) ? (
                   <p className="text-[11px] text-emerald-600 font-semibold mt-1">
-                    BCV: {formatUSD(parseFloat(bulkPriceValue) * bcvMultiplier)}
+                    BCV: {formatUSD(calculateBcvPrice(parseFloat(bulkPriceValue), bcvMultiplier, bulkPriceTarget?.category || bulkPriceTarget?.items?.[0]?.products?.categories?.name || bulkPriceTarget?.items?.[0]?.products?.name))}
                   </p>
                 ) : (
                   <p className="text-[11px] text-transparent mt-1">&nbsp;</p>

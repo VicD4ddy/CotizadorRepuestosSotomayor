@@ -589,7 +589,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
         ),
         size: 90,
         cell: ({ row }) => {
-          const priceUsdBcv = calculateBcvPrice(row.original.price_usd, bcvMultiplier);
+          const priceUsdBcv = calculateBcvPrice(row.original.price_usd, bcvMultiplier, row.original.categories?.name || row.original.name);
           return (
             <span className="text-[13px] text-slate-900 font-bold text-center block">
               {formatUSD(priceUsdBcv)}
@@ -606,7 +606,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
         ),
         size: 100,
         cell: ({ row }) => {
-          const priceUsdBcv = calculateBcvPrice(row.original.price_usd, bcvMultiplier);
+          const priceUsdBcv = calculateBcvPrice(row.original.price_usd, bcvMultiplier, row.original.categories?.name || row.original.name);
           const priceBs = priceUsdBcv * bcvRate;
           return (
             <div className="text-right">
@@ -1148,7 +1148,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
           {displayProducts.map((p) => {
             const hasImage = p.image_url || (p.image_urls && p.image_urls.length > 0);
             const isEditing = editingPriceId === p.id;
-            const priceUsdBcv = calculateBcvPrice(p.price_usd, bcvMultiplier);
+            const priceUsdBcv = calculateBcvPrice(p.price_usd, bcvMultiplier, p.categories?.name || p.name);
             const priceBs = priceUsdBcv * bcvRate;
 
             return (

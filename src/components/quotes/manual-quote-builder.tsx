@@ -17,6 +17,7 @@ import {
   CheckCircle2, 
   Layers, 
   ChevronRight,
+  ChevronDown,
   Eye,
   EyeOff,
   Lock,
@@ -30,7 +31,7 @@ import { useBcvRate, useBcvMultiplier, useBrands, useCreateQuote } from '@/hooks
 import { generateQuotePDF } from '@/lib/generate-quote-pdf';
 import { formatUSD, calculateBcvPrice } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Quote } from '@/types';
+import { Quote, DocumentType } from '@/types';
 
 interface ManualItem {
   id: string;
@@ -47,8 +48,11 @@ export function ManualQuoteBuilder() {
   const createQuote = useCreateQuote();
 
   // Form states
+  const [documentType, setDocumentType] = useState<DocumentType>('Cotización');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  const [clientIdNumber, setClientIdNumber] = useState('');
+  const [clientAddress, setClientAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [currency, setCurrency] = useState<'both' | 'usd' | 'bcv'>('both');
   
@@ -72,7 +76,7 @@ export function ManualQuoteBuilder() {
   const totalUsdBcv = useMemo(() => {
     if (currency === 'usd') return subtotalUsd;
     return items.reduce((sum, item) => {
-      const unit = calculateBcvPrice(Number(item.price_usd) || 0, bcvMultiplier);
+      const unit = calculateBcvPrice(Number(item.price_usd) || 0, bcvMultiplier, item.name);
       return sum + (Number(item.quantity) || 0) * unit;
     }, 0);
   }, [items, subtotalUsd, currency, bcvMultiplier]);
@@ -115,8 +119,11 @@ export function ManualQuoteBuilder() {
   };
 
   const handleClear = () => {
+    setDocumentType('Cotización');
     setClientName('');
     setClientPhone('');
+    setClientIdNumber('');
+    setClientAddress('');
     setNotes('');
     setItems([
       { id: '1', name: '', brand: '', quantity: 1, price_usd: 0 },
@@ -149,6 +156,9 @@ export function ManualQuoteBuilder() {
       id: 'MAN-' + Date.now().toString(36).toUpperCase().slice(-6),
       client_name: clientName.trim() || 'Cliente General',
       client_phone: clientPhone.trim() || '',
+      client_id_number: clientIdNumber.trim(),
+      client_address: clientAddress.trim(),
+      document_type: documentType,
       total_usd: subtotalUsd,
       bcv_rate: bcvRate,
       status: 'borrador',
@@ -165,7 +175,7 @@ export function ManualQuoteBuilder() {
         }
       ],
     };
-  }, [clientName, clientPhone, notes, items, subtotalUsd, bcvRate, brands]);
+  }, [clientName, clientPhone, clientIdNumber, clientAddress, documentType, notes, items, subtotalUsd, bcvRate, brands]);
 
   // Generate live PDF with debounce
   useEffect(() => {
@@ -178,6 +188,7 @@ export function ManualQuoteBuilder() {
           currency,
           bcvMultiplier,
           bcvRate,
+          documentType,
           returnBlob: true,
         });
 
@@ -202,7 +213,7 @@ export function ManualQuoteBuilder() {
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [currentQuoteObj, currency, bcvMultiplier, bcvRate]);
+  }, [currentQuoteObj, currency, bcvMultiplier, bcvRate, documentType]);
 
   // Download PDF
   const handleDownloadPDF = async () => {
@@ -219,6 +230,7 @@ export function ManualQuoteBuilder() {
         currency,
         bcvMultiplier,
         bcvRate,
+        documentType,
       });
       toast.dismiss();
       toast.success('PDF descargado correctamente');
@@ -238,8 +250,12 @@ export function ManualQuoteBuilder() {
 
     setIsSaving(true);
     try {
+      const formattedClientName = documentType !== 'Cotización'
+        ? `[${documentType}] ${clientName.trim() || 'Cliente General'}${clientIdNumber.trim() ? ` (C.I./RIF: ${clientIdNumber.trim()})` : ''}`
+        : `${clientName.trim() || 'Cliente General'}${clientIdNumber.trim() ? ` (C.I./RIF: ${clientIdNumber.trim()})` : ''}`;
+
       const quotePayload = {
-        client_name: clientName.trim() || 'Cliente General',
+        client_name: formattedClientName,
         client_phone: clientPhone.trim() || '',
         total_usd: subtotalUsd,
         bcv_rate: bcvRate,
@@ -283,14 +299,17 @@ export function ManualQuoteBuilder() {
     }
 
     const cleanPhone = clientPhone.replace(/\D/g, '');
-    let text = `*COTIZACIÓN DE REPUESTOS - SOTOMAYOR*\n`;
+    let text = `*${documentType.toUpperCase()} - REPUESTOS SOTOMAYOR*\n`;
     if (clientName) text += `👤 *Cliente:* ${clientName}\n`;
+    if (clientIdNumber) text += `🆔 *C.I./RIF:* ${clientIdNumber}\n`;
+    if (clientPhone) text += `📞 *Teléfono:* ${clientPhone}\n`;
+    if (clientAddress) text += `📍 *Dirección:* ${clientAddress}\n`;
     text += `📅 *Fecha:* ${new Date().toLocaleDateString('es-VE')}\n\n`;
     text += `*DETALLE DE REPUESTOS:*\n`;
 
     validItems.forEach((it, i) => {
       const itemTotalUsd = (it.quantity || 1) * (it.price_usd || 0);
-      const unitUsdBcv = calculateBcvPrice(it.price_usd || 0, bcvMultiplier);
+      const unitUsdBcv = calculateBcvPrice(it.price_usd || 0, bcvMultiplier, it.name);
       const itemTotalBs = unitUsdBcv * (it.quantity || 1) * bcvRate;
       text += `${i + 1}. *${it.name.toUpperCase()}* ${it.brand ? `(${it.brand.toUpperCase()})` : ''}\n`;
       text += `   Cant: ${it.quantity} x ${formatUSD(it.price_usd)} = *${formatUSD(itemTotalUsd)}* (~Bs ${itemTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})\n`;
@@ -317,10 +336,23 @@ export function ManualQuoteBuilder() {
             <FileEdit className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-lg font-bold text-slate-900 leading-tight">
-                Cotización Manual
+                Documento:
               </h1>
+              <div className="relative inline-flex items-center">
+                <select
+                  value={documentType}
+                  onChange={(e) => setDocumentType(e.target.value as DocumentType)}
+                  className="h-8 pl-3 pr-8 text-xs font-bold bg-slate-900 text-white rounded-lg border border-slate-700 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-sm appearance-none transition-all"
+                >
+                  <option value="Cotización">📄 Cotización</option>
+                  <option value="Nota de Entrega">📦 Nota de Entrega</option>
+                  <option value="Presupuesto">📋 Presupuesto</option>
+                  <option value="Orden de Despacho">🚚 Orden de Despacho</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 text-slate-400 pointer-events-none" />
+              </div>
               <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
                 PROVEEDORES / EXTERNO
               </Badge>
@@ -369,7 +401,7 @@ export function ManualQuoteBuilder() {
             className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
           >
             <Save className="w-4 h-4 mr-1.5" />
-            {isSaving ? 'Guardando...' : 'Guardar Cotización'}
+            {isSaving ? 'Guardando...' : `Guardar ${documentType}`}
           </Button>
         </div>
       </div>
@@ -415,6 +447,38 @@ export function ManualQuoteBuilder() {
                     value={clientPhone}
                     onChange={(e) => setClientPhone(e.target.value)}
                     placeholder="Ej. 04141234567"
+                    className="w-full h-9 pl-9 pr-3 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  C.I. / RIF <span className="text-[10px] text-slate-400 font-normal">(Opcional)</span>
+                </label>
+                <div className="relative">
+                  <FileText className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={clientIdNumber}
+                    onChange={(e) => setClientIdNumber(e.target.value)}
+                    placeholder="Ej. V-12345678 / J-12345678-0"
+                    className="w-full h-9 pl-9 pr-3 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Dirección <span className="text-[10px] text-slate-400 font-normal">(Opcional)</span>
+                </label>
+                <div className="relative">
+                  <Building2 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={clientAddress}
+                    onChange={(e) => setClientAddress(e.target.value)}
+                    placeholder="Ej. Calle 5 con Av. Principal, Taller Sotomayor"
                     className="w-full h-9 pl-9 pr-3 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
                   />
                 </div>

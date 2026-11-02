@@ -79,16 +79,38 @@ export function QuoteTable() {
           </button>
         ),
         size: 250,
-        cell: ({ row }) => (
+        cell: ({ row }) => {
+        const rawName = row.original.client_name || 'Sin nombre';
+        const match = rawName.match(/^\[(.*?)\]\s*(.*)$/);
+        const docBadge = match ? match[1] : (row.original.document_type || null);
+        const displayName = match ? match[2] : rawName;
+
+        return (
           <div>
-            <p className="font-semibold text-[13px] text-slate-900 leading-tight">
-              {row.original.client_name || 'Sin nombre'}
-            </p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {docBadge && (
+                <span className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                  docBadge === 'Nota de Entrega'
+                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                    : docBadge === 'Orden de Despacho'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : docBadge === 'Presupuesto'
+                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  {docBadge}
+                </span>
+              )}
+              <span className="font-semibold text-[13px] text-slate-900 leading-tight">
+                {displayName}
+              </span>
+            </div>
             {row.original.client_phone && (
-              <p className="text-[11px] text-slate-500 mt-0.5">{row.original.client_phone}</p>
+              <p className="text-[11px] text-slate-500 mt-0.5 font-mono">{row.original.client_phone}</p>
             )}
           </div>
-        ),
+        );
+      },
       }),
       columnHelper.accessor('total_usd', {
         header: ({ column }) => (

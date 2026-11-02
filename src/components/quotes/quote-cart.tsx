@@ -8,6 +8,7 @@ import {
   MessageCircle,
   X,
   Save,
+  PanelRightClose,
 } from 'lucide-react';
 import UseAnimations from 'react-useanimations';
 import shoppingCart from 'react-useanimations/lib/shoppingCart';
@@ -29,7 +30,11 @@ import { Quote } from '@/types';
 import { sortQuoteItems } from '@/lib/tren-delantero';
 import { useMemo } from 'react';
 
-export function QuoteCart() {
+interface QuoteCartProps {
+  onCollapse?: () => void;
+}
+
+export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
   const {
     items,
     clientName,
@@ -259,42 +264,67 @@ export function QuoteCart() {
             <UseAnimations animation={shoppingCart} size={18} strokeColor="currentColor" interaction="hover-replay" className="text-slate-800" />
             <h3 className="font-bold text-[14px] text-slate-900">Cotización Actual</h3>
           </div>
-          {items.length > 0 && (
-            <button
-              onClick={clearCart}
-              className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-            >
-              <UseAnimations animation={trash2} size={15} strokeColor="currentColor" interaction="hover-replay" />
-              Limpiar
-            </button>
-          )}
+          <div className="flex items-center gap-1.5">
+            {items.length > 0 && (
+              <button
+                onClick={clearCart}
+                className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer mr-1"
+              >
+                <UseAnimations animation={trash2} size={15} strokeColor="currentColor" interaction="hover-replay" />
+                Limpiar
+              </button>
+            )}
+            {onCollapse && (
+              <button
+                onClick={onCollapse}
+                title="Ocultar carrito (arrastra o haz clic)"
+                className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer active:scale-95"
+              >
+                <PanelRightClose className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
         
-        {/* Payment Method Switch */}
-        <div className="flex p-1 bg-slate-100 rounded-lg gap-1">
+        {/* Payment Method Switch (High-Contrast & Anti-Confusion) */}
+        <div className="flex p-1 bg-slate-100 rounded-lg gap-1 border border-slate-200/80">
           <button
             onClick={() => setPaymentMethod('divisas')}
             className={cn(
-              "flex-1 py-1.5 text-[11px] font-medium rounded-md transition-all truncate px-1",
+              "flex-1 py-2 px-2 text-[11.5px] font-bold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
               paymentMethod === 'divisas' 
-                ? "bg-white text-slate-900 shadow-sm" 
-                : "text-slate-500 hover:text-slate-700"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20 active:scale-[0.98]" 
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
             )}
           >
-            Pago en Divisas
+            <span className={cn(
+              "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded",
+              paymentMethod === 'divisas' ? "bg-emerald-700/80 text-white" : "bg-slate-200 text-slate-600"
+            )}>
+              $ USD
+            </span>
+            <span className="truncate">Pago en Divisas</span>
           </button>
+          
           <button
             onClick={() => setPaymentMethod('bs')}
             className={cn(
-              "flex-1 py-1.5 text-[11px] font-medium rounded-md transition-all truncate px-1",
+              "flex-1 py-2 px-2 text-[11.5px] font-bold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
               paymentMethod === 'bs' 
-                ? "bg-white text-slate-900 shadow-sm" 
-                : "text-slate-500 hover:text-slate-700"
+                ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 active:scale-[0.98]" 
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
             )}
           >
-            Pago en Bs
+            <span className={cn(
+              "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded",
+              paymentMethod === 'bs' ? "bg-blue-700/80 text-white" : "bg-slate-200 text-slate-600"
+            )}>
+              Bs.
+            </span>
+            <span className="truncate">Pago en Bs</span>
           </button>
         </div>
+
 
         {/* Client Info Inputs */}
         <div className="mt-4 space-y-2">
@@ -336,7 +366,7 @@ export function QuoteCart() {
             {sortedItems.map((item) => {
               const dbProduct = products.find((p) => p.id === item.product_id);
               const activeStock = dbProduct ? (dbProduct.stock ?? 0) : (item.stock ?? 0);
-              const itemPrice = paymentMethod === 'bs' ? calculateBcvPrice(item.unit_price_usd, bcvMultiplier) : item.unit_price_usd;
+              const itemPrice = paymentMethod === 'bs' ? calculateBcvPrice(item.unit_price_usd, bcvMultiplier, dbProduct?.categories?.name || item.product_name) : item.unit_price_usd;
               const itemBs = itemPrice * bcvRate;
               return (
                 <div key={item.product_id} className="p-3 bg-white border border-slate-200 shadow-sm">
