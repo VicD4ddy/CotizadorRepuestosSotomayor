@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useCartStore } from '@/store/cart-store';
-import { ShoppingCart, X, ChevronLeft } from 'lucide-react';
+import { ShoppingCart, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
@@ -17,6 +17,8 @@ import { KitBuilder } from '@/components/kits/kit-builder';
 import { ManualQuoteBuilder } from '@/components/quotes/manual-quote-builder';
 import { ChangeHistoryPage } from '@/components/inventory/change-history-page';
 import { AiQueueBanner } from '@/components/inventory/ai-queue-banner';
+import { MobileNav } from '@/components/layout/mobile-nav';
+import { MobileQuoteSheet } from '@/components/quotes/mobile-quote-sheet';
 import { Kit } from '@/types';
 
 export default function HomePage() {
@@ -24,7 +26,7 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState('inventory');
   const [selectedKit, setSelectedKit] = useState<Kit | null>(null);
   const [showRecentImports, setShowRecentImports] = useState(false);
-  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [mobileSheetForceOpen, setMobileSheetForceOpen] = useState(false);
   const [cartWidth, setCartWidth] = useState(320);
   const [isCartCollapsed, setIsCartCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -189,7 +191,7 @@ export default function HomePage() {
         {/* Content */}
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <Header />
-          <main className="flex-1 overflow-auto p-3 md:p-5 bg-slate-50 min-w-0">
+          <main className="flex-1 overflow-auto p-3 md:p-5 bg-slate-50 min-w-0 pb-[80px] lg:pb-5">
             {activeTab === 'inventory' && <ProductTable key={showRecentImports ? 'recents' : 'normal'} showRecentsOnMount={showRecentImports} />}
             {activeTab === 'miscellaneous' && <ProductTable key="miscellaneous" isMiscellaneous={true} />}
             {activeTab === 'min_stock_alert' && <ProductTable key="min_stock_alert" isMinStockAlert={true} />}
@@ -297,40 +299,26 @@ export default function HomePage() {
         </>
       )}
 
-      {/* Mobile / Tablet Floating Cart Button */}
-      <div className="lg:hidden fixed bottom-5 right-5 z-40">
-        <button
-          onClick={() => setIsMobileCartOpen(true)}
-          className="flex items-center gap-2 px-4 py-3 bg-[#0f172a] text-white rounded-full shadow-lg hover:bg-[#1e293b] transition-all active:scale-95 border border-slate-700"
-        >
-          <div className="relative">
-            <ShoppingCart className="w-5 h-5 text-emerald-400" />
-            {cartItemsCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-emerald-500 text-white font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center shadow">
-                {cartItemsCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[13px] font-bold">Cotización</span>
-        </button>
-      </div>
+      {/* Mobile Bottom Sheet Quote Cart */}
+      <MobileQuoteSheet 
+        forceOpen={mobileSheetForceOpen} 
+        onForceOpenHandled={() => setMobileSheetForceOpen(false)} 
+      />
 
-      {/* Mobile / Tablet Cart Slide-over */}
-      {isMobileCartOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex justify-end bg-black/50 animate-in fade-in">
-          <div className="w-full max-w-[340px] h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right relative">
-            <button
-              onClick={() => setIsMobileCartOpen(false)}
-              className="absolute top-3 right-3 z-50 p-1.5 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <div className="flex-1 overflow-hidden">
-              <QuoteCart />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Mobile Bottom Tab Bar Navigation */}
+      <MobileNav
+        activeTab={activeTab}
+        onNavigate={(id) => {
+          if (id === 'settings') {
+            setIsSettingsOpen(true);
+          } else {
+            setActiveTab(id);
+            setSelectedKit(null);
+          }
+        }}
+        onCartPress={() => setMobileSheetForceOpen(true)}
+        cartItemsCount={cartItemsCount}
+      />
 
       <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} onImportComplete={() => {
         setActiveTab('inventory');

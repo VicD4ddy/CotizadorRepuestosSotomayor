@@ -121,6 +121,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
   const [measureFilter, setMeasureFilter] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [hideZeroStock, setHideZeroStock] = useState(false);
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -262,8 +263,33 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     { value: '.060', label: '(.060)' },
   ];
 
-  // Filter items by query, measurement, and stock
-  const filteredItems = useMemo(() => {
+  useEffect(() => {
+    setSelectedCategory('all');
+  }, [kit.id]);
+
+  // Group items by subcategory (category.name)
+  const CATEGORY_ORDER = [
+    'pistones', 'anillos', 'bielas', 'bancadas', 'empacaduras',
+    'bombas de aceite', 'bombas de gasolina', 'bombas de agua', 'taquetes',
+  ];
+
+  // Categories that should be sorted by measurement size
+  const MEASURE_SORTED_CATEGORIES = ['anillo', 'biela', 'bancada', 'piston', 'concha'];
+
+  const isTrenDelantero = kit.category?.toLowerCase() === 'tren delantero';
+
+  const getItemCategoryName = useCallback(
+    (product: Product) => {
+      const rawCategoryName = product.categories?.name;
+      return isTrenDelantero
+        ? resolveTrenDelanteroCategory(rawCategoryName, product.name, product.code)
+        : (rawCategoryName || 'Sin Categoría');
+    },
+    [isTrenDelantero]
+  );
+
+  // Filter items by query, measurement, and stock (before category pill filter)
+  const baseFilteredItems = useMemo(() => {
     return kitItems.filter((item) => {
       const product = item.products;
       if (!product) return false;
@@ -295,15 +321,51 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     });
   }, [kitItems, filterQuery, measureFilter, hideZeroStock]);
 
-  // Group items by subcategory (category.name)
-  const CATEGORY_ORDER = [
-    'pistones', 'anillos', 'bielas', 'bancadas', 'empacaduras',
-    'bombas de aceite', 'bombas de gasolina', 'bombas de agua', 'taquetes',
-  ];
+  // Dynamic categories available in the current kit sorted in logical order
+  const availableCategories = useMemo(() => {
+    const counts: Record<string, number> = {};
+    baseFilteredItems.forEach((item) => {
+      const product = item.products;
+      if (!product) return;
+      const catName = getItemCategoryName(product);
+      counts[catName] = (counts[catName] || 0) + 1;
+    });
 
-  // Categories that should be sorted by measurement size
-  // Categories that should be sorted by measurement size
-  const MEASURE_SORTED_CATEGORIES = ['anillo', 'biela', 'bancada', 'piston', 'concha'];
+    // Ensure currently selected category stays visible even if search temporarily yields 0
+    if (selectedCategory !== 'all' && !(selectedCategory in counts)) {
+      const existsInKit = kitItems.some((item) => item.products && getItemCategoryName(item.products) === selectedCategory);
+      if (existsInKit) {
+        counts[selectedCategory] = 0;
+      }
+    }
+
+    const keys = Object.keys(counts);
+    keys.sort((a, b) => {
+      if (isTrenDelantero) {
+        const aRank = getTrenDelanteroCategoryRank(a);
+        const bRank = getTrenDelanteroCategoryRank(b);
+        if (aRank !== bRank) return aRank - bRank;
+        return a.localeCompare(b);
+      }
+      const aIdx = CATEGORY_ORDER.findIndex((c) => a.toLowerCase().includes(c));
+      const bIdx = CATEGORY_ORDER.findIndex((c) => b.toLowerCase().includes(c));
+      const aOrder = aIdx === -1 ? 999 : aIdx;
+      const bOrder = bIdx === -1 ? 999 : bIdx;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.localeCompare(b);
+    });
+
+    return keys.map((name) => ({ name, count: counts[name] }));
+  }, [baseFilteredItems, kitItems, selectedCategory, isTrenDelantero, getItemCategoryName]);
+
+  const filteredItems = useMemo(() => {
+    if (selectedCategory === 'all') return baseFilteredItems;
+    return baseFilteredItems.filter((item) => {
+      const product = item.products;
+      if (!product) return false;
+      return getItemCategoryName(product) === selectedCategory;
+    });
+  }, [baseFilteredItems, selectedCategory, getItemCategoryName]);
 
   // Extract numeric measurement value taking SKU (productCode) as primary reference first, then product name
   // STD = 0, .010 = 10, .020 = 20, .030 = 30, etc.
@@ -342,17 +404,12 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     return 9999;
   };
 
-  const isTrenDelantero = kit.category?.toLowerCase() === 'tren delantero';
-
   const groupedItems = useMemo(() => {
     const groups: Record<string, any[]> = {};
     filteredItems.forEach((item) => {
       const product = item.products;
       if (!product) return;
-      const rawCategoryName = product.categories?.name;
-      const categoryName = isTrenDelantero
-        ? resolveTrenDelanteroCategory(rawCategoryName, product.name, product.code)
-        : (rawCategoryName || 'Sin Categoría');
+      const categoryName = getItemCategoryName(product);
       if (!groups[categoryName]) {
         groups[categoryName] = [];
       }
@@ -378,7 +435,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     });
     keys.forEach(k => { sorted[k] = groups[k]; });
     return sorted;
-  }, [filteredItems, isTrenDelantero]);
+  }, [filteredItems, isTrenDelantero, getItemCategoryName]);
 
   const handleRemoveItem = async (itemId: string, productName: string) => {
     if (confirm(`¿Desvincular "${productName}" de este cotizador?\n\n(El repuesto seguirá existiendo en tu inventario general).`)) {
@@ -579,33 +636,33 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full bg-slate-50 pb-[80px] lg:pb-0">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-4 shrink-0 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      <div className="bg-white border-b border-slate-200 px-3 md:px-6 py-3 md:py-4 shrink-0 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-3 md:gap-4">
         <div className="flex items-center gap-4 shrink-0">
           <button 
             onClick={onBack}
-            className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
+            className="w-11 h-11 md:w-10 md:h-10 rounded-full hover:bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0"
           >
             <UseAnimations animation={arrowLeft} size={20} strokeColor="currentColor" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Package className="w-6 h-6 text-emerald-600" />
-              {kit.name}
+            <h1 className="text-lg md:text-2xl font-bold text-slate-900 flex items-center gap-2">
+              <Package className="w-5 h-5 md:w-6 md:h-6 text-emerald-600" />
+              <span className="truncate">{kit.name}</span>
             </h1>
-            <p className="text-sm text-slate-500">{kit.description || `Cotizador para ${kit.category}`}</p>
+            <p className="text-sm text-slate-500 hidden md:block">{kit.description || `Cotizador para ${kit.category}`}</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative hidden md:block">
+        <div className="flex flex-wrap items-center gap-2 md:gap-2.5 w-full md:w-auto">
+          <div className="relative w-full md:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               placeholder={`Buscar en ${kit.category.toLowerCase() === 'motor' ? 'el motor' : kit.category.toLowerCase()}...`}
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
-              className="w-[200px] pl-9 pr-3 h-[36px] rounded bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
+              className="w-full md:w-[200px] pl-9 pr-3 h-[44px] md:h-[36px] rounded bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
             />
           </div>
           
@@ -643,12 +700,12 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                 hideZeroStock ? 'translate-x-4' : 'translate-x-0'
               }`} />
             </div>
-            <span>Ocultar los repuestos con stock 0</span>
+            <span className="hidden sm:inline">Ocultar los repuestos con stock 0</span><span className="sm:hidden">Stock 0</span>
           </button>
           <Button 
             onClick={() => setIsLinkDialogOpen(true)}
             variant="outline"
-            className="gap-2 border-slate-300 text-slate-700 font-semibold h-[36px]"
+            className="gap-2 border-slate-300 text-slate-700 font-semibold h-[36px] hidden md:flex"
           >
             <UseAnimations animation={plusCircle} size={18} strokeColor="currentColor" />
             Vincular Repuesto
@@ -660,7 +717,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                 <Button
                   key={combo.id}
                   onClick={() => handleLoadCombo(combo.id)}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold h-[36px] gap-2 px-3 shadow-sm"
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold h-[44px] md:h-[36px] gap-2 px-3 shadow-sm active:scale-[0.98] transition-transform"
                 >
                   <UseAnimations animation={shoppingCart} size={18} strokeColor="currentColor" />
                   Cargar {combo.name} al carrito
@@ -678,7 +735,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
       ) : (
         <>
           {/* Tabs */}
-          <div className="bg-white border-b border-slate-200 px-4 md:px-6 flex items-center gap-6">
+          <div className="bg-white border-b border-slate-200 px-3 md:px-6 flex items-center gap-4 md:gap-6 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => setActiveTab('inventory')}
               className={`py-3 text-sm font-semibold border-b-2 transition-colors ${
@@ -708,9 +765,62 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             )}
           </div>
 
+          {/* Dynamic Category Pills (Quick 1-tap filter for Motor & Tren Delantero) */}
+          {activeTab === 'inventory' && kitItems.length > 0 && availableCategories.length > 0 && (
+            <div className="bg-white border-b border-slate-200 px-3 md:px-6 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-hide shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('all')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border transition-all shrink-0 cursor-pointer active:scale-95 ${
+                  selectedCategory === 'all'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
+              >
+                <span>Todas</span>
+                <span
+                  className={`font-mono tabular-nums text-[10px] px-1.5 py-0.2 rounded-full ${
+                    selectedCategory === 'all'
+                      ? 'bg-emerald-700/80 text-white'
+                      : 'bg-white text-slate-500 border border-slate-200/80'
+                  }`}
+                >
+                  {baseFilteredItems.length}
+                </span>
+              </button>
+
+              {availableCategories.map((cat) => {
+                const isActive = selectedCategory === cat.name;
+                return (
+                  <button
+                    key={cat.name}
+                    type="button"
+                    onClick={() => setSelectedCategory(isActive ? 'all' : cat.name)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border transition-all shrink-0 cursor-pointer active:scale-95 ${
+                      isActive
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <span>{cat.name}</span>
+                    <span
+                      className={`font-mono tabular-nums text-[10px] px-1.5 py-0.2 rounded-full ${
+                        isActive
+                          ? 'bg-emerald-700/80 text-white'
+                          : 'bg-white text-slate-500 border border-slate-200/80'
+                      }`}
+                    >
+                      {cat.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
       {/* Body: Inventory */}
       {activeTab === 'inventory' && (
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-3 md:p-6">
           {kitItems.length === 0 ? (
             <div className="max-w-md mx-auto text-center py-20">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -737,12 +847,13 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             </div>
             <h3 className="text-[16px] font-bold text-slate-900 mb-2">No se encontraron repuestos</h3>
             <p className="text-[13px] text-slate-500 mb-6">
-              {hideZeroStock ? 'Todos los repuestos coinciden con stock 0 o no cumplen con los filtros de medida/búsqueda.' : 'No hay repuestos que coincidan con la búsqueda o la medida seleccionada.'}
+              {hideZeroStock ? 'Todos los repuestos coinciden con stock 0 o no cumplen con los filtros de categoría/medida/búsqueda.' : 'No hay repuestos que coincidan con la categoría, búsqueda o medida seleccionada.'}
             </p>
             <Button 
               onClick={() => {
                 setFilterQuery('');
                 setMeasureFilter('all');
+                setSelectedCategory('all');
                 setHideZeroStock(false);
               }}
               variant="outline"
@@ -793,13 +904,13 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
 
               return (
               <div key={categoryName} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                <div className="bg-slate-50 px-3 md:px-5 py-2.5 md:py-3 border-b border-slate-200 flex items-center justify-between">
                   <h3 className="font-bold text-[14px] text-slate-800 uppercase tracking-wider">
                     {categoryName}
                   </h3>
                   <div className="flex items-center gap-2">
                     {!hasManyBrands && brandEntries.length === 1 && (
-                      <div className="flex items-center gap-2">
+                      <div className="hidden md:flex items-center gap-2">
                         {isBulkCategory && (
                           <button
                             onClick={() => {
@@ -893,7 +1004,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                 ({brandItems.length})
                               </span>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="hidden md:flex items-center gap-2">
                               {BULK_PRICE_CATEGORIES.some(c => categoryName.toLowerCase().includes(c)) && (
                                 <button
                                   onClick={() => {
@@ -966,7 +1077,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                           {brandItems.map((item: any) => {
                             const product = item.products;
                             return (
-                              <div key={item.id} className="p-4 flex items-center hover:bg-slate-50 transition-colors group gap-4">
+                              <div key={item.id} className="p-3 md:p-4 flex flex-col md:flex-row md:items-center hover:bg-slate-50 transition-colors group gap-2 md:gap-4">
                                 <div className="relative shrink-0">
                                   <div 
                                     className={`w-12 h-12 rounded border border-slate-200 bg-white overflow-hidden flex items-center justify-center transition-colors ${product?.image_url ? 'cursor-pointer hover:border-emerald-500' : ''}`}
@@ -1016,11 +1127,11 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                       Stock: {product?.stock ?? 0}
                                     </span>
                                     {product?.is_active === false ? (
-                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-amber-100 text-amber-800 flex items-center gap-1 border border-amber-300">
+                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-amber-100 text-amber-800 hidden md:flex items-center gap-1 border border-amber-300">
                                         <EyeOff className="w-3 h-3" /> WEB: OCULTO
                                       </span>
                                     ) : (
-                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-blue-50 text-blue-700 flex items-center gap-1 border border-blue-200">
+                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-blue-50 text-blue-700 hidden md:flex items-center gap-1 border border-blue-200">
                                         <Eye className="w-3 h-3" /> WEB: ACTIVO
                                       </span>
                                     )}
@@ -1032,7 +1143,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                   </div>
                                 </div>
                                 
-                                <div className="flex items-center gap-6">
+                                <div className="flex items-center justify-between md:justify-end gap-3 md:gap-6 pl-[56px] md:pl-0">
                                   <div className="text-right">
                                     <p className="text-[11px] text-slate-500 font-medium mb-0.5">PRECIO</p>
                                     <p className="text-[15px] font-bold text-slate-900">
@@ -1046,14 +1157,15 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                     <Button
                                       onClick={() => handleAddToCart(product, item.quantity)}
                                       size="sm"
-                                      className="h-8 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold"
+                                      className="h-11 w-11 md:h-8 md:w-auto bg-emerald-600 md:bg-slate-900 hover:bg-emerald-700 md:hover:bg-slate-800 text-white text-[11px] font-bold rounded-full md:rounded-md active:scale-90 transition-transform p-0 md:px-3"
                                     >
-                                      <Plus className="w-3 h-3 mr-1" /> AÑADIR
+                                      <Plus className="w-5 h-5 md:w-3 md:h-3 md:mr-1" /><span className="hidden md:inline"> AÑADIR</span>
                                     </Button>
                                     <button
                                       onClick={async () => {
                                         if (!product) return;
                                         const newStatus = !(product.is_active !== false);
+                                        // mobile-hidden below
                                         try {
                                           await updateProduct.mutateAsync({ id: product.id, is_active: newStatus });
                                           toast.success(newStatus ? 'Repuesto activado y visible en la página web' : 'Repuesto oculto de la página web');
@@ -1061,7 +1173,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                           toast.error('Error al cambiar estado web', { description: err.message });
                                         }
                                       }}
-                                      className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${
+                                      className={`w-8 h-8 hidden md:flex items-center justify-center rounded transition-colors ${
                                         product?.is_active === false 
                                           ? 'text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-300' 
                                           : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
@@ -1072,21 +1184,21 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                     </button>
                                     <button
                                       onClick={() => product && setEditProduct(product as Product)}
-                                      className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                                      className="w-8 h-8 hidden md:flex items-center justify-center rounded text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
                                       title="Editar repuesto"
                                     >
                                       <Pencil className="w-4 h-4" />
                                     </button>
                                     <button
                                       onClick={() => handleRemoveItem(item.id, product?.name)}
-                                      className="w-8 h-8 flex items-center justify-center rounded text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+                                      className="w-8 h-8 hidden md:flex items-center justify-center rounded text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
                                       title="Desvincular repuesto de esta cotización (se mantiene en el inventario)"
                                     >
                                       <Unlink className="w-4 h-4" />
                                     </button>
                                     <button
                                       onClick={() => product && handleDeleteProduct(product as Product)}
-                                      className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                      className="w-8 h-8 hidden md:flex items-center justify-center rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
                                       title="Eliminar repuesto definitivamente del sistema"
                                     >
                                       <Trash2 className="w-4 h-4" />
@@ -1110,7 +1222,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
 
       {/* Body: Combos */}
       {activeTab === 'combos' && (
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-3 md:p-6">
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
               <div>

@@ -19,7 +19,12 @@ export function DailyBcvDialog() {
   const [open, setOpen] = useState(false);
   const [rateInput, setRateInput] = useState('');
   const [isFetchingBcv, setIsFetchingBcv] = useState(false);
-  const [apiFetchedInfo, setApiFetchedInfo] = useState<{ rate: number; date?: string; source?: string } | null>(null);
+  const [apiFetchedInfo, setApiFetchedInfo] = useState<{
+    rate: number;
+    date?: string;
+    source?: string;
+    fechaValor?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (isLoading || bcvRate === undefined) return;
@@ -32,8 +37,8 @@ export function DailyBcvDialog() {
       setRateInput(bcvRate.toFixed(2));
       setOpen(true);
 
-      // Precargar automáticamente la tasa oficial del BCV
-      fetch('/api/bcv-rate')
+      // Precargar automáticamente la tasa oficial del BCV (incluyendo Fecha Valor del día siguiente si ya fue publicada)
+      fetch('/api/bcv-rate', { cache: 'no-store' })
         .then((res) => res.json())
         .then((data) => {
           if (data?.success && typeof data.rate === 'number') {
@@ -42,6 +47,7 @@ export function DailyBcvDialog() {
               rate: data.rate,
               date: data.date,
               source: data.source,
+              fechaValor: data.fechaValor,
             });
           }
         })
@@ -54,7 +60,7 @@ export function DailyBcvDialog() {
   const handleFetchAutoBcv = async () => {
     setIsFetchingBcv(true);
     try {
-      const res = await fetch('/api/bcv-rate');
+      const res = await fetch('/api/bcv-rate', { cache: 'no-store' });
       const data = await res.json();
       if (!data.success) {
         throw new Error(data.error || 'No se pudo obtener la tasa oficial');
@@ -64,6 +70,7 @@ export function DailyBcvDialog() {
         rate: data.rate,
         date: data.date,
         source: data.source,
+        fechaValor: data.fechaValor,
       });
       toast.success(`Tasa oficial del BCV obtenida: Bs. ${data.rate.toFixed(2)}`);
     } catch (err: any) {
@@ -110,11 +117,14 @@ export function DailyBcvDialog() {
   });
 
   return (
-    <Dialog open={open} onOpenChange={(val) => {
-      if (!val) {
-        handleKeepRate();
-      }
-    }}>
+    <Dialog
+      open={open}
+      onOpenChange={(val) => {
+        if (!val) {
+          handleKeepRate();
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-[440px] p-6 bg-white rounded-2xl shadow-2xl border border-slate-100">
         <DialogHeader className="space-y-3">
           <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-1">
@@ -136,10 +146,12 @@ export function DailyBcvDialog() {
 
           <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-3">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-              Tasa Oficial para Hoy (Bs/$)
+              Tasa Oficial BCV (Bs/$)
             </label>
             <div className="relative max-w-[190px] mx-auto">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">Bs.</span>
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
+                Bs.
+              </span>
               <Input
                 type="number"
                 step="0.01"
@@ -147,7 +159,7 @@ export function DailyBcvDialog() {
                 value={rateInput}
                 onChange={(e) => setRateInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleUpdateRate()}
-                className="pl-9 pr-3 text-center text-lg font-mono font-extrabold text-emerald-600 bg-white border-slate-300 focus:border-emerald-500 focus:ring-emerald-500 h-11"
+                className="pl-9 pr-3 text-center text-lg font-mono tabular-nums font-extrabold text-emerald-600 bg-white border-slate-300 focus:border-emerald-500 focus:ring-emerald-500 h-11"
                 autoFocus
               />
             </div>
@@ -160,18 +172,30 @@ export function DailyBcvDialog() {
               className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg border border-emerald-300/80 bg-white hover:bg-emerald-50/80 text-emerald-700 hover:text-emerald-800 transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
               title="Consultar y rellenar automáticamente con la tasa oficial del BCV"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isFetchingBcv ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 text-emerald-600 ${isFetchingBcv ? 'animate-spin' : ''}`}
+              />
               <span>Actualizar tasa automáticamente</span>
             </button>
 
             {apiFetchedInfo ? (
-              <div className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-700 bg-emerald-100/60 border border-emerald-200 py-1 px-2.5 rounded-lg w-fit mx-auto">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>API Oficial BCV: <strong>Bs. {apiFetchedInfo.rate.toFixed(2)}</strong></span>
+              <div className="flex flex-col items-center justify-center gap-1 text-[11px] text-emerald-700 bg-emerald-100/60 border border-emerald-200 py-1.5 px-3 rounded-lg w-fit mx-auto">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>
+                    Portal Oficial BCV: <strong>Bs. {apiFetchedInfo.rate.toFixed(2)}</strong>
+                  </span>
+                </div>
+                {apiFetchedInfo.fechaValor && (
+                  <span className="text-[10.5px] text-emerald-800 font-semibold">
+                    Fecha Valor: {apiFetchedInfo.fechaValor}
+                  </span>
+                )}
               </div>
             ) : (
               <span className="text-[11px] text-slate-400 block text-center">
-                Tasa anterior en sistema: <strong className="text-slate-600">Bs. {bcvRate?.toFixed(2)}</strong>
+                Tasa anterior en sistema:{' '}
+                <strong className="text-slate-600">Bs. {bcvRate?.toFixed(2)}</strong>
               </span>
             )}
           </div>

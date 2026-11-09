@@ -109,11 +109,11 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 space-y-6">
+    <div className="flex flex-col h-full bg-slate-50 space-y-6 pb-[80px] lg:pb-0">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Cotizadores de {category}</h2>
-          <p className="text-sm text-slate-500 mt-1">Gestiona las plantillas de repuestos para agilizar cotizaciones.</p>
+          <h2 className="text-lg md:text-2xl font-bold text-slate-900">Cotizadores de {category}</h2>
+          <p className="text-xs md:text-sm text-slate-500 mt-1 hidden sm:block">Gestiona las plantillas de repuestos para agilizar cotizaciones.</p>
         </div>
         <Button 
           onClick={() => {
@@ -135,7 +135,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
             placeholder={`Buscar en ${category.toLowerCase()}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 h-[42px] rounded-lg bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
+            className="w-full pl-9 pr-3 h-[44px] md:h-[42px] rounded-lg bg-white border border-slate-200 text-[14px] md:text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
           />
         </div>
 
@@ -346,7 +346,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
               }}
               variant="outline" 
               size="sm" 
-              className="w-full h-9 text-[11px] font-bold text-emerald-600 border-emerald-100 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all rounded-lg flex items-center justify-center gap-1.5"
+              className="w-full h-11 md:h-9 text-[12px] md:text-[11px] font-bold text-emerald-600 border-emerald-100 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98]"
             >
               ENTRAR <ShoppingCart className="w-3.5 h-3.5" />
             </Button>

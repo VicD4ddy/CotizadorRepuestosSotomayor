@@ -489,6 +489,52 @@ export function useUpdateBcvRate() {
   });
 }
 
+export function useBinanceRate() {
+  return useQuery<number>({
+    queryKey: ['binance_rate'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'binance_rate')
+        .maybeSingle();
+      if (!error && data && Number(data.value) > 0) {
+        return Number(data.value);
+      }
+      // Si aún no existe en settings, consultar en tiempo real desde la API y persistir
+      try {
+        const res = await fetch('/api/bcv-rate', { cache: 'no-store' });
+        const apiData = await res.json();
+        if (apiData?.success && typeof apiData.binanceRate === 'number' && apiData.binanceRate > 0) {
+          await supabase
+            .from('settings')
+            .upsert({ key: 'binance_rate', value: apiData.binanceRate, updated_at: new Date().toISOString() });
+          return Number(apiData.binanceRate);
+        }
+      } catch {
+        // Ignorar fallo de red inicial
+      }
+      return 0;
+    },
+  });
+}
+
+export function useUpdateBinanceRate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (newRate: number) => {
+      const { error } = await supabase
+        .from('settings')
+        .upsert({ key: 'binance_rate', value: newRate, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      return newRate;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['binance_rate'] });
+    },
+  });
+}
+
 export function useMarginPercentage() {
   return useQuery<number>({
     queryKey: ['margin_percentage'],

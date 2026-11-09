@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -266,9 +266,32 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
     return result;
   }, [products, searchQuery, categoryFilter, brandFilter, stockFilter, webStatusFilter, priceFilter, imageFilter, recentsOnly, fuse]);
 
-  // Limit displayed products: show all when filtering/searching, otherwise show latest 100
+  const [isMobile, setIsMobile] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const update = (matches: boolean) => {
+      setIsMobile(matches);
+      setDisplayLimit(matches ? 35 : 100);
+    };
+    update(mq.matches);
+    const listener = (e: MediaQueryListEvent) => update(e.matches);
+    mq.addEventListener('change', listener);
+    return () => mq.removeEventListener('change', listener);
+  }, []);
+
+  useEffect(() => {
+    if (isMobile) {
+      setDisplayLimit(35);
+    }
+  }, [isMobile, searchQuery, categoryFilter, brandFilter, stockFilter, webStatusFilter, wholesaleFilter, priceFilter, imageFilter, recentsOnly, minStockSubFilter]);
+
+  // Limit displayed products: on mobile always paginate in batches of 35; on desktop show all when filtering or latest 100
   const displayProducts = useMemo(() => {
-    if (isFiltering) return filteredProducts;
+    if (isFiltering) {
+      return isMobile ? filteredProducts.slice(0, displayLimit) : filteredProducts;
+    }
     // Sort by most recently updated/created first for the default view
     const sorted = [...filteredProducts].sort((a, b) => {
       const dateA = a.updated_at || a.created_at || '';
@@ -276,10 +299,29 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
       return dateB.localeCompare(dateA);
     });
     return sorted.slice(0, displayLimit);
-  }, [filteredProducts, displayLimit, isFiltering]);
+  }, [filteredProducts, displayLimit, isFiltering, isMobile]);
 
-  const hasMore = !isFiltering && displayLimit < filteredProducts.length;
+  const hasMore = isMobile
+    ? displayLimit < filteredProducts.length
+    : !isFiltering && displayLimit < filteredProducts.length;
   const remainingCount = filteredProducts.length - displayLimit;
+
+  // Infinite scroll observer for Mobile
+  useEffect(() => {
+    if (!isMobile || !hasMore) return;
+    const node = loadMoreRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setDisplayLimit((prev) => prev + 35);
+        }
+      },
+      { rootMargin: '320px' }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isMobile, hasMore, displayProducts.length]);
 
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.size === 0) return;
@@ -943,22 +985,32 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
         </div>
       )}
 
-      {/* Search & Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 md:p-4 border-b border-slate-200 bg-white min-w-0">
+      {/* Search & Filters — Sticky on mobile for quick access */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 md:p-4 border-b border-slate-200 bg-white min-w-0 sticky top-0 md:static z-20">
         <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
             <div className="relative flex-1 min-w-0 md:max-w-[400px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 shrink-0" />
             <input
-                placeholder="Buscar por SKU, Nombre... (Enter para buscar)"
+                placeholder="Buscar por SKU, Nombre..."
                 value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
+                onChange={(e) => { setSearchInput(e.target.value); if (typeof window !== 'undefined' && window.innerWidth < 1024) setSearchQuery(e.target.value); }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     setSearchQuery(searchInput);
                   }
                 }}
-                className="w-full pl-9 pr-3 h-[36px] rounded bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
+                inputMode="search"
+                autoComplete="off"
+                className="w-full pl-9 pr-9 md:pr-3 h-[44px] md:h-[36px] rounded bg-white border border-slate-200 text-[14px] md:text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
             />
+            {searchInput && (
+              <button
+                onClick={() => { setSearchInput(''); setSearchQuery(''); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100 transition-colors md:hidden"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
             </div>
             <button
             onClick={() => setShowFilters(!showFilters)}
@@ -984,7 +1036,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
             </button>
         </div>
         <span className="text-[12px] md:text-[13px] text-slate-500 font-medium">
-          {filteredProducts.length.toLocaleString()} resultados
+          {filteredProducts.length.toLocaleString()} resultados{searchQuery && <span className="text-emerald-600 font-semibold ml-1">· &quot;{searchQuery}&quot;</span>}
         </span>
       </div>
 
@@ -1108,81 +1160,87 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
         </div>
       )}
 
-      {/* Table for Desktop */}
+      {/* Table for Desktop / Card List for Mobile (unmounted when inactive to avoid 300+ hidden Lottie instances on mobile) */}
       <div className="flex-1 overflow-auto min-w-0">
-        <table className={`w-full text-sm hidden md:table ${isMiscellaneous ? 'min-w-[960px]' : 'min-w-[880px]'}`}>
-          <thead className="bg-slate-50 sticky top-0 z-10">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    className="px-4 py-3 text-left text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 align-bottom"
-                    style={{ width: header.getSize() }}
-                  >
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody className="bg-white">
-            {table.getRowModel().rows.map((row, i) => (
-              <tr
-                key={row.id}
-                className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer group"
-                onClick={() => handleEditProduct(row.original)}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className={isMiscellaneous ? "px-4 py-4 align-middle" : "px-4 py-3"}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Mobile Card View */}
-        <div className="md:hidden flex flex-col gap-2.5 p-3 bg-slate-50/50">
-          {displayProducts.map((p) => {
-            const hasImage = p.image_url || (p.image_urls && p.image_urls.length > 0);
-            const isEditing = editingPriceId === p.id;
-            const priceUsdBcv = calculateBcvPrice(p.price_usd, bcvMultiplier, p.categories?.name || p.name);
-            const priceBs = priceUsdBcv * bcvRate;
-
-            return (
-              <div 
-                key={p.id} 
-                className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
-              >
-                {/* Top: Image + Name + Brand */}
-                <div 
-                  className="flex gap-3 p-3 pb-2"
-                  onClick={() => !isEditing && handleEditProduct(p)}
+        {!isMobile ? (
+          <table className={`w-full text-sm hidden md:table ${isMiscellaneous ? 'min-w-[960px]' : 'min-w-[880px]'}`}>
+            <thead className="bg-slate-50 sticky top-0 z-10">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="px-4 py-3 text-left text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 align-bottom"
+                      style={{ width: header.getSize() }}
+                    >
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody className="bg-white">
+              {table.getRowModel().rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer group"
+                  onClick={() => handleEditProduct(row.original)}
                 >
-                  <div 
-                    className="w-14 h-14 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shrink-0"
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className={isMiscellaneous ? "px-4 py-4 align-middle" : "px-4 py-3"}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          /* Mobile Card View — Optimized for quick quoting & high scroll performance */
+          <div className="md:hidden flex flex-col gap-2 p-2.5 pb-[140px] bg-slate-50/50">
+            {displayProducts.map((p) => {
+              const hasImage = p.image_url || (p.image_urls && p.image_urls.length > 0);
+              const stockVal = p.stock ?? 0;
+              const priceUsdBcv = calculateBcvPrice(p.price_usd, bcvMultiplier, p.categories?.name || p.name);
+              const priceBs = priceUsdBcv * bcvRate;
+
+              return (
+                <div
+                  key={p.id}
+                  style={{ contentVisibility: 'auto', containIntrinsicSize: '0 78px' }}
+                  className="bg-white rounded-md border border-slate-200 shadow-sm overflow-hidden flex items-center gap-2.5 p-2.5 active:bg-slate-50 transition-colors"
+                >
+                  {/* Image */}
+                  <div
+                    className="w-[52px] h-[52px] rounded-md bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shrink-0"
                     onClick={(e) => {
-                      if (hasImage && !isEditing) {
+                      if (hasImage) {
                         e.stopPropagation();
                         setGalleryProduct(p);
                       }
                     }}
                   >
                     {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                      <img
+                        src={p.image_url}
+                        alt={p.name}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
-                      <ImageIcon className="w-5 h-5 text-slate-300" />
+                      <ImageIcon className="w-4 h-4 text-slate-300" />
                     )}
                   </div>
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <p className="font-semibold text-[13px] text-slate-900 leading-tight line-clamp-2">
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0" onClick={() => handleEditProduct(p)}>
+                    <p className="font-bold text-[13px] text-slate-900 leading-tight line-clamp-2">
                       {p.name}
                     </p>
-                    <div className="flex items-center gap-2 mt-1 overflow-hidden">
-                      <span 
-                        className="font-mono text-[10px] text-slate-500 truncate"
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span
+                        className="font-mono tabular-nums text-[9px] text-slate-400 uppercase tracking-wide"
                         onClick={(e) => {
                           e.stopPropagation();
                           navigator.clipboard.writeText(p.code);
@@ -1191,122 +1249,76 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
                       >
                         {p.code}
                       </span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                        (p.stock ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                      <span className={`text-[9px] font-bold font-mono tabular-nums px-1 py-0.5 rounded ${
+                        stockVal > 5 ? 'bg-emerald-50 text-emerald-700' : stockVal > 0 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600'
                       }`}>
-                        Stock: {p.stock ?? 0}
+                        {stockVal > 0 ? stockVal : 'Agotado'}
                       </span>
                       {p.brands?.logo_url ? (
-                        <img src={p.brands.logo_url} alt={p.brands.name} className="h-3.5 max-w-[40px] object-contain shrink-0" />
+                        <img
+                          src={p.brands.logo_url}
+                          alt={p.brands.name}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-3 max-w-[36px] object-contain"
+                        />
                       ) : p.brands?.name ? (
-                        <span className="text-[8px] font-bold text-slate-400 uppercase shrink-0 truncate max-w-[60px]">
+                        <span className="text-[8px] font-bold text-slate-400 uppercase truncate max-w-[50px]">
                           {p.brands.name}
                         </span>
                       ) : null}
                     </div>
                   </div>
-                </div>
 
-                {/* Prices Section */}
-                <div className="mx-3 mb-3 bg-slate-50 rounded-lg p-2.5">
-                  {isEditing ? (
-                    <div className="flex flex-col gap-2.5" onClick={e => e.stopPropagation()}>
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Costo ($)</label>
-                          <input 
-                            type="number" 
-                            step="0.01" 
-                            value={editCost} 
-                            onChange={(e) => setEditCost(e.target.value)}
-                            className="w-full h-9 mt-1 px-2.5 rounded-md border border-slate-300 text-[14px] font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Precio USD</label>
-                          <input 
-                            type="number" 
-                            step="0.01" 
-                            value={editPrice} 
-                            onChange={(e) => setEditPrice(e.target.value)}
-                            className="w-full h-9 mt-1 px-2.5 rounded-md border border-emerald-300 bg-emerald-50 text-[14px] font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-emerald-900"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={handleCancelInlineEdit}
-                          className="h-8 px-3 text-[12px]"
-                        >
-                          <X className="w-3.5 h-3.5 mr-1" /> Cancelar
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          onClick={(e) => handleSaveInlineEdit(e, p.id)}
-                          className="h-8 px-3 text-[12px] bg-emerald-600 hover:bg-emerald-700 text-white"
-                          disabled={updateProduct.isPending}
-                        >
-                          <Save className="w-3.5 h-3.5 mr-1" /> 
-                          {updateProduct.isPending ? 'Guardando...' : 'Guardar'}
-                        </Button>
-                      </div>
+                  {/* Price + Add Button */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-right">
+                      <p className="text-[14px] font-black font-mono tabular-nums text-slate-900 leading-none">
+                        {formatUSD(p.price_usd)}
+                      </p>
+                      <p className="text-[10px] font-bold font-mono tabular-nums text-emerald-600 leading-tight mt-0.5">
+                        {formatUSD(priceUsdBcv)} BCV
+                      </p>
+                      <p className="text-[9.5px] font-semibold font-mono tabular-nums text-slate-500 leading-tight">
+                        Bs {priceBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-0">
-                      <div className="flex-1 flex items-center gap-0">
-                        <div className="flex-1 text-center">
-                          <p className="text-[9px] font-medium text-slate-400 uppercase">Costo</p>
-                          <p className="text-[13px] text-slate-600 font-semibold">{formatUSD(p.cost)}</p>
-                        </div>
-                        <div className="w-px h-7 bg-slate-200"></div>
-                        <div className="flex-1 text-center">
-                          <p className="text-[9px] font-bold text-emerald-600 uppercase">Precio</p>
-                          <p className="text-[15px] font-black text-slate-900">{formatUSD(p.price_usd)}</p>
-                        </div>
-                        <div className="w-px h-7 bg-slate-200"></div>
-                        <div className="flex-1 text-center">
-                          <p className="text-[9px] font-medium text-slate-400 uppercase">Bs</p>
-                          <p className="text-[12px] font-bold text-slate-700">{priceBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 pl-2 shrink-0">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setProductForHistory(p);
-                            setIsHistoryOpen(true);
-                          }}
-                          className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
-                          title="Historial de precios"
-                        >
-                          <History className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => handleStartInlineEdit(e, p)}
-                          className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 hover:bg-blue-100 transition-colors"
-                          title="Editar precio"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addItem({
+                          product_id: p.id,
+                          product_name: p.name,
+                          product_code: p.code,
+                          quantity: 1,
+                          unit_price_usd: p.price_usd,
+                          image_url: p.image_url,
+                          brand_name: p.brands?.name,
+                          brand_logo_url: p.brands?.logo_url,
+                          stock: p.stock,
+                        });
+                        toast.success('Agregado', { duration: 1500 });
+                      }}
+                      className="w-11 h-11 rounded-md bg-slate-900 flex items-center justify-center text-white hover:bg-slate-800 transition-all active:scale-90 active:bg-emerald-600 cursor-pointer shrink-0 shadow-sm"
+                      title="Agregar a cotización"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
-        {/* Load more button */}
+        {/* Load more button & Infinite Scroll Sentinel */}
         {hasMore && (
-          <div className="flex items-center justify-center py-4 bg-white border-t border-slate-100">
+          <div ref={loadMoreRef} className="flex items-center justify-center py-4 bg-white border-t border-slate-100 pb-[140px] md:pb-4">
             <button
-              onClick={() => setDisplayLimit((prev) => prev + 100)}
-              className="px-5 py-2 text-[13px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+              onClick={() => setDisplayLimit((prev) => prev + (isMobile ? 35 : 100))}
+              className="px-5 py-2 text-[13px] font-medium font-mono tabular-nums text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
             >
-              Cargar {Math.min(remainingCount, 100)} más de {remainingCount} restantes
+              Cargar {Math.min(remainingCount, isMobile ? 35 : 100)} más de {remainingCount} restantes
             </button>
           </div>
         )}
