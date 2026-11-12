@@ -677,6 +677,8 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
       }
 
       if (isEditing && product) {
+        // Bloquear modificación de mayorista desde el cotizador
+        productData.is_wholesale = product.is_wholesale ?? false;
         await updateProduct.mutateAsync({ id: product.id, ...productData, compatible_kits });
         toast.success('Producto actualizado exitosamente');
       } else {
@@ -1351,11 +1353,14 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                         />
                       </label>
 
-                      <label className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50/50 cursor-pointer hover:bg-slate-50 transition-colors">
+                      <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-100/70 select-none">
                         <div className="flex flex-col pr-3">
-                          <span className="text-[12px] font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="text-[12px] font-bold text-slate-700 flex items-center gap-1.5">
                             <Store className={`w-4 h-4 shrink-0 ${watch('is_wholesale') ? 'text-blue-600' : 'text-slate-400'}`} />
                             Disponible en Mayorista
+                            <span className="text-[9px] font-semibold text-slate-500 uppercase bg-slate-200/80 px-1.5 py-0.5 rounded border border-slate-300/60">
+                              Solo Lectura
+                            </span>
                           </span>
                           <span className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
                             {watch('is_wholesale')
@@ -1365,10 +1370,13 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                         </div>
                         <input
                           type="checkbox"
-                          {...register('is_wholesale')}
-                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer shrink-0"
+                          disabled
+                          checked={!!watch('is_wholesale')}
+                          readOnly
+                          className="w-4 h-4 rounded text-blue-600 border-slate-300 opacity-60 cursor-not-allowed shrink-0"
+                          title="El estado mayorista no se puede modificar desde el cotizador"
                         />
-                      </label>
+                      </div>
 
                       {watch('is_wholesale') && product && (product.wholesale_stock != null || product.wholesale_price != null) && (
                         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-blue-50/70 border border-blue-200/80 text-[11px] text-blue-900">

@@ -1,16 +1,18 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useKits, useDeleteKit, useUpdateKit } from '@/hooks/use-supabase';
+import { useKits, useDeleteKit, useUpdateKit, useBcvRate, useBcvMultiplier } from '@/hooks/use-supabase';
+import { supabase } from '@/lib/supabase';
 import { Kit } from '@/types';
 import UseAnimations from 'react-useanimations';
 import plusCircle from 'react-useanimations/lib/plusCircle';
 import edit from 'react-useanimations/lib/edit';
 import trash2 from 'react-useanimations/lib/trash2';
-import { Search, Package, ShoppingCart, X, ChevronLeft, ChevronRight, CheckCircle2, Circle, Disc3, Wrench } from 'lucide-react';
+import { Search, Package, ShoppingCart, X, ChevronLeft, ChevronRight, CheckCircle2, Circle, Disc3, Wrench, FileText, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { KitFormDialog } from './kit-form-dialog';
 import { cn } from '@/lib/utils';
 import { parseKitDescription } from '@/lib/kit-associations';
+import { generateKitCatalogPDF } from '@/lib/generate-kit-catalog-pdf';
 
 interface KitTableProps {
   category: string;
@@ -19,10 +21,13 @@ interface KitTableProps {
 
 export function KitTable({ category, onSelectKit }: KitTableProps) {
   const { data: kits = [], isLoading } = useKits(category);
+  const { data: bcvRate = 36.5 } = useBcvRate();
+  const { data: bcvMultiplier = 1.4 } = useBcvMultiplier();
   const deleteKit = useDeleteKit();
   const updateKit = useUpdateKit();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrandId, setSelectedBrandId] = useState('all');
+  const [generatingCatalogKitId, setGeneratingCatalogKitId] = useState<string | null>(null);
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedKitForEdit, setSelectedKitForEdit] = useState<Kit | null>(null);
@@ -94,6 +99,41 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
       toast.success(newValue ? 'Precios verificados ✓' : 'Verificación removida');
     } catch (error: any) {
       toast.error('Error al actualizar', { description: error.message });
+    }
+  };
+
+  const handleDownloadKitCatalog = async (e: React.MouseEvent, targetKit: Kit) => {
+    e.stopPropagation();
+    if (generatingCatalogKitId) return;
+    setGeneratingCatalogKitId(targetKit.id);
+    const toastId = toast.loading(`Generando catálogo PDF de ${targetKit.name}...`);
+    try {
+      const { data: items, error } = await supabase
+        .from('kit_items')
+        .select('*, products(*, categories(*), brands(*))')
+        .eq('kit_id', targetKit.id);
+
+      if (error) throw error;
+      if (!items || items.length === 0) {
+        toast.warning(`"${targetKit.name}" no tiene repuestos vinculados aún.`, { id: toastId });
+        return;
+      }
+
+      await generateKitCatalogPDF({
+        kit: targetKit,
+        items,
+        bcvRate: bcvRate || 1,
+        bcvMultiplier: bcvMultiplier || 1.4,
+      });
+      toast.success(`Catálogo PDF descargado exitosamente`, { id: toastId });
+    } catch (err: any) {
+      if (err.message === 'NO_IMAGES') {
+        toast.warning(`"${targetKit.name}" no posee repuestos con fotografías para generar el catálogo.`, { id: toastId });
+      } else {
+        toast.error('Error al generar catálogo', { description: err.message, id: toastId });
+      }
+    } finally {
+      setGeneratingCatalogKitId(null);
     }
   };
 
@@ -339,17 +379,35 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
               </button>
             </div>
             
-            <Button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectKit(kit);
-              }}
-              variant="outline" 
-              size="sm" 
-              className="w-full h-11 md:h-9 text-[12px] md:text-[11px] font-bold text-emerald-600 border-emerald-100 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98]"
-            >
-              ENTRAR <ShoppingCart className="w-3.5 h-3.5" />
-            </Button>
+            <div className="grid grid-cols-2 gap-2 mt-auto">
+              <Button
+                onClick={(e) => handleDownloadKitCatalog(e, kit)}
+                disabled={generatingCatalogKitId === kit.id}
+                variant="outline"
+                size="sm"
+                className="h-11 md:h-9 text-[12px] md:text-[11px] font-bold text-slate-700 border-slate-200 hover:bg-slate-100 hover:text-slate-900 transition-all rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                title="Descargar catálogo PDF del vehículo"
+              >
+                {generatingCatalogKitId === kit.id ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                ) : (
+                  <FileText className="w-3.5 h-3.5 text-slate-500" />
+                )}
+                <span>CATÁLOGO</span>
+              </Button>
+
+              <Button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectKit(kit);
+                }}
+                variant="outline" 
+                size="sm" 
+                className="h-11 md:h-9 text-[12px] md:text-[11px] font-bold text-emerald-600 border-emerald-200 bg-emerald-50/50 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98]"
+              >
+                ENTRAR <ShoppingCart className="w-3.5 h-3.5" />
+              </Button>
+            </div>
           </div>
         ))}
       </div>

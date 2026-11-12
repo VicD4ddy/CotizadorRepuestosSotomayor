@@ -8,7 +8,7 @@ import UseAnimations from 'react-useanimations';
 import arrowLeft from 'react-useanimations/lib/arrowLeft';
 import plusCircle from 'react-useanimations/lib/plusCircle';
 import shoppingCart from 'react-useanimations/lib/shoppingCart';
-import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3, CheckCircle2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
@@ -21,6 +21,7 @@ import {
   getTrenDelanteroCategoryRank,
   getBrandRank,
 } from '@/lib/tren-delantero';
+import { generateKitCatalogPDF } from '@/lib/generate-kit-catalog-pdf';
 
 interface KitBuilderProps {
   kit: Kit;
@@ -135,6 +136,34 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const [bulkPriceCostValue, setBulkPriceCostValue] = useState('');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [togglingLineKey, setTogglingLineKey] = useState<string | null>(null);
+  const [isGeneratingCatalog, setIsGeneratingCatalog] = useState(false);
+
+  const handleDownloadCatalog = async () => {
+    if (isGeneratingCatalog) return;
+    if (kitItems.length === 0) {
+      toast.warning('Este cotizador no tiene repuestos vinculados para generar el catálogo.');
+      return;
+    }
+    setIsGeneratingCatalog(true);
+    const toastId = toast.loading(`Generando catálogo PDF de ${kit.name}...`);
+    try {
+      await generateKitCatalogPDF({
+        kit,
+        items: kitItems,
+        bcvRate: bcvRate || 1,
+        bcvMultiplier: bcvMultiplier || 1.4,
+      });
+      toast.success('Catálogo PDF generado exitosamente', { id: toastId });
+    } catch (err: any) {
+      if (err.message === 'NO_IMAGES') {
+        toast.warning(`"${kit.name}" no posee repuestos con fotografías para generar el catálogo.`, { id: toastId });
+      } else {
+        toast.error('Error al generar catálogo PDF', { description: err.message, id: toastId });
+      }
+    } finally {
+      setIsGeneratingCatalog(false);
+    }
+  };
 
   const handleSaveQuantityChanges = async (comboId: string) => {
     const combo = kitCombos.find(c => c.id === comboId);
@@ -709,6 +738,22 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
           >
             <UseAnimations animation={plusCircle} size={18} strokeColor="currentColor" />
             Vincular Repuesto
+          </Button>
+
+          <Button 
+            onClick={handleDownloadCatalog}
+            disabled={isGeneratingCatalog || kitItems.length === 0}
+            variant="outline"
+            className="gap-2 border-slate-300 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 font-semibold h-[36px] flex items-center shadow-xs"
+            title="Descargar catálogo en PDF con fotos, códigos y precios"
+          >
+            {isGeneratingCatalog ? (
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+            ) : (
+              <FileText className="w-4 h-4 text-slate-500" />
+            )}
+            <span className="hidden sm:inline">Catálogo PDF</span>
+            <span className="sm:hidden">Catálogo</span>
           </Button>
           
           {kitCombos.length > 0 && (

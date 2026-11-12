@@ -18,12 +18,15 @@ import {
   ExternalLink,
   Layers,
   Wrench,
-  Check
+  Check,
+  FileText,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { parseKitDescription } from '@/lib/kit-associations';
+import { generateKitCatalogPDF } from '@/lib/generate-kit-catalog-pdf';
 
 interface ClutchKitViewProps {
   kit: Kit;
@@ -50,6 +53,7 @@ export function ClutchKitView({ kit, readOnly = false }: ClutchKitViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [linkSearchQuery, setLinkSearchQuery] = useState('');
+  const [isGeneratingCatalog, setIsGeneratingCatalog] = useState(false);
 
   // 1. Extraer códigos especificados en la descripción (ej: "PLATO: 1930 o 1770 | DISCO: 768 | COLLARIN: 1054 HV")
   const parsedSpecs = useMemo<ParsedClutchSpecs>(() => {
@@ -249,6 +253,33 @@ export function ClutchKitView({ kit, readOnly = false }: ClutchKitViewProps) {
 
   const hasFullKitInStock = platoStock > 0 && discoStock > 0 && collarinStock > 0;
 
+  const handleDownloadCatalog = async () => {
+    if (isGeneratingCatalog) return;
+    if (kitItems.length === 0) {
+      toast.warning('Este kit de clutch no tiene repuestos vinculados para generar el catálogo.');
+      return;
+    }
+    setIsGeneratingCatalog(true);
+    const toastId = toast.loading(`Generando catálogo PDF de ${kit.name}...`);
+    try {
+      await generateKitCatalogPDF({
+        kit,
+        items: kitItems,
+        bcvRate: bcvRate || 1,
+        bcvMultiplier: bcvMultiplier || 1.4,
+      });
+      toast.success('Catálogo PDF generado exitosamente', { id: toastId });
+    } catch (err: any) {
+      if (err.message === 'NO_IMAGES') {
+        toast.warning(`"${kit.name}" no posee repuestos con fotografías para generar el catálogo.`, { id: toastId });
+      } else {
+        toast.error('Error al generar catálogo PDF', { description: err.message, id: toastId });
+      }
+    } finally {
+      setIsGeneratingCatalog(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -314,6 +345,21 @@ export function ClutchKitView({ kit, readOnly = false }: ClutchKitViewProps) {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              onClick={handleDownloadCatalog}
+              disabled={isGeneratingCatalog || kitItems.length === 0}
+              variant="outline"
+              className="font-semibold text-xs h-9 gap-1.5 border-slate-300 text-slate-700 hover:text-emerald-700 hover:border-emerald-300"
+              title="Descargar catálogo PDF del kit de clutch"
+            >
+              {isGeneratingCatalog ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+              ) : (
+                <FileText className="w-3.5 h-3.5 text-slate-500" />
+              )}
+              Catálogo PDF
+            </Button>
+
             <Button
               onClick={handleAddFullKitToCart}
               disabled={platoCount === 0 || discoCount === 0 || collarinCount === 0}
