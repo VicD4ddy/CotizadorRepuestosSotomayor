@@ -397,7 +397,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
                   className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2"
                 >
                   <UseAnimations animation={checkmark} size={18} strokeColor="currentColor" />
-                  Aprobar Venta
+                  Aprobar
                 </Button>
               )}
             </div>

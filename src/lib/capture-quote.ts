@@ -85,11 +85,12 @@ export async function copyQuoteToClipboard(quoteData: any, bcvMultiplier: number
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; table-layout: fixed;">
         <thead>
           <tr style="background: #0f172a; color: white;">
-            <th style="padding: 12px 14px; font-size: 11px; text-align: left; font-weight: 700; letter-spacing: 0.5px; width: ${currency === 'both' ? '40%' : (currency === 'bcv' ? '42%' : '44%')};">DESCRIPCIÓN</th>
-            <th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: ${currency === 'both' ? '16%' : (currency === 'bcv' ? '16%' : '18%')};">MARCA</th>
-            <th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: 8%;">CANT.</th>
-            ${currency === 'both' ? `<th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 18%;">TOTAL DIVISAS ($)</th>` : ''}
-            ${currency === 'both' ? `<th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #ffffff; width: 18%;">TOTAL EN DÓLARES BCV</th>` : ''}
+            <th style="padding: 12px ${currency === 'both' ? '10px' : '14px'}; font-size: 11px; text-align: left; font-weight: 700; letter-spacing: 0.5px; width: ${currency === 'both' ? '34%' : (currency === 'bcv' ? '42%' : '44%')};">DESCRIPCIÓN</th>
+            <th style="padding: 12px ${currency === 'both' ? '10px' : '14px'}; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: ${currency === 'both' ? '14%' : (currency === 'bcv' ? '16%' : '18%')};">MARCA</th>
+            <th style="padding: 12px ${currency === 'both' ? '6px' : '14px'}; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; width: ${currency === 'both' ? '7%' : '8%'};">CANT.</th>
+            ${currency === 'both' ? `<th style="padding: 12px 10px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #ffffff; width: 14%;">P. UNITARIO ($)</th>` : ''}
+            ${currency === 'both' ? `<th style="padding: 12px 10px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 15%;">TOTAL DIVISAS ($)</th>` : ''}
+            ${currency === 'both' ? `<th style="padding: 12px 10px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #ffffff; width: 16%;">TOTAL EN DÓLARES BCV</th>` : ''}
             ${currency === 'bcv' ? `<th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #34d399; width: 17%;">TOTAL EN DÓLARES BCV</th>` : ''}
             ${currency === 'bcv' ? `<th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #60a5fa; width: 17%;">TOTAL EN VES</th>` : ''}
             ${currency === 'usd' ? `<th style="padding: 12px 14px; font-size: 11px; text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #ffffff; width: 15%;">P. UNITARIO ($)</th>` : ''}
@@ -114,12 +115,13 @@ export async function copyQuoteToClipboard(quoteData: any, bcvMultiplier: number
 
             return `
             <tr style="background-color: ${rowBg}; border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 12px 14px; text-align: left; font-size: 13px; font-weight: 500; color: #0f172a;">${item.product_name}</td>
-              <td style="padding: 12px 14px; text-align: center;">${brandContent}</td>
-              <td style="padding: 12px 14px; text-align: center; font-size: 13px; font-weight: 600; color: #334155;">${item.quantity}</td>
+              <td style="padding: 12px ${currency === 'both' ? '10px' : '14px'}; text-align: left; font-size: 13px; font-weight: 500; color: #0f172a;">${item.product_name}</td>
+              <td style="padding: 12px ${currency === 'both' ? '10px' : '14px'}; text-align: center;">${brandContent}</td>
+              <td style="padding: 12px ${currency === 'both' ? '6px' : '14px'}; text-align: center; font-size: 13px; font-weight: 600; color: #334155;">${item.quantity}</td>
               ${currency === 'both' ? `
-                <td style="padding: 12px 14px; text-align: center; font-size: 13px; font-weight: 700; color: #059669;">${formatUSD(totalUsd)}</td>
-                <td style="padding: 12px 14px; text-align: center; font-size: 13px; font-weight: 700; color: #0f172a;">${formatUSD(totalUsdBcv)}</td>
+                <td style="padding: 12px 10px; text-align: center; font-size: 13px; color: #475569;">${formatUSD(unitUsd)}</td>
+                <td style="padding: 12px 10px; text-align: center; font-size: 13px; font-weight: 700; color: #059669;">${formatUSD(totalUsd)}</td>
+                <td style="padding: 12px 10px; text-align: center; font-size: 13px; font-weight: 700; color: #0f172a;">${formatUSD(totalUsdBcv)}</td>
               ` : ''}
               ${currency === 'bcv' ? `
                 <td style="padding: 12px 14px; text-align: center; font-size: 13px; font-weight: 700; color: #059669;">${formatUSD(totalUsdBcv)}</td>

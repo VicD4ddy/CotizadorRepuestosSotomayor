@@ -296,9 +296,9 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     })
   );
 
-  // Prepare table data (5 columns)
+  // Prepare table data
   const tableHead = isBoth
-    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'TOTAL DIVISAS ($)', 'TOTAL EN DÓLARES BCV']]
+    ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNITARIO ($)', 'TOTAL DIVISAS ($)', 'TOTAL EN DÓLARES BCV']]
     : isBcv
     ? [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'TOTAL EN DÓLARES BCV', 'TOTAL EN VES']]
     : [['DESCRIPCIÓN', 'MARCA', 'CANT.', 'P. UNITARIO ($)', 'TOTAL DIVISAS ($)']];
@@ -318,6 +318,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
         item.product_name || '',
         brand,
         String(item.quantity || 1),
+        formatUSD(unitDivisas),
         formatUSD(totalDivisas),
         formatUSD(totalUsdBcv),
       ];
@@ -343,10 +344,11 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   const colStyles: Record<number, Partial<{ cellWidth: number; halign: 'left' | 'center' | 'right' }>> = isBoth
     ? {
         0: { halign: 'left' },
-        1: { cellWidth: 70, halign: 'center' },
-        2: { cellWidth: 42, halign: 'center' },
-        3: { cellWidth: 95, halign: 'center' },
-        4: { cellWidth: 105, halign: 'center' },
+        1: { cellWidth: 64, halign: 'center' },
+        2: { cellWidth: 36, halign: 'center' },
+        3: { cellWidth: 72, halign: 'center' },
+        4: { cellWidth: 82, halign: 'center' },
+        5: { cellWidth: 88, halign: 'center' },
       }
     : isBcv
     ? {
@@ -444,10 +446,13 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
         data.cell.styles.halign = data.column.index === 0 ? 'left' : 'center';
         if (isBoth) {
           if (data.column.index === 3) {
+            data.cell.styles.textColor = [71, 85, 105]; // #475569 slate
+          }
+          if (data.column.index === 4) {
             data.cell.styles.textColor = hexToRGB('#059669'); // emerald
             data.cell.styles.fontStyle = 'bold';
           }
-          if (data.column.index === 4) {
+          if (data.column.index === 5) {
             data.cell.styles.textColor = hexToRGB('#0f172a'); // dark slate
             data.cell.styles.fontStyle = 'bold';
           }

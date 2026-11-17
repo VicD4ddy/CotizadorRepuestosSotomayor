@@ -8,7 +8,6 @@ import grid from 'react-useanimations/lib/grid';
 import folder from 'react-useanimations/lib/folder';
 import fileText from 'react-useanimations/lib/fileText';
 import filePlus from 'react-useanimations/lib/filePlus';
-import shoppingCart from 'react-useanimations/lib/shoppingCart';
 import settings from 'react-useanimations/lib/settings';
 import disc from 'react-useanimations/lib/disc';
 import tool from 'react-useanimations/lib/tool';
@@ -22,7 +21,6 @@ const navItems = [
   { animation: folder, label: 'Clasificaciones', id: 'categories' },
   { animation: fileText, label: 'Cotizaciones', id: 'quotes' },
   { animation: filePlus, label: 'Cotiz. Manual', id: 'manual_quote' },
-  { animation: shoppingCart, label: 'Ventas', id: 'sales' },
   { animation: settings, label: 'Motor', id: 'motor_kits' },
   { animation: disc, label: 'Clutch', id: 'clutch_kits' },
   { animation: tool, label: 'T. Delantero', id: 'tren_delantero_kits' },

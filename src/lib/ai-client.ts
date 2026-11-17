@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, type ContentListUnion } from '@google/genai';
 
 const ai = new GoogleGenAI({ 
   apiKey: process.env.GEMINI_API_KEY,
@@ -11,8 +11,8 @@ const MODEL_CHAIN = [
   'gemma-4-31b-it',      // Respaldo: alta calidad
 ];
 
-export async function generateWithFallback(
-  prompt: string, 
+async function runGenerationChain(
+  contents: ContentListUnion,
   config?: { temperature?: number; maxOutputTokens?: number }
 ): Promise<string> {
   let lastError: any = null;
@@ -28,7 +28,7 @@ export async function generateWithFallback(
       console.log(`[AI] Intentando con: ${model}`);
       const response = await ai.models.generateContent({
         model,
-        contents: prompt,
+        contents,
         config: finalConfig,
       });
       
@@ -46,4 +46,39 @@ export async function generateWithFallback(
   }
 
   throw lastError || new Error('No se pudo conectar con los modelos Gemma.');
+}
+
+export async function generateWithFallback(
+  prompt: string, 
+  config?: { temperature?: number; maxOutputTokens?: number }
+): Promise<string> {
+  return runGenerationChain(prompt, config);
+}
+
+export interface MultimodalImageInput {
+  base64Data: string;
+  mimeType: string;
+}
+
+/**
+ * Ejecuta generación multimodal (texto + imagen opcional) usando la cadena de modelos configurada.
+ */
+export async function generateMultimodalWithFallback(
+  prompt: string,
+  image?: MultimodalImageInput,
+  config?: { temperature?: number; maxOutputTokens?: number }
+): Promise<string> {
+  const contents: ContentListUnion = image
+    ? [
+        {
+          role: 'user',
+          parts: [
+            { inlineData: { data: image.base64Data, mimeType: image.mimeType } },
+            { text: prompt },
+          ],
+        },
+      ]
+    : prompt;
+
+  return runGenerationChain(contents, config);
 }

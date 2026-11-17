@@ -6,6 +6,8 @@ import { formatUSD, formatBs, calculateBcvPrice } from '@/lib/utils';
 import {
   FileText,
   MessageCircle,
+  MessageSquareText,
+  Sparkles,
   X,
   Save,
   PanelRightClose,
@@ -23,6 +25,7 @@ import { toast } from 'sonner';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { QuoteSaveDialog } from './quote-save-dialog';
+import { WhatsAppQuoteDialog } from './whatsapp-quote-dialog';
 import { Input } from '@/components/ui/input';
 import { generateQuotePDF } from '@/lib/generate-quote-pdf';
 import { copyQuoteToClipboard } from '@/lib/capture-quote';
@@ -66,6 +69,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
   const totalBs = paymentMethod === 'bs' ? total * bcvRate : 0;
 
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [isWhatsAppAiOpen, setIsWhatsAppAiOpen] = useState(false);
 
   const handleOpenSaveDialog = () => {
     if (items.length === 0) {
@@ -351,15 +355,34 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
             />
           </div>
         </div>
+
+        {/* Auto Quote from WhatsApp (AI) Trigger */}
+        <button
+          type="button"
+          onClick={() => setIsWhatsAppAiOpen(true)}
+          className="mt-3 w-full h-9 px-3 rounded-sm border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[12px] flex items-center justify-center gap-2 transition-colors active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        >
+          <MessageSquareText className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <span className="truncate">Cotizar desde WhatsApp (IA)</span>
+          <Sparkles className="w-3 h-3 text-emerald-600 shrink-0" />
+        </button>
       </div>
 
       {/* Items */}
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-400">
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 px-6 text-center">
             <UseAnimations animation={shoppingCart} size={42} strokeColor="#94a3b8" interaction="hover-loop" className="mb-3 opacity-40" />
             <p className="text-[13px] text-slate-600 font-medium">Sin productos</p>
-            <p className="text-[11px]">Usa el botón + en la tabla</p>
+            <p className="text-[11px] mb-3">Usa el botón + en la tabla o importa un pedido de WhatsApp</p>
+            <button
+              type="button"
+              onClick={() => setIsWhatsAppAiOpen(true)}
+              className="text-[11.5px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-sm transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <MessageSquareText className="w-3.5 h-3.5" />
+              Pegar pedido o captura
+            </button>
           </div>
         ) : (
           <div className="p-4 space-y-3">
@@ -569,6 +592,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
       )}
 
       <QuoteSaveDialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen} />
+      <WhatsAppQuoteDialog open={isWhatsAppAiOpen} onOpenChange={setIsWhatsAppAiOpen} />
     </div>
   );
 }

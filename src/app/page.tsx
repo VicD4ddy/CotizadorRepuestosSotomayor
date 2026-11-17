@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useCartStore } from '@/store/cart-store';
 import { ShoppingCart, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -9,7 +9,6 @@ import { Header } from '@/components/layout/header';
 import { ProductTable } from '@/components/inventory/product-table';
 import { ClasificacionesContainer } from '@/components/categories/clasificaciones-container';
 import { QuoteTable } from '@/components/quotes/quote-table';
-import { SalesDashboard } from '@/components/sales/sales-dashboard';
 import { QuoteCart } from '@/components/quotes/quote-cart';
 import { SettingsDialog } from '@/components/layout/settings-dialog';
 import { KitTable } from '@/components/kits/kit-table';
@@ -21,6 +20,45 @@ import { MobileNav } from '@/components/layout/mobile-nav';
 import { MobileQuoteSheet } from '@/components/quotes/mobile-quote-sheet';
 import { Kit } from '@/types';
 
+interface DragGuideVisual {
+  right: number;
+  top: number;
+  label: string;
+  isCollapse: boolean;
+}
+
+function getCartSnapMetrics(rawWidth: number) {
+  const minOpen = 320;
+  const maxAllowed = Math.min(800, Math.max(minOpen, window.innerWidth - 160));
+  const isCollapse = rawWidth < 200;
+  const finalOpenWidth = Math.min(Math.max(Math.round(rawWidth), minOpen), maxAllowed);
+  const guideRight = isCollapse ? Math.max(4, Math.round(rawWidth)) : finalOpenWidth;
+  const label = isCollapse ? 'Soltar para ocultar' : `${finalOpenWidth} px`;
+  return { isCollapse, finalOpenWidth, guideRight, label };
+}
+
+function applyCartGuideVisual(
+  guideEl: HTMLDivElement | null,
+  badgeEl: HTMLDivElement | null,
+  visual: DragGuideVisual
+) {
+  if (guideEl) {
+    guideEl.style.right = `${visual.right}px`;
+    guideEl.style.backgroundColor = visual.isCollapse ? '#f59e0b' : '#10b981';
+    guideEl.style.boxShadow = visual.isCollapse
+      ? '0 0 8px rgba(245, 158, 11, 0.55)'
+      : '0 0 8px rgba(16, 185, 129, 0.5)';
+  }
+  if (badgeEl) {
+    badgeEl.style.right = `${visual.right + 10}px`;
+    badgeEl.style.top = `${visual.top}px`;
+    badgeEl.textContent = visual.label;
+    badgeEl.style.backgroundColor = visual.isCollapse ? '#451a03' : '#0f172a';
+    badgeEl.style.color = visual.isCollapse ? '#fde68a' : '#ffffff';
+    badgeEl.style.borderColor = visual.isCollapse ? '#f59e0b' : 'rgba(16, 185, 129, 0.7)';
+  }
+}
+
 export default function HomePage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('inventory');
@@ -30,6 +68,15 @@ export default function HomePage() {
   const [cartWidth, setCartWidth] = useState(320);
   const [isCartCollapsed, setIsCartCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const suppressExpandClickRef = useRef(false);
+  const dragGuideRef = useRef<HTMLDivElement>(null);
+  const dragBadgeRef = useRef<HTMLDivElement>(null);
+  const dragInitialVisualRef = useRef<DragGuideVisual>({
+    right: 320,
+    top: 200,
+    label: '320 px',
+    isCollapse: false,
+  });
   const cartItemsCount = useCartStore((s) => s.items.length);
 
   // Restore cart configuration from localStorage on mount
@@ -59,103 +106,86 @@ export default function HomePage() {
     } catch {}
   };
 
-  const handleCartDragStart = (e: React.MouseEvent) => {
+  useLayoutEffect(() => {
+    if (isDragging) {
+      applyCartGuideVisual(dragGuideRef.current, dragBadgeRef.current, dragInitialVisualRef.current);
+    }
+  }, [isDragging]);
+
+  const startCartResize = (e: React.MouseEvent, mode: 'resize' | 'expand') => {
+    if (e.button !== 0) return;
     e.preventDefault();
-    setIsDragging(true);
-    const startX = e.pageX;
-    const startWidth = cartWidth;
-    let currentWidth = startWidth;
+
+    const startX = e.clientX;
+    const startWidth = mode === 'expand' ? 0 : cartWidth;
+    let latestRawWidth = startWidth;
+    let didDrag = false;
+
+    const updateGuideDOM = (rawWidth: number, clientY: number) => {
+      const { isCollapse, guideRight, label } = getCartSnapMetrics(rawWidth);
+      const clampedTop = Math.min(Math.max(clientY - 14, 60), window.innerHeight - 60);
+      const visual = { right: guideRight, top: clampedTop, label, isCollapse };
+
+      dragInitialVisualRef.current = visual;
+      applyCartGuideVisual(dragGuideRef.current, dragBadgeRef.current, visual);
+    };
 
     const onMouseMove = (moveEvent: MouseEvent) => {
-      const diff = startX - moveEvent.pageX;
-      const rawWidth = startWidth + diff;
-      currentWidth = rawWidth;
+      const deltaX = startX - moveEvent.clientX;
+      latestRawWidth = startWidth + deltaX;
 
-      // Under collapse threshold (200px), allow dragging towards 0 to give visual feedback
-      if (rawWidth < 200) {
-        setCartWidth(Math.max(0, rawWidth));
-      } else {
-        setCartWidth(Math.min(Math.max(rawWidth, 320), 800));
+      if (!didDrag && Math.abs(deltaX) > 4) {
+        didDrag = true;
+        updateGuideDOM(latestRawWidth, moveEvent.clientY);
+        setIsDragging(true);
+      } else if (didDrag) {
+        updateGuideDOM(latestRawWidth, moveEvent.clientY);
       }
     };
 
-    const onMouseUp = () => {
+    const finishDrag = (commitChange: boolean) => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('blur', onWindowBlur);
       document.body.style.cursor = 'default';
       document.body.style.userSelect = '';
       setIsDragging(false);
 
-      if (currentWidth < 200) {
-        // Snap to collapse
-        setIsCartCollapsed(true);
-        const validWidth = Math.min(Math.max(startWidth, 320), 800);
-        setCartWidth(validWidth);
-        try {
-          localStorage.setItem('cotizador_cart_collapsed', 'true');
-        } catch {}
-      } else {
-        // Snap to valid range
-        const finalWidth = Math.min(Math.max(currentWidth, 320), 800);
-        setCartWidth(finalWidth);
-        setIsCartCollapsed(false);
-        try {
-          localStorage.setItem('cotizador_cart_width', String(finalWidth));
-          localStorage.setItem('cotizador_cart_collapsed', 'false');
-        } catch {}
+      if (!didDrag || !commitChange) return;
+
+      if (mode === 'expand') {
+        suppressExpandClickRef.current = true;
+        setTimeout(() => {
+          suppressExpandClickRef.current = false;
+        }, 100);
       }
-    };
 
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  };
-
-  const handleExpandDragStart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    const startX = window.innerWidth;
-    let targetWidth = 0;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const diff = startX - moveEvent.pageX;
-      targetWidth = diff;
-      if (diff > 30) {
-        setIsCartCollapsed(false);
-        setCartWidth(Math.min(Math.max(diff, 50), 800));
-      }
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = 'default';
-      document.body.style.userSelect = '';
-      setIsDragging(false);
-
-      if (targetWidth >= 200) {
-        const finalWidth = Math.min(Math.max(targetWidth, 320), 800);
-        setCartWidth(finalWidth);
-        setIsCartCollapsed(false);
-        try {
-          localStorage.setItem('cotizador_cart_width', String(finalWidth));
-          localStorage.setItem('cotizador_cart_collapsed', 'false');
-        } catch {}
-      } else {
+      const { isCollapse, finalOpenWidth } = getCartSnapMetrics(latestRawWidth);
+      if (isCollapse) {
         setIsCartCollapsed(true);
-        const restoredWidth = cartWidth >= 320 ? cartWidth : 320;
+        const restoredWidth = Math.min(Math.max(startWidth || cartWidth, 320), 800);
         setCartWidth(restoredWidth);
         try {
           localStorage.setItem('cotizador_cart_collapsed', 'true');
         } catch {}
+      } else {
+        setCartWidth(finalOpenWidth);
+        setIsCartCollapsed(false);
+        try {
+          localStorage.setItem('cotizador_cart_width', String(finalOpenWidth));
+          localStorage.setItem('cotizador_cart_collapsed', 'false');
+        } catch {}
       }
     };
+
+    const onMouseUp = () => finishDrag(true);
+    const onWindowBlur = () => finishDrag(false);
 
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('blur', onWindowBlur);
   };
 
   // Listen for navigate-tab events from notification panel
@@ -198,7 +228,6 @@ export default function HomePage() {
             {activeTab === 'categories' && <ClasificacionesContainer />}
             {activeTab === 'quotes' && <QuoteTable />}
             {activeTab === 'manual_quote' && <ManualQuoteBuilder />}
-            {activeTab === 'sales' && <SalesDashboard />}
             {activeTab === 'motor_kits' && (
               selectedKit ? (
                 <KitBuilder kit={selectedKit} onBack={() => setSelectedKit(null)} />
@@ -227,9 +256,9 @@ export default function HomePage() {
         {/* Quote Cart - Fixed Right Panel (Desktop only) */}
         <div 
           className={cn(
-            "hidden lg:block shrink-0 bg-white z-10 overflow-hidden relative",
+            "hidden lg:block shrink-0 bg-white z-10 overflow-hidden relative transition-[width] duration-300 ease-in-out",
             isCartCollapsed ? "border-l-0" : "border-l border-slate-200",
-            isDragging ? "transition-none select-none" : "transition-[width] duration-300 ease-in-out"
+            isDragging && "select-none"
           )}
           style={{ 
             width: isCartCollapsed ? '0px' : `${cartWidth}px`, 
@@ -241,16 +270,11 @@ export default function HomePage() {
           {!isCartCollapsed && (
             <div 
               className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-emerald-500/40 active:bg-emerald-500 transition-colors z-20 group"
-              onMouseDown={handleCartDragStart}
+              onMouseDown={(e) => startCartResize(e, 'resize')}
               onDoubleClick={() => toggleCartCollapse(true)}
               title="Arrastra para redimensionar u ocultar (Doble clic para ocultar)"
             >
-              <div 
-                className={cn(
-                  "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-8 rounded-full transition-colors",
-                  cartWidth < 200 ? "bg-amber-500 shadow-sm" : "bg-slate-300 group-hover:bg-emerald-600"
-                )} 
-              />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-8 rounded-full bg-slate-300 group-hover:bg-emerald-600 transition-colors" />
             </div>
           )}
 
@@ -271,8 +295,14 @@ export default function HomePage() {
           <div
             className="hidden lg:block fixed right-0 top-0 bottom-0 w-2.5 hover:w-3.5 z-40 cursor-col-resize hover:bg-emerald-500/30 active:bg-emerald-500 transition-all group"
             title="Arrastra hacia la izquierda para abrir el carrito (o haz clic)"
-            onMouseDown={handleExpandDragStart}
-            onClick={() => toggleCartCollapse(false)}
+            onMouseDown={(e) => startCartResize(e, 'expand')}
+            onClick={() => {
+              if (suppressExpandClickRef.current) {
+                suppressExpandClickRef.current = false;
+                return;
+              }
+              toggleCartCollapse(false);
+            }}
           >
             <div className="absolute top-1/2 right-0.5 -translate-y-1/2 w-1 h-12 bg-slate-300/80 rounded-full group-hover:bg-emerald-500 transition-colors" />
           </div>
@@ -326,6 +356,17 @@ export default function HomePage() {
         setTimeout(() => setShowRecentImports(false), 500);
       }} />
       <AiQueueBanner />
+
+      {/* Deferred Resize Drag Guide Overlay (updates cart width only on mouseup) */}
+      {isDragging && (
+        <div className="hidden lg:block fixed inset-0 z-50 cursor-col-resize select-none">
+          <div ref={dragGuideRef} className="fixed top-0 bottom-0 w-[2px] pointer-events-none" />
+          <div
+            ref={dragBadgeRef}
+            className="fixed pointer-events-none px-2 py-1 rounded-sm border font-mono tabular-nums text-[11px] font-bold shadow-md whitespace-nowrap"
+          />
+        </div>
+      )}
     </div>
   );
 }
