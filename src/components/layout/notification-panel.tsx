@@ -22,12 +22,12 @@ export function NotificationPanel() {
   const [expandedAlert, setExpandedAlert] = useState<NotificationItem | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const { data: products = [] } = useProducts();
-  const { data: kits = [] } = useKits();
+  const { data: kits = [] } = useKits(undefined, { enabled: isOpen });
   const { data: defaultMinStock = 0 } = useDefaultMinStock();
 
-  // Find products that have suggested kits that have not been selected
+  // Find products that have suggested kits that have not been selected (deferred until panel opens)
   const suggestedNotSelected = useMemo(() => {
-    if (products.length === 0 || kits.length === 0) return [];
+    if (!isOpen || products.length === 0 || kits.length === 0) return [];
 
     return products.filter((p) => {
       if (!p.name || p.name.trim().length < 3) return false;
@@ -79,7 +79,7 @@ export function NotificationPanel() {
         return hasIdMatch;
       });
     });
-  }, [products, kits]);
+  }, [isOpen, products, kits]);
 
   // Close on click outside
   useEffect(() => {
@@ -93,153 +93,201 @@ export function NotificationPanel() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  // Analyze products for issues
-  const noImage = products.filter(p => !p.image_url && (!p.image_urls || p.image_urls.length === 0));
-  const noDescription = products.filter(p => !p.description || p.description.trim().length < 5);
-  const zeroCost = products.filter(p => !p.cost || p.cost === 0);
-  const zeroPrice = products.filter(p => !p.price_usd || p.price_usd === 0);
-  const noCategory = products.filter(p => !p.category_id);
-  const noKit = products.filter(p => !p.kit_items || p.kit_items.length === 0);
-  const costEqualsPrice = products.filter(p => p.cost > 0 && p.price_usd > 0 && p.cost === p.price_usd);
-  const costGreaterThanPrice = products.filter(p => p.cost > 0 && p.price_usd > 0 && p.cost > p.price_usd);
+  // Single-pass memoized product alert classification
+  const productAlerts = useMemo(() => {
+    const noImage: Product[] = [];
+    const noDescription: Product[] = [];
+    const zeroCost: Product[] = [];
+    const zeroPrice: Product[] = [];
+    const noCategory: Product[] = [];
+    const noKit: Product[] = [];
+    const costEqualsPrice: Product[] = [];
+    const costGreaterThanPrice: Product[] = [];
+    const lowStock: Product[] = [];
+    let outOfStockCount = 0;
 
-  // Low stock products (effective min_stock > 0 and stock <= min_stock, ONLY with price assigned)
-  const lowStock = products.filter(p => {
-    if (!p.price_usd || p.price_usd <= 0) return false;
-    const min = (p.min_stock !== undefined && p.min_stock !== null && p.min_stock > 0)
-      ? p.min_stock
-      : (defaultMinStock || 0);
-    if (!min || min <= 0) return false;
-    return (p.stock ?? 0) <= min;
-  });
+    for (const p of products) {
+      if (!p.image_url && (!p.image_urls || p.image_urls.length === 0)) noImage.push(p);
+      if (!p.description || p.description.trim().length < 5) noDescription.push(p);
+      if (!p.cost || p.cost === 0) zeroCost.push(p);
+      if (!p.price_usd || p.price_usd === 0) zeroPrice.push(p);
+      if (!p.category_id) noCategory.push(p);
+      if (!p.kit_items || p.kit_items.length === 0) noKit.push(p);
+      if (p.cost > 0 && p.price_usd > 0) {
+        if (p.cost === p.price_usd) costEqualsPrice.push(p);
+        else if (p.cost > p.price_usd) costGreaterThanPrice.push(p);
+      }
+      if (p.price_usd && p.price_usd > 0) {
+        const min = (p.min_stock !== undefined && p.min_stock !== null && p.min_stock > 0)
+          ? p.min_stock
+          : (defaultMinStock || 0);
+        if (min > 0 && (p.stock ?? 0) <= min) {
+          lowStock.push(p);
+          if ((p.stock ?? 0) <= 0) outOfStockCount += 1;
+        }
+      }
+    }
 
-  const notifications: NotificationItem[] = [];
+    return {
+      noImage,
+      noDescription,
+      zeroCost,
+      zeroPrice,
+      noCategory,
+      noKit,
+      costEqualsPrice,
+      costGreaterThanPrice,
+      lowStock,
+      outOfStockCount,
+    };
+  }, [products, defaultMinStock]);
 
-  if (lowStock.length > 0) {
-    const outOfStockCount = lowStock.filter(p => (p.stock ?? 0) <= 0).length;
-    notifications.push({
-      icon: <PackageX className="w-4 h-4" />,
-      label: outOfStockCount > 0 
-        ? `Stock mínimo alcanzado (${outOfStockCount} agotado${outOfStockCount > 1 ? 's' : ''})`
-        : 'Stock mínimo alcanzado',
-      count: lowStock.length,
-      color: outOfStockCount > 0 ? 'text-rose-600' : 'text-amber-600',
-      bgColor: outOfStockCount > 0 ? 'bg-rose-50' : 'bg-amber-50',
-      severity: outOfStockCount > 0 ? 'critical' : 'warning',
-      products: lowStock,
-    });
-  }
+  const { notifications, totalAlerts, criticalCount } = useMemo(() => {
+    const items: NotificationItem[] = [];
+    const {
+      noImage,
+      noDescription,
+      zeroCost,
+      zeroPrice,
+      noCategory,
+      noKit,
+      costEqualsPrice,
+      costGreaterThanPrice,
+      lowStock,
+      outOfStockCount,
+    } = productAlerts;
 
-  if (zeroCost.length > 0) {
-    notifications.push({
-      icon: <DollarSign className="w-4 h-4" />,
-      label: 'Costo en $0',
-      count: zeroCost.length,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
-      severity: 'critical',
-      products: zeroCost,
-    });
-  }
+    if (lowStock.length > 0) {
+      items.push({
+        icon: <PackageX className="w-4 h-4" />,
+        label: outOfStockCount > 0
+          ? `Stock mínimo alcanzado (${outOfStockCount} agotado${outOfStockCount > 1 ? 's' : ''})`
+          : 'Stock mínimo alcanzado',
+        count: lowStock.length,
+        color: outOfStockCount > 0 ? 'text-rose-600' : 'text-amber-600',
+        bgColor: outOfStockCount > 0 ? 'bg-rose-50' : 'bg-amber-50',
+        severity: outOfStockCount > 0 ? 'critical' : 'warning',
+        products: lowStock,
+      });
+    }
 
-  if (zeroPrice.length > 0) {
-    notifications.push({
-      icon: <DollarSign className="w-4 h-4" />,
-      label: 'Precio de venta en $0',
-      count: zeroPrice.length,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-50',
-      severity: 'critical',
-      products: zeroPrice,
-    });
-  }
+    if (zeroCost.length > 0) {
+      items.push({
+        icon: <DollarSign className="w-4 h-4" />,
+        label: 'Costo en $0',
+        count: zeroCost.length,
+        color: 'text-red-600',
+        bgColor: 'bg-red-50',
+        severity: 'critical',
+        products: zeroCost,
+      });
+    }
 
-  if (costGreaterThanPrice.length > 0) {
-    notifications.push({
-      icon: <AlertTriangle className="w-4 h-4" />,
-      label: 'Margen negativo (Costo > Precio)',
-      count: costGreaterThanPrice.length,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
-      severity: 'critical',
-      products: costGreaterThanPrice,
-    });
-  }
+    if (zeroPrice.length > 0) {
+      items.push({
+        icon: <DollarSign className="w-4 h-4" />,
+        label: 'Precio de venta en $0',
+        count: zeroPrice.length,
+        color: 'text-orange-600',
+        bgColor: 'bg-orange-50',
+        severity: 'critical',
+        products: zeroPrice,
+      });
+    }
 
-  if (costEqualsPrice.length > 0) {
-    notifications.push({
-      icon: <AlertTriangle className="w-4 h-4" />,
-      label: 'Costo igual al precio (Sin margen)',
-      count: costEqualsPrice.length,
-      color: 'text-amber-600',
-      bgColor: 'bg-amber-50',
-      severity: 'warning',
-      products: costEqualsPrice,
-    });
-  }
+    if (costGreaterThanPrice.length > 0) {
+      items.push({
+        icon: <AlertTriangle className="w-4 h-4" />,
+        label: 'Margen negativo (Costo > Precio)',
+        count: costGreaterThanPrice.length,
+        color: 'text-red-600',
+        bgColor: 'bg-red-50',
+        severity: 'critical',
+        products: costGreaterThanPrice,
+      });
+    }
 
-  if (noImage.length > 0) {
-    notifications.push({
-      icon: <ImageOff className="w-4 h-4" />,
-      label: 'Productos sin imagen',
-      count: noImage.length,
-      color: 'text-amber-600',
-      bgColor: 'bg-amber-50',
-      severity: 'warning',
-      products: noImage,
-    });
-  }
+    if (costEqualsPrice.length > 0) {
+      items.push({
+        icon: <AlertTriangle className="w-4 h-4" />,
+        label: 'Costo igual al precio (Sin margen)',
+        count: costEqualsPrice.length,
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-50',
+        severity: 'warning',
+        products: costEqualsPrice,
+      });
+    }
 
-  if (noDescription.length > 0) {
-    notifications.push({
-      icon: <FileText className="w-4 h-4" />,
-      label: 'Sin descripción',
-      count: noDescription.length,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-      severity: 'info',
-      products: noDescription,
-    });
-  }
+    if (noImage.length > 0) {
+      items.push({
+        icon: <ImageOff className="w-4 h-4" />,
+        label: 'Productos sin imagen',
+        count: noImage.length,
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-50',
+        severity: 'warning',
+        products: noImage,
+      });
+    }
 
-  if (noCategory.length > 0) {
-    notifications.push({
-      icon: <Tag className="w-4 h-4" />,
-      label: 'Sin categoría asignada',
-      count: noCategory.length,
-      color: 'text-slate-600',
-      bgColor: 'bg-slate-50',
-      severity: 'info',
-      products: noCategory,
-    });
-  }
+    if (noDescription.length > 0) {
+      items.push({
+        icon: <FileText className="w-4 h-4" />,
+        label: 'Sin descripción',
+        count: noDescription.length,
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50',
+        severity: 'info',
+        products: noDescription,
+      });
+    }
 
-  if (noKit.length > 0) {
-    notifications.push({
-      icon: <Unlink className="w-4 h-4" />,
-      label: 'Sin motor/tren asignado',
-      count: noKit.length,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-      severity: 'info',
-      products: noKit,
-    });
-  }
+    if (noCategory.length > 0) {
+      items.push({
+        icon: <Tag className="w-4 h-4" />,
+        label: 'Sin categoría asignada',
+        count: noCategory.length,
+        color: 'text-slate-600',
+        bgColor: 'bg-slate-50',
+        severity: 'info',
+        products: noCategory,
+      });
+    }
 
-  if (suggestedNotSelected.length > 0) {
-    notifications.push({
-      icon: <Sparkles className="w-4 h-4" />,
-      label: 'Sugeridos sin seleccionar',
-      count: suggestedNotSelected.length,
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-50',
-      severity: 'info',
-      products: suggestedNotSelected,
-    });
-  }
+    if (noKit.length > 0) {
+      items.push({
+        icon: <Unlink className="w-4 h-4" />,
+        label: 'Sin motor/tren asignado',
+        count: noKit.length,
+        color: 'text-purple-600',
+        bgColor: 'bg-purple-50',
+        severity: 'info',
+        products: noKit,
+      });
+    }
 
-  const totalAlerts = notifications.reduce((sum, n) => sum + n.count, 0);
-  const criticalCount = notifications.filter(n => n.severity === 'critical').reduce((sum, n) => sum + n.count, 0);
+    if (suggestedNotSelected.length > 0) {
+      items.push({
+        icon: <Sparkles className="w-4 h-4" />,
+        label: 'Sugeridos sin seleccionar',
+        count: suggestedNotSelected.length,
+        color: 'text-emerald-600',
+        bgColor: 'bg-emerald-50',
+        severity: 'info',
+        products: suggestedNotSelected,
+      });
+    }
+
+    let total = 0;
+    let critical = 0;
+    for (const n of items) {
+      total += n.count;
+      if (n.severity === 'critical') critical += n.count;
+    }
+
+    return { notifications: items, totalAlerts: total, criticalCount: critical };
+  }, [productAlerts, suggestedNotSelected]);
 
   const handleToggle = () => {
     setIsOpen(!isOpen);

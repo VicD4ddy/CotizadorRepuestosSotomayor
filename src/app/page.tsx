@@ -1,24 +1,55 @@
 'use client';
 
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useCartStore } from '@/store/cart-store';
 import { ShoppingCart, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { ProductTable } from '@/components/inventory/product-table';
-import { ClasificacionesContainer } from '@/components/categories/clasificaciones-container';
-import { QuoteTable } from '@/components/quotes/quote-table';
 import { QuoteCart } from '@/components/quotes/quote-cart';
-import { SettingsDialog } from '@/components/layout/settings-dialog';
-import { KitTable } from '@/components/kits/kit-table';
-import { KitBuilder } from '@/components/kits/kit-builder';
-import { ManualQuoteBuilder } from '@/components/quotes/manual-quote-builder';
-import { ChangeHistoryPage } from '@/components/inventory/change-history-page';
 import { AiQueueBanner } from '@/components/inventory/ai-queue-banner';
 import { MobileNav } from '@/components/layout/mobile-nav';
 import { MobileQuoteSheet } from '@/components/quotes/mobile-quote-sheet';
 import { Kit } from '@/types';
+
+function TabLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center py-20 text-slate-400">
+      <div className="w-6 h-6 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />
+    </div>
+  );
+}
+
+const ClasificacionesContainer = dynamic(
+  () => import('@/components/categories/clasificaciones-container').then((m) => m.ClasificacionesContainer),
+  { ssr: false, loading: () => <TabLoadingFallback /> }
+);
+const QuoteTable = dynamic(
+  () => import('@/components/quotes/quote-table').then((m) => m.QuoteTable),
+  { ssr: false, loading: () => <TabLoadingFallback /> }
+);
+const KitTable = dynamic(
+  () => import('@/components/kits/kit-table').then((m) => m.KitTable),
+  { ssr: false, loading: () => <TabLoadingFallback /> }
+);
+const KitBuilder = dynamic(
+  () => import('@/components/kits/kit-builder').then((m) => m.KitBuilder),
+  { ssr: false, loading: () => <TabLoadingFallback /> }
+);
+const ManualQuoteBuilder = dynamic(
+  () => import('@/components/quotes/manual-quote-builder').then((m) => m.ManualQuoteBuilder),
+  { ssr: false, loading: () => <TabLoadingFallback /> }
+);
+const ChangeHistoryPage = dynamic(
+  () => import('@/components/inventory/change-history-page').then((m) => m.ChangeHistoryPage),
+  { ssr: false, loading: () => <TabLoadingFallback /> }
+);
+const SettingsDialog = dynamic(
+  () => import('@/components/layout/settings-dialog').then((m) => m.SettingsDialog),
+  { ssr: false }
+);
 
 interface DragGuideVisual {
   right: number;
@@ -350,11 +381,13 @@ export default function HomePage() {
         cartItemsCount={cartItemsCount}
       />
 
-      <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} onImportComplete={() => {
-        setActiveTab('inventory');
-        setShowRecentImports(true);
-        setTimeout(() => setShowRecentImports(false), 500);
-      }} />
+      {isSettingsOpen && (
+        <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} onImportComplete={() => {
+          setActiveTab('inventory');
+          setShowRecentImports(true);
+          setTimeout(() => setShowRecentImports(false), 500);
+        }} />
+      )}
       <AiQueueBanner />
 
       {/* Deferred Resize Drag Guide Overlay (updates cart width only on mouseup) */}

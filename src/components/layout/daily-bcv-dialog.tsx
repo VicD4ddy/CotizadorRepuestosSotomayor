@@ -21,8 +21,8 @@ interface BcvFetchedInfo {
   fechaValor?: string;
 }
 
-async function fetchBcvRateFromApi(): Promise<BcvFetchedInfo> {
-  const res = await fetch('/api/bcv-rate', { cache: 'no-store' });
+async function fetchBcvRateFromApi(force = false): Promise<BcvFetchedInfo> {
+  const res = await fetch(`/api/bcv-rate?only=bcv${force ? '&force=1' : ''}`, { cache: 'no-store' });
   const data = await res.json();
   if (!data?.success || typeof data.rate !== 'number') {
     throw new Error(data?.error || 'No se pudo obtener la tasa oficial');
@@ -67,7 +67,7 @@ export function DailyBcvDialog() {
     setIsFetchingBcv(true);
     setFetchFailed(false);
 
-    fetchBcvRateFromApi()
+    fetchBcvRateFromApi(false)
       .then((info) => {
         if (cancelled) return;
         setRateInput(info.rate.toFixed(2));
@@ -92,7 +92,7 @@ export function DailyBcvDialog() {
     setIsFetchingBcv(true);
     setFetchFailed(false);
     try {
-      const info = await fetchBcvRateFromApi();
+      const info = await fetchBcvRateFromApi(true);
       setRateInput(info.rate.toFixed(2));
       setApiFetchedInfo(info);
       toast.success(`Tasa oficial del BCV obtenida: Bs. ${info.rate.toFixed(2)}`);

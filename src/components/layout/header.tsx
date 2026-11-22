@@ -37,6 +37,12 @@ export function Header() {
   const [isEditingBinance, setIsEditingBinance] = useState(false);
   const [isRefreshingBinance, setIsRefreshingBinance] = useState(false);
   const manualBinanceOverrideRef = useRef(false);
+  const binanceRateRef = useRef(binanceRate);
+  binanceRateRef.current = binanceRate;
+  const isEditingBinanceRef = useRef(isEditingBinance);
+  isEditingBinanceRef.current = isEditingBinance;
+  const updateBinanceRef = useRef(updateBinance);
+  updateBinanceRef.current = updateBinance;
 
   // Estado para el modal táctil de tasas en Mobile ('bcv' | 'binance' | null)
   const [mobileRateModal, setMobileRateModal] = useState<'bcv' | 'binance' | null>(null);
@@ -62,12 +68,12 @@ export function Header() {
     }
   }, [binanceRate]);
 
-  // Sincronización automática periódica en tiempo real para USDT/VES (cada 90 segundos)
+  // Sincronización automática periódica en tiempo real para USDT/VES (cada 10 minutos, alineado con caché del servidor)
   useEffect(() => {
     let isMounted = true;
 
     const syncLiveBinance = async () => {
-      if (manualBinanceOverrideRef.current || isEditingBinance) return;
+      if (manualBinanceOverrideRef.current || isEditingBinanceRef.current) return;
       try {
         const res = await fetch('/api/bcv-rate?only=binance', { cache: 'no-store' });
         if (!res.ok) return;
@@ -78,9 +84,9 @@ export function Header() {
           typeof data.binanceRate === 'number' &&
           data.binanceRate > 0
         ) {
-          const currentVal = binanceRate || 0;
+          const currentVal = binanceRateRef.current || 0;
           if (Math.abs(data.binanceRate - currentVal) >= 0.05) {
-            updateBinance.mutate(data.binanceRate);
+            updateBinanceRef.current.mutate(data.binanceRate);
           }
         }
       } catch {
@@ -89,14 +95,14 @@ export function Header() {
     };
 
     const initialTimer = setTimeout(syncLiveBinance, 2500);
-    const intervalId = setInterval(syncLiveBinance, 90000);
+    const intervalId = setInterval(syncLiveBinance, 10 * 60 * 1000);
 
     return () => {
       isMounted = false;
       clearTimeout(initialTimer);
       clearInterval(intervalId);
     };
-  }, [binanceRate, isEditingBinance]);
+  }, []);
 
   const handleRateSubmit = () => {
     const newRate = parseFloat(rateInput);
@@ -136,7 +142,7 @@ export function Header() {
   const handleRefreshBinance = async () => {
     setIsRefreshingBinance(true);
     try {
-      const res = await fetch('/api/bcv-rate?only=binance', { cache: 'no-store' });
+      const res = await fetch('/api/bcv-rate?only=binance&force=1', { cache: 'no-store' });
       const data = await res.json();
       if (!data.success || typeof data.binanceRate !== 'number' || data.binanceRate <= 0) {
         throw new Error(data.error || 'No se pudo obtener la cotización de Binance P2P');
@@ -155,7 +161,7 @@ export function Header() {
   const handleSyncBcv = async () => {
     setIsSyncingBcv(true);
     try {
-      const res = await fetch('/api/bcv-rate?only=bcv', { cache: 'no-store' });
+      const res = await fetch('/api/bcv-rate?only=bcv&force=1', { cache: 'no-store' });
       const data = await res.json();
       if (!data.success || typeof data.rate !== 'number') {
         throw new Error(data.error || 'No se pudo obtener la tasa oficial del BCV');
@@ -180,7 +186,7 @@ export function Header() {
   const handleMobileRefreshBcv = async () => {
     setIsSyncingBcv(true);
     try {
-      const res = await fetch('/api/bcv-rate?only=bcv', { cache: 'no-store' });
+      const res = await fetch('/api/bcv-rate?only=bcv&force=1', { cache: 'no-store' });
       const data = await res.json();
       if (!data.success || typeof data.rate !== 'number') {
         throw new Error(data.error || 'No se pudo obtener la tasa oficial del BCV');

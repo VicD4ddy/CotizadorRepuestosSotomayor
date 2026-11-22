@@ -4,6 +4,35 @@ import https from 'https';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const BINANCE_TTL_MS = 10 * 60 * 1000; // 10 minutos
+const BCV_TTL_MS = 60 * 60 * 1000;     // 1 hora
+
+interface BcvResult {
+  rate: number;
+  rawRate: number;
+  rawRateString?: string;
+  fechaValor?: string;
+  source: string;
+  date: string;
+}
+
+interface BinanceResult {
+  binanceRate: number;
+  rawBinanceRate: number;
+  binanceSource: string;
+  binanceDate: string;
+}
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+let bcvCache: CacheEntry<BcvResult> | null = null;
+let binanceCache: CacheEntry<BinanceResult> | null = null;
+let bcvInFlight: Promise<BcvResult | null> | null = null;
+let binanceInFlight: Promise<BinanceResult | null> | null = null;
+
 interface DolarApiResponse {
   moneda?: string;
   fuente?: string;
@@ -248,13 +277,66 @@ async function fetchBinanceRate(): Promise<{
   return null;
 }
 
+async function getCachedBcvRate(force: boolean): Promise<{ result: BcvResult | null; cached: boolean }> {
+  const now = Date.now();
+  if (!force && bcvCache && now < bcvCache.expiresAt) {
+    return { result: bcvCache.data, cached: true };
+  }
+  if (!force && bcvInFlight) {
+    return { result: await bcvInFlight, cached: false };
+  }
+
+  const promise = fetchBcvRate()
+    .then((res) => {
+      if (res) {
+        bcvCache = { data: res, expiresAt: Date.now() + BCV_TTL_MS };
+      }
+      return res;
+    })
+    .finally(() => {
+      if (bcvInFlight === promise) {
+        bcvInFlight = null;
+      }
+    });
+
+  bcvInFlight = promise;
+  return { result: await promise, cached: false };
+}
+
+async function getCachedBinanceRate(force: boolean): Promise<{ result: BinanceResult | null; cached: boolean }> {
+  const now = Date.now();
+  if (!force && binanceCache && now < binanceCache.expiresAt) {
+    return { result: binanceCache.data, cached: true };
+  }
+  if (!force && binanceInFlight) {
+    return { result: await binanceInFlight, cached: false };
+  }
+
+  const promise = fetchBinanceRate()
+    .then((res) => {
+      if (res) {
+        binanceCache = { data: res, expiresAt: Date.now() + BINANCE_TTL_MS };
+      }
+      return res;
+    })
+    .finally(() => {
+      if (binanceInFlight === promise) {
+        binanceInFlight = null;
+      }
+    });
+
+  binanceInFlight = promise;
+  return { result: await promise, cached: false };
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const only = searchParams.get('only');
+    const force = searchParams.get('force') === '1' || searchParams.get('force') === 'true';
 
     if (only === 'binance') {
-      const binanceResult = await fetchBinanceRate();
+      const { result: binanceResult, cached } = await getCachedBinanceRate(force);
       if (!binanceResult) {
         return NextResponse.json(
           { success: false, error: 'No se pudo obtener la tasa de Binance P2P' },
@@ -263,6 +345,7 @@ export async function GET(request: Request) {
       }
       return NextResponse.json({
         success: true,
+        cached,
         binanceRate: binanceResult.binanceRate,
         rawBinanceRate: binanceResult.rawBinanceRate,
         binanceSource: binanceResult.binanceSource,
@@ -271,7 +354,7 @@ export async function GET(request: Request) {
     }
 
     if (only === 'bcv') {
-      const bcvResult = await fetchBcvRate();
+      const { result: bcvResult, cached } = await getCachedBcvRate(force);
       if (!bcvResult) {
         return NextResponse.json(
           { success: false, error: 'No se pudo obtener la tasa oficial del BCV' },
@@ -280,6 +363,7 @@ export async function GET(request: Request) {
       }
       return NextResponse.json({
         success: true,
+        cached,
         rate: bcvResult.rate,
         rawRate: bcvResult.rawRate,
         rawRateString: bcvResult.rawRateString ?? null,
@@ -289,10 +373,11 @@ export async function GET(request: Request) {
       });
     }
 
-    const [bcvResult, binanceResult] = await Promise.all([
-      fetchBcvRate(),
-      fetchBinanceRate(),
-    ]);
+    const [{ result: bcvResult, cached: bcvCached }, { result: binanceResult, cached: binanceCached }] =
+      await Promise.all([
+        getCachedBcvRate(force),
+        getCachedBinanceRate(force),
+      ]);
 
     if (!bcvResult && !binanceResult) {
       return NextResponse.json(
@@ -303,6 +388,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
+      cached: bcvCached && binanceCached,
       rate: bcvResult?.rate ?? null,
       rawRate: bcvResult?.rawRate ?? null,
       rawRateString: bcvResult?.rawRateString ?? null,

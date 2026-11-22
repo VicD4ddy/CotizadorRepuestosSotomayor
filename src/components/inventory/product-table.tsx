@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import {
   useReactTable,
   getCoreRowModel,
@@ -23,13 +24,25 @@ import trash2 from 'react-useanimations/lib/trash2';
 import filter from 'react-useanimations/lib/filter';
 import clock from 'react-useanimations/lib/clock';
 import plusCircle from 'react-useanimations/lib/plusCircle';
-import { ProductFormDialog } from './product-form-dialog';
-import { ProductHistoryDialog } from './product-history-dialog';
-import { ImageGalleryDialog } from './image-gallery-dialog';
-import { BulkMinStockDialog } from './bulk-min-stock-dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { generatePhysicalAuditReportPDF } from '@/lib/generate-stock-reports-pdf';
+
+const ProductFormDialog = dynamic(
+  () => import('./product-form-dialog').then((m) => m.ProductFormDialog),
+  { ssr: false }
+);
+const ProductHistoryDialog = dynamic(
+  () => import('./product-history-dialog').then((m) => m.ProductHistoryDialog),
+  { ssr: false }
+);
+const ImageGalleryDialog = dynamic(
+  () => import('./image-gallery-dialog').then((m) => m.ImageGalleryDialog),
+  { ssr: false }
+);
+const BulkMinStockDialog = dynamic(
+  () => import('./bulk-min-stock-dialog').then((m) => m.BulkMinStockDialog),
+  { ssr: false }
+);
 
 const columnHelper = createColumnHelper<Product>();
 
@@ -121,22 +134,42 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
 
   // Alert stats for Min Stock View (Solo repuestos con precio asignado)
   const alertStats = useMemo(() => {
-    const validProducts = products.filter((p) => (p.price_usd ?? 0) > 0);
-    const configured = validProducts.filter((p) => getEffectiveMinStock(p).min > 0);
-    const inAlert = configured.filter((p) => (p.stock ?? 0) <= getEffectiveMinStock(p).min);
-    const outOfStock = configured.filter((p) => (p.stock ?? 0) <= 0);
-    const lowStock = configured.filter((p) => {
+    if (!isMinStockAlert) {
+      return {
+        configuredCount: 0,
+        inAlertCount: 0,
+        outOfStockCount: 0,
+        lowStockCount: 0,
+      };
+    }
+
+    let configuredCount = 0;
+    let inAlertCount = 0;
+    let outOfStockCount = 0;
+    let lowStockCount = 0;
+
+    for (const p of products) {
+      if ((p.price_usd ?? 0) <= 0) continue;
       const min = getEffectiveMinStock(p).min;
-      return (p.stock ?? 0) > 0 && (p.stock ?? 0) <= min;
-    });
+      if (min <= 0) continue;
+      configuredCount += 1;
+      const stock = p.stock ?? 0;
+      if (stock <= 0) {
+        outOfStockCount += 1;
+        inAlertCount += 1;
+      } else if (stock <= min) {
+        lowStockCount += 1;
+        inAlertCount += 1;
+      }
+    }
 
     return {
-      configuredCount: configured.length,
-      inAlertCount: inAlert.length,
-      outOfStockCount: outOfStock.length,
-      lowStockCount: lowStock.length,
+      configuredCount,
+      inAlertCount,
+      outOfStockCount,
+      lowStockCount,
     };
-  }, [products, getEffectiveMinStock]);
+  }, [isMinStockAlert, products, getEffectiveMinStock]);
 
   // Base products filtered by section if isMiscellaneous or isMinStockAlert is active
   const targetProducts = useMemo(() => {
@@ -203,21 +236,33 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
     return () => window.removeEventListener('global-search', handler);
   }, []);
 
-  // Fuzzy search
+  // Fuzzy search (initialized lazily only when search query is non-empty)
+  const hasSearchQuery = searchQuery.trim().length > 0;
   const fuse = useMemo(
     () =>
-      new Fuse(targetProducts, {
-        keys: ['code', 'name', 'description'],
-        threshold: 0.3,
-        includeScore: true,
-      }),
-    [targetProducts]
+      hasSearchQuery
+        ? new Fuse(targetProducts, {
+            keys: ['code', 'name', 'description'],
+            threshold: 0.3,
+            includeScore: true,
+          })
+        : null,
+    [targetProducts, hasSearchQuery]
   );
 
-  const isFiltering = searchQuery || categoryFilter !== 'all' || brandFilter !== 'all' || stockFilter !== 'all' || webStatusFilter !== 'all' || priceFilter !== 'all' || imageFilter !== 'all' || recentsOnly;
+  const isFiltering =
+    searchQuery ||
+    categoryFilter !== 'all' ||
+    brandFilter !== 'all' ||
+    stockFilter !== 'all' ||
+    webStatusFilter !== 'all' ||
+    wholesaleFilter !== 'all' ||
+    priceFilter !== 'all' ||
+    imageFilter !== 'all' ||
+    recentsOnly;
 
   const filteredProducts = useMemo(() => {
-    let result = searchQuery
+    let result = searchQuery && fuse
       ? fuse.search(searchQuery).map((r) => r.item)
       : targetProducts;
 
@@ -271,7 +316,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
     }
 
     return result;
-  }, [products, searchQuery, categoryFilter, brandFilter, stockFilter, webStatusFilter, priceFilter, imageFilter, recentsOnly, fuse]);
+  }, [targetProducts, searchQuery, categoryFilter, brandFilter, stockFilter, webStatusFilter, wholesaleFilter, priceFilter, imageFilter, recentsOnly, fuse, getEffectiveMinStock]);
 
   const [isMobile, setIsMobile] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -395,6 +440,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
     }
     setIsGeneratingReport(true);
     try {
+      const { generatePhysicalAuditReportPDF } = await import('@/lib/generate-stock-reports-pdf');
       await generatePhysicalAuditReportPDF({
         products: target,
         filterTitle,
@@ -1386,29 +1432,37 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
       </div>
 
       {/* Product Edit Dialog */}
-      <ProductFormDialog 
-        open={isDialogOpen} 
-        onOpenChange={setIsDialogOpen} 
-        product={selectedProduct}
-        defaultCategoryId={isMiscellaneous ? (miscCategoryIds[0] || 'd5ee462b-e3a2-4f6c-94f1-529ac9686fa6') : undefined}
-      />
+      {isDialogOpen && (
+        <ProductFormDialog 
+          open={isDialogOpen} 
+          onOpenChange={setIsDialogOpen} 
+          product={selectedProduct}
+          defaultCategoryId={isMiscellaneous ? (miscCategoryIds[0] || 'd5ee462b-e3a2-4f6c-94f1-529ac9686fa6') : undefined}
+        />
+      )}
 
-      <ProductHistoryDialog
-        open={isHistoryOpen}
-        onOpenChange={setIsHistoryOpen}
-        product={productForHistory}
-      />
+      {isHistoryOpen && (
+        <ProductHistoryDialog
+          open={isHistoryOpen}
+          onOpenChange={setIsHistoryOpen}
+          product={productForHistory}
+        />
+      )}
 
-      <ImageGalleryDialog
-        open={!!galleryProduct}
-        onOpenChange={(open) => !open && setGalleryProduct(null)}
-        product={galleryProduct}
-      />
+      {!!galleryProduct && (
+        <ImageGalleryDialog
+          open={!!galleryProduct}
+          onOpenChange={(open) => !open && setGalleryProduct(null)}
+          product={galleryProduct}
+        />
+      )}
 
-      <BulkMinStockDialog
-        open={isBulkMinStockOpen}
-        onOpenChange={setIsBulkMinStockOpen}
-      />
+      {isBulkMinStockOpen && (
+        <BulkMinStockDialog
+          open={isBulkMinStockOpen}
+          onOpenChange={setIsBulkMinStockOpen}
+        />
+      )}
     </div>
   );
 }

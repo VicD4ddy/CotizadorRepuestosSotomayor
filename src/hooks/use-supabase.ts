@@ -456,19 +456,58 @@ export function useDeleteCategory() {
   });
 }
 
-// ========== Settings (BCV Rate) ==========
+// ========== Settings (Unified Single Query + Selector Hooks) ==========
+export const APP_SETTINGS_QUERY_KEY = ['app_settings'] as const;
+
+async function fetchAppSettingsMap(): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from('settings')
+    .select('key, value');
+  if (error) throw error;
+
+  const map: Record<string, number> = {};
+  for (const row of data || []) {
+    if (row.key) {
+      const parsed = Number(row.value);
+      if (!Number.isNaN(parsed)) {
+        map[row.key] = parsed;
+      }
+    }
+  }
+
+  // Si aún no existe binance_rate en settings, consultar en tiempo real desde la API y persistir
+  if (!map.binance_rate || map.binance_rate <= 0) {
+    try {
+      const res = await fetch('/api/bcv-rate?only=binance', { cache: 'no-store' });
+      const apiData = await res.json();
+      if (apiData?.success && typeof apiData.binanceRate === 'number' && apiData.binanceRate > 0) {
+        await supabase
+          .from('settings')
+          .upsert({ key: 'binance_rate', value: apiData.binanceRate, updated_at: new Date().toISOString() });
+        map.binance_rate = Number(apiData.binanceRate);
+      }
+    } catch {
+      // Ignorar fallo de red inicial
+    }
+  }
+
+  return map;
+}
+
+export function useAppSettings() {
+  return useQuery<Record<string, number>>({
+    queryKey: APP_SETTINGS_QUERY_KEY,
+    queryFn: fetchAppSettingsMap,
+    staleTime: 60 * 1000,
+  });
+}
+
 export function useBcvRate() {
-  return useQuery<number>({
-    queryKey: ['bcv_rate'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'bcv_rate')
-        .single();
-      if (error) throw error;
-      return Number(data.value);
-    },
+  return useQuery<Record<string, number>, Error, number>({
+    queryKey: APP_SETTINGS_QUERY_KEY,
+    queryFn: fetchAppSettingsMap,
+    staleTime: 60 * 1000,
+    select: (map) => map.bcv_rate ?? 0,
   });
 }
 
@@ -483,39 +522,22 @@ export function useUpdateBcvRate() {
       if (error) throw error;
       return newRate;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bcv_rate'] });
+    onSuccess: (newRate) => {
+      queryClient.setQueryData<Record<string, number>>(APP_SETTINGS_QUERY_KEY, (prev) => ({
+        ...(prev ?? {}),
+        bcv_rate: newRate,
+      }));
+      queryClient.invalidateQueries({ queryKey: APP_SETTINGS_QUERY_KEY });
     },
   });
 }
 
 export function useBinanceRate() {
-  return useQuery<number>({
-    queryKey: ['binance_rate'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'binance_rate')
-        .maybeSingle();
-      if (!error && data && Number(data.value) > 0) {
-        return Number(data.value);
-      }
-      // Si aún no existe en settings, consultar en tiempo real desde la API y persistir
-      try {
-        const res = await fetch('/api/bcv-rate', { cache: 'no-store' });
-        const apiData = await res.json();
-        if (apiData?.success && typeof apiData.binanceRate === 'number' && apiData.binanceRate > 0) {
-          await supabase
-            .from('settings')
-            .upsert({ key: 'binance_rate', value: apiData.binanceRate, updated_at: new Date().toISOString() });
-          return Number(apiData.binanceRate);
-        }
-      } catch {
-        // Ignorar fallo de red inicial
-      }
-      return 0;
-    },
+  return useQuery<Record<string, number>, Error, number>({
+    queryKey: APP_SETTINGS_QUERY_KEY,
+    queryFn: fetchAppSettingsMap,
+    staleTime: 60 * 1000,
+    select: (map) => map.binance_rate ?? 0,
   });
 }
 
@@ -529,25 +551,22 @@ export function useUpdateBinanceRate() {
       if (error) throw error;
       return newRate;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['binance_rate'] });
+    onSuccess: (newRate) => {
+      queryClient.setQueryData<Record<string, number>>(APP_SETTINGS_QUERY_KEY, (prev) => ({
+        ...(prev ?? {}),
+        binance_rate: newRate,
+      }));
+      queryClient.invalidateQueries({ queryKey: APP_SETTINGS_QUERY_KEY });
     },
   });
 }
 
 export function useMarginPercentage() {
-  return useQuery<number>({
-    queryKey: ['margin_percentage'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'margin_percentage')
-        .single();
-      // If error (not found), return default 40
-      if (error) return 40;
-      return Number(data.value);
-    },
+  return useQuery<Record<string, number>, Error, number>({
+    queryKey: APP_SETTINGS_QUERY_KEY,
+    queryFn: fetchAppSettingsMap,
+    staleTime: 60 * 1000,
+    select: (map) => map.margin_percentage ?? 40,
   });
 }
 
@@ -561,24 +580,22 @@ export function useUpdateMarginPercentage() {
       if (error) throw error;
       return newMargin;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['margin_percentage'] });
+    onSuccess: (newMargin) => {
+      queryClient.setQueryData<Record<string, number>>(APP_SETTINGS_QUERY_KEY, (prev) => ({
+        ...(prev ?? {}),
+        margin_percentage: newMargin,
+      }));
+      queryClient.invalidateQueries({ queryKey: APP_SETTINGS_QUERY_KEY });
     },
   });
 }
 
 export function useBcvMultiplier() {
-  return useQuery<number>({
-    queryKey: ['bcv_multiplier'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'bcv_multiplier')
-        .single();
-      if (error) return 1.40;
-      return Number(data.value);
-    },
+  return useQuery<Record<string, number>, Error, number>({
+    queryKey: APP_SETTINGS_QUERY_KEY,
+    queryFn: fetchAppSettingsMap,
+    staleTime: 60 * 1000,
+    select: (map) => map.bcv_multiplier ?? 1.40,
   });
 }
 
@@ -592,24 +609,22 @@ export function useUpdateBcvMultiplier() {
       if (error) throw error;
       return newMultiplier;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bcv_multiplier'] });
+    onSuccess: (newMultiplier) => {
+      queryClient.setQueryData<Record<string, number>>(APP_SETTINGS_QUERY_KEY, (prev) => ({
+        ...(prev ?? {}),
+        bcv_multiplier: newMultiplier,
+      }));
+      queryClient.invalidateQueries({ queryKey: APP_SETTINGS_QUERY_KEY });
     },
   });
 }
 
 export function useDefaultMinStock() {
-  return useQuery<number>({
-    queryKey: ['default_min_stock'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'default_min_stock')
-        .maybeSingle();
-      if (error || !data) return 0;
-      return Number(data.value);
-    },
+  return useQuery<Record<string, number>, Error, number>({
+    queryKey: APP_SETTINGS_QUERY_KEY,
+    queryFn: fetchAppSettingsMap,
+    staleTime: 60 * 1000,
+    select: (map) => map.default_min_stock ?? 0,
   });
 }
 
@@ -623,8 +638,12 @@ export function useUpdateDefaultMinStock() {
       if (error) throw error;
       return newValue;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['default_min_stock'] });
+    onSuccess: (newValue) => {
+      queryClient.setQueryData<Record<string, number>>(APP_SETTINGS_QUERY_KEY, (prev) => ({
+        ...(prev ?? {}),
+        default_min_stock: newValue,
+      }));
+      queryClient.invalidateQueries({ queryKey: APP_SETTINGS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ['products'] });
     },
   });
@@ -801,7 +820,7 @@ export function useUploadKitImage() {
 }
 
 // ========== Kits ==========
-export function useKits(category?: string) {
+export function useKits(category?: string, options?: { enabled?: boolean }) {
   return useQuery<any[]>({
     queryKey: ['kits', category],
     queryFn: async () => {
@@ -813,6 +832,7 @@ export function useKits(category?: string) {
       if (error) throw error;
       return data || [];
     },
+    enabled: options?.enabled ?? true,
   });
 }
 

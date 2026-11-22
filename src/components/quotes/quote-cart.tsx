@@ -21,16 +21,21 @@ import download from 'react-useanimations/lib/download';
 import user from 'react-useanimations/lib/user';
 import phone from 'react-useanimations/lib/phone';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
-import { QuoteSaveDialog } from './quote-save-dialog';
-import { SaveCartAsComboDialog } from './save-cart-as-combo-dialog';
 import { Input } from '@/components/ui/input';
-import { generateQuotePDF } from '@/lib/generate-quote-pdf';
-import { copyQuoteToClipboard } from '@/lib/capture-quote';
 import { Quote } from '@/types';
 import { sortQuoteItems } from '@/lib/tren-delantero';
-import { useMemo } from 'react';
+
+const QuoteSaveDialog = dynamic(
+  () => import('./quote-save-dialog').then((m) => m.QuoteSaveDialog),
+  { ssr: false }
+);
+const SaveCartAsComboDialog = dynamic(
+  () => import('./save-cart-as-combo-dialog').then((m) => m.SaveCartAsComboDialog),
+  { ssr: false }
+);
 
 interface QuoteCartProps {
   onCollapse?: () => void;
@@ -58,6 +63,10 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
   const [editPriceValue, setEditPriceValue] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const { data: products = [] } = useProducts();
+  const productsById = useMemo(
+    () => new Map(products.map((p) => [p.id, p])),
+    [products]
+  );
   const createQuote = useCreateQuote();
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
@@ -133,6 +142,11 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
       ];
       const randomPhrase = WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
 
+      const [{ generateQuotePDF }, { copyQuoteToClipboard }] = await Promise.all([
+        import('@/lib/generate-quote-pdf'),
+        import('@/lib/capture-quote'),
+      ]);
+
       try {
         await copyQuoteToClipboard(tempQuote, bcvMultiplier, bcvRate, randomPhrase, currency);
       } catch (err) {
@@ -188,6 +202,11 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
         "Ajustamos cada solución con la precisión que tu trabajo merece."
       ];
       const randomPhrase = WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
+
+      const [{ generateQuotePDF }, { copyQuoteToClipboard }] = await Promise.all([
+        import('@/lib/generate-quote-pdf'),
+        import('@/lib/capture-quote'),
+      ]);
 
       const { blob, fileName } = await generateQuotePDF({ quote: tempQuote, currency: 'both', bcvMultiplier, returnBlob: true, randomPhrase, bcvRate });
 
@@ -404,7 +423,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
         ) : (
           <div className="p-2.5 space-y-1.5">
             {sortedItems.map((item) => {
-              const dbProduct = products.find((p) => p.id === item.product_id);
+              const dbProduct = productsById.get(item.product_id);
               const activeStock = dbProduct ? (dbProduct.stock ?? 0) : (item.stock ?? 0);
               const itemPrice = paymentMethod === 'bs' ? calculateBcvPrice(item.unit_price_usd, bcvMultiplier, dbProduct?.categories?.name || item.product_name) : item.unit_price_usd;
               const itemBs = itemPrice * bcvRate;
@@ -599,8 +618,12 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
         </div>
       )}
 
-      <QuoteSaveDialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen} />
-      <SaveCartAsComboDialog open={isSaveComboOpen} onOpenChange={setIsSaveComboOpen} />
+      {isSaveDialogOpen && (
+        <QuoteSaveDialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen} />
+      )}
+      {isSaveComboOpen && (
+        <SaveCartAsComboDialog open={isSaveComboOpen} onOpenChange={setIsSaveComboOpen} />
+      )}
     </div>
   );
 }

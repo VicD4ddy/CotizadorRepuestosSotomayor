@@ -1,15 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ImportExcelDialog } from '@/components/settings/import-excel-dialog';
-import { ImportStockDialog } from '@/components/settings/import-stock-dialog';
-import { BulkMinStockDialog } from '@/components/inventory/bulk-min-stock-dialog';
+import dynamic from 'next/dynamic';
 import UseAnimations from 'react-useanimations';
 import download from 'react-useanimations/lib/download';
 import settings2 from 'react-useanimations/lib/settings2';
 import fileText from 'react-useanimations/lib/fileText';
 import save from 'react-useanimations/lib/save';
-import * as XLSX from 'xlsx';
+
+const ImportExcelDialog = dynamic(
+  () => import('@/components/settings/import-excel-dialog').then((m) => m.ImportExcelDialog),
+  { ssr: false }
+);
+const ImportStockDialog = dynamic(
+  () => import('@/components/settings/import-stock-dialog').then((m) => m.ImportStockDialog),
+  { ssr: false }
+);
+const BulkMinStockDialog = dynamic(
+  () => import('@/components/inventory/bulk-min-stock-dialog').then((m) => m.BulkMinStockDialog),
+  { ssr: false }
+);
 import {
   Dialog,
   DialogContent,
@@ -195,52 +205,57 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
               </Button>
               <Button
                 variant="outline"
-                onClick={() => {
-                  const XLSXStyle = require('xlsx-js-style');
-                  const headers = ['Codigo', 'Nombre', 'Costo'];
-                  const rows = [
-                    ['SKU-001', 'CONCHA BIELA FORD 300 (.010) SEALED POWER', 20],
-                    ['SKU-002', 'FILTRO ACEITE TOYOTA HILUX', 5.5],
-                  ];
+                onClick={async () => {
+                  try {
+                    const mod: any = await import('xlsx-js-style');
+                    const XLSXStyle = mod.default ?? mod;
+                    const headers = ['Codigo', 'Nombre', 'Costo'];
+                    const rows = [
+                      ['SKU-001', 'CONCHA BIELA FORD 300 (.010) SEALED POWER', 20],
+                      ['SKU-002', 'FILTRO ACEITE TOYOTA HILUX', 5.5],
+                    ];
 
-                  const wsData = [headers, ...rows];
-                  const ws = XLSXStyle.utils.aoa_to_sheet(wsData);
+                    const wsData = [headers, ...rows];
+                    const ws = XLSXStyle.utils.aoa_to_sheet(wsData);
 
-                  // Column widths
-                  ws['!cols'] = [{ wch: 18 }, { wch: 50 }, { wch: 14 }];
+                    // Column widths
+                    ws['!cols'] = [{ wch: 18 }, { wch: 50 }, { wch: 14 }];
 
-                  // Style header cells: bold white text on dark green background
-                  const headerStyle = {
-                    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
-                    fill: { fgColor: { rgb: '0F172A' } },
-                    alignment: { horizontal: 'center', vertical: 'center' },
-                    border: {
-                      bottom: { style: 'thin', color: { rgb: '10B981' } },
-                    },
-                  };
-                  headers.forEach((_, i) => {
-                    const cellRef = XLSXStyle.utils.encode_cell({ r: 0, c: i });
-                    if (ws[cellRef]) ws[cellRef].s = headerStyle;
-                  });
-
-                  // Style data cells: light alternating background
-                  rows.forEach((row, ri) => {
-                    const bgColor = ri % 2 === 0 ? 'F1F5F9' : 'FFFFFF';
-                    row.forEach((_, ci) => {
-                      const cellRef = XLSXStyle.utils.encode_cell({ r: ri + 1, c: ci });
-                      if (ws[cellRef]) {
-                        ws[cellRef].s = {
-                          fill: { fgColor: { rgb: bgColor } },
-                          font: { sz: 10 },
-                        };
-                      }
+                    // Style header cells: bold white text on dark green background
+                    const headerStyle = {
+                      font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+                      fill: { fgColor: { rgb: '0F172A' } },
+                      alignment: { horizontal: 'center', vertical: 'center' },
+                      border: {
+                        bottom: { style: 'thin', color: { rgb: '10B981' } },
+                      },
+                    };
+                    headers.forEach((_, i) => {
+                      const cellRef = XLSXStyle.utils.encode_cell({ r: 0, c: i });
+                      if (ws[cellRef]) ws[cellRef].s = headerStyle;
                     });
-                  });
 
-                  const wb = XLSXStyle.utils.book_new();
-                  XLSXStyle.utils.book_append_sheet(wb, ws, 'Plantilla');
-                  XLSXStyle.writeFile(wb, 'Plantilla_Inventario_Sotomayor.xlsx');
-                  toast.success('Plantilla descargada');
+                    // Style data cells: light alternating background
+                    rows.forEach((row, ri) => {
+                      const bgColor = ri % 2 === 0 ? 'F1F5F9' : 'FFFFFF';
+                      row.forEach((_, ci) => {
+                        const cellRef = XLSXStyle.utils.encode_cell({ r: ri + 1, c: ci });
+                        if (ws[cellRef]) {
+                          ws[cellRef].s = {
+                            fill: { fgColor: { rgb: bgColor } },
+                            font: { sz: 10 },
+                          };
+                        }
+                      });
+                    });
+
+                    const wb = XLSXStyle.utils.book_new();
+                    XLSXStyle.utils.book_append_sheet(wb, ws, 'Plantilla');
+                    XLSXStyle.writeFile(wb, 'Plantilla_Inventario_Sotomayor.xlsx');
+                    toast.success('Plantilla descargada');
+                  } catch {
+                    toast.error('Error al generar la plantilla');
+                  }
                 }}
                 className="col-span-2 gap-2 border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 h-10 text-[13px] justify-center"
               >
@@ -261,19 +276,25 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
           </Button>
         </div>
 
-        <ImportExcelDialog open={isImportOpen} onOpenChange={setIsImportOpen} onImportComplete={() => {
-          setIsImportOpen(false);
-          onOpenChange(false);
-          onImportComplete?.();
-        }} />
+        {isImportOpen && (
+          <ImportExcelDialog open={isImportOpen} onOpenChange={setIsImportOpen} onImportComplete={() => {
+            setIsImportOpen(false);
+            onOpenChange(false);
+            onImportComplete?.();
+          }} />
+        )}
 
-        <ImportStockDialog open={isImportStockOpen} onOpenChange={setIsImportStockOpen} onImportComplete={() => {
-          setIsImportStockOpen(false);
-          onOpenChange(false);
-          onImportComplete?.();
-        }} />
+        {isImportStockOpen && (
+          <ImportStockDialog open={isImportStockOpen} onOpenChange={setIsImportStockOpen} onImportComplete={() => {
+            setIsImportStockOpen(false);
+            onOpenChange(false);
+            onImportComplete?.();
+          }} />
+        )}
 
-        <BulkMinStockDialog open={isBulkMinStockOpen} onOpenChange={setIsBulkMinStockOpen} />
+        {isBulkMinStockOpen && (
+          <BulkMinStockDialog open={isBulkMinStockOpen} onOpenChange={setIsBulkMinStockOpen} />
+        )}
       </DialogContent>
     </Dialog>
   );

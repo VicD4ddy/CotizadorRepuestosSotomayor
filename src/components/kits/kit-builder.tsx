@@ -474,7 +474,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     if (confirm(`⚠️ ¡ATENCIÓN! ¿Estás seguro de ELIMINAR COMPLETAMENTE el repuesto "${product.name}" del sistema y del inventario general?\n\nEsta acción es irreversible y no se podrá deshacer.`)) {
       try {
         await deleteProduct.mutateAsync(product.id);
-        queryClient.invalidateQueries({ queryKey: ['kit-items', kit.id] });
+        queryClient.invalidateQueries({ queryKey: ['kit_items', kit.id] });
         queryClient.invalidateQueries({ queryKey: ['products'] });
         toast.success(`"${product.name}" eliminado del sistema exitosamente`);
       } catch (error: any) {
