@@ -242,7 +242,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
     () =>
       hasSearchQuery
         ? new Fuse(targetProducts, {
-            keys: ['code', 'name', 'description'],
+            keys: ['code', 'name'],
             threshold: 0.3,
             includeScore: true,
           })
@@ -334,15 +334,13 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
   }, []);
 
   useEffect(() => {
-    if (isMobile) {
-      setDisplayLimit(35);
-    }
+    setDisplayLimit(isMobile ? 35 : 100);
   }, [isMobile, searchQuery, categoryFilter, brandFilter, stockFilter, webStatusFilter, wholesaleFilter, priceFilter, imageFilter, recentsOnly, minStockSubFilter]);
 
-  // Limit displayed products: on mobile always paginate in batches of 35; on desktop show all when filtering or latest 100
+  // Limit displayed products in batches (35 mobile / 100 desktop) both unfiltered and filtered for instant DOM rendering
   const displayProducts = useMemo(() => {
     if (isFiltering) {
-      return isMobile ? filteredProducts.slice(0, displayLimit) : filteredProducts;
+      return filteredProducts.slice(0, displayLimit);
     }
     // Sort by most recently updated/created first for the default view
     const sorted = [...filteredProducts].sort((a, b) => {
@@ -351,11 +349,9 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
       return dateB.localeCompare(dateA);
     });
     return sorted.slice(0, displayLimit);
-  }, [filteredProducts, displayLimit, isFiltering, isMobile]);
+  }, [filteredProducts, displayLimit, isFiltering]);
 
-  const hasMore = isMobile
-    ? displayLimit < filteredProducts.length
-    : !isFiltering && displayLimit < filteredProducts.length;
+  const hasMore = displayLimit < filteredProducts.length;
   const remainingCount = filteredProducts.length - displayLimit;
 
   // Infinite scroll observer for Mobile
@@ -1398,12 +1394,18 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
 
         {/* Load more button & Infinite Scroll Sentinel */}
         {hasMore && (
-          <div ref={loadMoreRef} className="flex items-center justify-center py-4 bg-white border-t border-slate-100 pb-[140px] md:pb-4">
+          <div ref={loadMoreRef} className="flex flex-wrap items-center justify-center gap-2 py-4 bg-white border-t border-slate-100 pb-[140px] md:pb-4">
             <button
               onClick={() => setDisplayLimit((prev) => prev + (isMobile ? 35 : 100))}
-              className="px-5 py-2 text-[13px] font-medium font-mono tabular-nums text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+              className="px-5 py-2 text-[13px] font-medium font-mono tabular-nums text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
             >
               Cargar {Math.min(remainingCount, isMobile ? 35 : 100)} más de {remainingCount} restantes
+            </button>
+            <button
+              onClick={() => setDisplayLimit(filteredProducts.length)}
+              className="hidden md:inline-flex px-4 py-2 text-[13px] font-medium font-mono tabular-nums text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+            >
+              Ver todos ({filteredProducts.length})
             </button>
           </div>
         )}

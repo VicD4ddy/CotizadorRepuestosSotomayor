@@ -8,6 +8,7 @@ import { productSchema, ProductFormValues } from '@/lib/schemas';
 import {
   useUpdateProduct,
   useCreateProduct,
+  useProductById,
   useUploadImage,
   useCategories,
   useBrands,
@@ -45,6 +46,10 @@ interface ProductFormDialogProps {
 
 export function ProductFormDialog({ open, onOpenChange, product, initialCompatibleKitId, defaultCategoryId }: ProductFormDialogProps) {
   const isEditing = !!product;
+  const { data: fullProduct, isLoading: isLoadingDetail } = useProductById(product?.id, open && isEditing);
+  const activeProduct = fullProduct ?? product;
+  const isWaitingForDetail = isEditing && isLoadingDetail && !fullProduct;
+  const hydratedKeyRef = useRef<string | null>(null);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
@@ -115,60 +120,70 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
 
 
   useEffect(() => {
-    if (open) {
-      if (product) {
-        const syncedImageUrls = (product.image_urls && product.image_urls.length > 0)
-          ? product.image_urls
-          : (product.image_url ? [product.image_url] : []);
-        const syncedMainUrl = product.image_url || (syncedImageUrls.length > 0 ? syncedImageUrls[0] : '');
-
-        reset({
-          code: product.code,
-          name: product.name,
-          description: product.description,
-          category_id: product.category_id || '',
-          brand_id: product.brand_id || '',
-          cost: product.cost,
-          price_usd: product.price_usd,
-          image_url: syncedMainUrl,
-          image_urls: syncedImageUrls,
-          location: product.location || '',
-          fitment: product.fitment || [],
-          compatible_kits: product.kit_items?.map(k => k.kit_id) || [],
-          stock: product.stock || 0,
-          min_stock: product.min_stock ?? 0,
-          is_active: product.is_active === true,
-          is_wholesale: product.is_wholesale === true,
-        });
-        setPreviewUrl(syncedMainUrl);
-      } else {
-        reset({
-          code: '',
-          name: '',
-          description: '',
-          category_id: defaultCategoryId || '',
-          brand_id: '',
-          cost: 0,
-          price_usd: 0,
-          image_url: '',
-          image_urls: [],
-          location: '',
-          fitment: [],
-          compatible_kits: initialCompatibleKitId ? [initialCompatibleKitId] : [],
-          stock: 0,
-          min_stock: 0,
-          is_active: false,
-          is_wholesale: false,
-        });
-        setPreviewUrl('');
-      }
-      setFitmentInput({ make: '', model: '', year: '' });
-      setImageSearchResults([]);
-      setIsStandardizing(false);
-      setIsGeneratingDesc(false);
-      setIsSearchingImages(false);
+    if (!open) {
+      hydratedKeyRef.current = null;
+      return;
     }
-  }, [open, product, reset, initialCompatibleKitId]);
+
+    if (isEditing && product) {
+      const source = fullProduct ?? product;
+      const nextKey = fullProduct ? `full:${fullProduct.id}` : `base:${product.id}`;
+      if (hydratedKeyRef.current === nextKey) return;
+      hydratedKeyRef.current = nextKey;
+
+      const syncedImageUrls = (source.image_urls && source.image_urls.length > 0)
+        ? source.image_urls
+        : (source.image_url ? [source.image_url] : []);
+      const syncedMainUrl = source.image_url || (syncedImageUrls.length > 0 ? syncedImageUrls[0] : '');
+
+      reset({
+        code: source.code,
+        name: source.name,
+        description: source.description || '',
+        category_id: source.category_id || '',
+        brand_id: source.brand_id || '',
+        cost: source.cost,
+        price_usd: source.price_usd,
+        image_url: syncedMainUrl,
+        image_urls: syncedImageUrls,
+        location: source.location || '',
+        fitment: source.fitment || [],
+        compatible_kits: source.kit_items?.map(k => k.kit_id) || [],
+        stock: source.stock || 0,
+        min_stock: source.min_stock ?? 0,
+        is_active: source.is_active === true,
+        is_wholesale: source.is_wholesale === true,
+      });
+      setPreviewUrl(syncedMainUrl);
+    } else if (!isEditing) {
+      if (hydratedKeyRef.current === 'new') return;
+      hydratedKeyRef.current = 'new';
+      reset({
+        code: '',
+        name: '',
+        description: '',
+        category_id: defaultCategoryId || '',
+        brand_id: '',
+        cost: 0,
+        price_usd: 0,
+        image_url: '',
+        image_urls: [],
+        location: '',
+        fitment: [],
+        compatible_kits: initialCompatibleKitId ? [initialCompatibleKitId] : [],
+        stock: 0,
+        min_stock: 0,
+        is_active: false,
+        is_wholesale: false,
+      });
+      setPreviewUrl('');
+    }
+    setFitmentInput({ make: '', model: '', year: '' });
+    setImageSearchResults([]);
+    setIsStandardizing(false);
+    setIsGeneratingDesc(false);
+    setIsSearchingImages(false);
+  }, [open, isEditing, product, fullProduct, reset, initialCompatibleKitId, defaultCategoryId]);
 
   const watchCost = watch('cost');
   const watchPriceUsd = watch('price_usd');
@@ -678,7 +693,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
 
       if (isEditing && product) {
         // Bloquear modificación de mayorista desde el cotizador
-        productData.is_wholesale = product.is_wholesale ?? false;
+        productData.is_wholesale = activeProduct?.is_wholesale ?? false;
         await updateProduct.mutateAsync({ id: product.id, ...productData, compatible_kits });
         toast.success('Producto actualizado exitosamente');
       } else {
@@ -736,9 +751,9 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="border-slate-300 text-slate-700 font-medium px-3 text-[12px] cursor-pointer">
               Cancelar
             </Button>
-            <Button size="sm" onClick={handleSubmit(onSubmit)} disabled={isLoading} className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 gap-1.5 text-[12px] cursor-pointer">
+            <Button size="sm" onClick={handleSubmit(onSubmit)} disabled={isLoading || isWaitingForDetail} className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 gap-1.5 text-[12px] cursor-pointer">
               <UseAnimations animation={save} size={15} strokeColor="#ffffff" interaction="hover-replay" />
-              {isLoading ? 'Guardando...' : 'Guardar'}
+              {isLoading ? 'Guardando...' : isWaitingForDetail ? 'Cargando...' : 'Guardar'}
             </Button>
           </div>
         </div>
@@ -1378,15 +1393,15 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                         />
                       </div>
 
-                      {watch('is_wholesale') && product && (product.wholesale_stock != null || product.wholesale_price != null) && (
+                      {watch('is_wholesale') && activeProduct && (activeProduct.wholesale_stock != null || activeProduct.wholesale_price != null) && (
                         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-blue-50/70 border border-blue-200/80 text-[11px] text-blue-900">
                           <span className="text-blue-700 font-medium">Canal Mayorista:</span>
                           <div className="flex items-center gap-3">
-                            {product.wholesale_stock != null && (
-                              <span>Stock: <strong>{product.wholesale_stock} unid.</strong></span>
+                            {activeProduct.wholesale_stock != null && (
+                              <span>Stock: <strong>{activeProduct.wholesale_stock} unid.</strong></span>
                             )}
-                            {product.wholesale_price != null && (
-                              <span>Precio: <strong>${Number(product.wholesale_price).toFixed(2)}</strong></span>
+                            {activeProduct.wholesale_price != null && (
+                              <span>Precio: <strong>${Number(activeProduct.wholesale_price).toFixed(2)}</strong></span>
                             )}
                           </div>
                         </div>

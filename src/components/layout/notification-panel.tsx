@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { ImageOff, FileText, DollarSign, Tag, AlertTriangle, X, ChevronRight, ArrowLeft, Unlink, Sparkles, PackageX } from 'lucide-react';
 import UseAnimations from 'react-useanimations';
 import notification from 'react-useanimations/lib/notification';
-import { useProducts, useKits, useDefaultMinStock } from '@/hooks/use-supabase';
+import { useProducts, useKits, useDefaultMinStock, useProductsWithoutDescription } from '@/hooks/use-supabase';
 import { Product, Kit } from '@/types';
 
 interface NotificationItem {
@@ -23,6 +23,7 @@ export function NotificationPanel() {
   const panelRef = useRef<HTMLDivElement>(null);
   const { data: products = [] } = useProducts();
   const { data: kits = [] } = useKits(undefined, { enabled: isOpen });
+  const { data: noDescription = [] } = useProductsWithoutDescription(isOpen);
   const { data: defaultMinStock = 0 } = useDefaultMinStock();
 
   // Find products that have suggested kits that have not been selected (deferred until panel opens)
@@ -96,7 +97,6 @@ export function NotificationPanel() {
   // Single-pass memoized product alert classification
   const productAlerts = useMemo(() => {
     const noImage: Product[] = [];
-    const noDescription: Product[] = [];
     const zeroCost: Product[] = [];
     const zeroPrice: Product[] = [];
     const noCategory: Product[] = [];
@@ -108,7 +108,6 @@ export function NotificationPanel() {
 
     for (const p of products) {
       if (!p.image_url && (!p.image_urls || p.image_urls.length === 0)) noImage.push(p);
-      if (!p.description || p.description.trim().length < 5) noDescription.push(p);
       if (!p.cost || p.cost === 0) zeroCost.push(p);
       if (!p.price_usd || p.price_usd === 0) zeroPrice.push(p);
       if (!p.category_id) noCategory.push(p);
@@ -130,7 +129,6 @@ export function NotificationPanel() {
 
     return {
       noImage,
-      noDescription,
       zeroCost,
       zeroPrice,
       noCategory,
@@ -146,7 +144,6 @@ export function NotificationPanel() {
     const items: NotificationItem[] = [];
     const {
       noImage,
-      noDescription,
       zeroCost,
       zeroPrice,
       noCategory,
@@ -287,7 +284,7 @@ export function NotificationPanel() {
     }
 
     return { notifications: items, totalAlerts: total, criticalCount: critical };
-  }, [productAlerts, suggestedNotSelected]);
+  }, [productAlerts, suggestedNotSelected, noDescription]);
 
   const handleToggle = () => {
     setIsOpen(!isOpen);

@@ -17,9 +17,36 @@ async function logAuditAction(entry: Omit<AuditLogEntry, 'id' | 'created_at'> | 
 }
 
 // ========== Products ==========
+const PRODUCT_LIST_SELECT =
+  'id, code, name, category_id, brand_id, cost, price_usd, image_url, stock, min_stock, is_active, is_wholesale, created_at, updated_at, categories(id, name, section), brands(id, name, logo_url), kit_items(kit_id)';
+
+function toListProduct(row: any): Product {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    category_id: row.category_id ?? null,
+    brand_id: row.brand_id ?? null,
+    cost: row.cost ?? 0,
+    price_usd: row.price_usd ?? 0,
+    image_url: row.image_url,
+    stock: row.stock,
+    min_stock: row.min_stock,
+    is_active: row.is_active,
+    is_wholesale: row.is_wholesale,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    categories: row.categories,
+    brands: row.brands,
+    kit_items: row.kit_items,
+  };
+}
+
 export function useProducts() {
   return useQuery<Product[]>({
     queryKey: ['products'],
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const allProducts: Product[] = [];
       const pageSize = 1000;
@@ -29,12 +56,12 @@ export function useProducts() {
       while (hasMore) {
         const { data, error } = await supabase
           .from('products')
-          .select('*, categories(*), brands(*), kit_items(kit_id)')
+          .select(PRODUCT_LIST_SELECT)
           .order('code', { ascending: true })
           .range(from, from + pageSize - 1);
         if (error) throw error;
         if (data && data.length > 0) {
-          allProducts.push(...data);
+          allProducts.push(...(data as unknown as Product[]));
           from += pageSize;
           hasMore = data.length === pageSize;
         } else {
@@ -44,6 +71,41 @@ export function useProducts() {
 
       return allProducts;
     },
+  });
+}
+
+export function useProductById(productId?: string | null, enabled = true) {
+  return useQuery<Product>({
+    queryKey: ['product_detail', productId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*, categories(*), brands(*), kit_items(kit_id)')
+        .eq('id', productId!)
+        .single();
+      if (error) throw error;
+      return data as Product;
+    },
+    enabled: Boolean(enabled && productId),
+    staleTime: 0,
+  });
+}
+
+export function useProductsWithoutDescription(enabled: boolean) {
+  return useQuery<Product[]>({
+    queryKey: ['products_without_description'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, code, name, cost, price_usd, stock, min_stock, description')
+        .or('description.is.null,description.eq.');
+      if (error) throw error;
+      return ((data || []) as Product[]).filter(
+        (p) => !p.description || p.description.trim().length < 5
+      );
+    },
+    enabled,
+    staleTime: 60 * 1000,
   });
 }
 
@@ -92,17 +154,28 @@ export function useUpdateProduct() {
         const removedKitIds = prevKitIds.filter((kId: string) => !newKitIds.includes(kId));
         const addedKitIds = newKitIds.filter((kId: string) => !prevKitIds.includes(kId));
 
-        // Sync kits: delete all current
-        await supabase.from('kit_items').delete().eq('product_id', id);
-        // Insert new ones
-        if (newKitIds.length > 0) {
-          const insertData = newKitIds.map((kitId: string) => ({
+        // Sync kits safely via diff: delete only removed links and insert only newly added links
+        if (removedKitIds.length > 0) {
+          const { error: delKitError } = await supabase
+            .from('kit_items')
+            .delete()
+            .eq('product_id', id)
+            .in('kit_id', removedKitIds);
+          if (delKitError) throw delKitError;
+        }
+        if (addedKitIds.length > 0) {
+          const insertData = addedKitIds.map((kitId: string) => ({
             kit_id: kitId,
             product_id: id,
             quantity: 1,
           }));
-          await supabase.from('kit_items').insert(insertData);
+          const { error: insKitError } = await supabase.from('kit_items').insert(insertData);
+          if (insKitError) throw insKitError;
         }
+        data = {
+          ...data,
+          kit_items: newKitIds.map((kit_id) => ({ kit_id })),
+        };
 
         // Audit removed kit connections
         if (removedKitIds.length > 0) {
@@ -162,11 +235,23 @@ export function useUpdateProduct() {
 
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['kits'] });
+    onSuccess: (updatedProduct, variables) => {
+      queryClient.setQueryData<Product[]>(['products'], (prev) =>
+        prev
+          ? prev.map((p) =>
+              p.id === updatedProduct.id ? { ...p, ...toListProduct(updatedProduct) } : p
+            )
+          : prev
+      );
+      queryClient.setQueryData<Product>(['product_detail', updatedProduct.id], updatedProduct as Product);
+      if (variables.description !== undefined) {
+        queryClient.invalidateQueries({ queryKey: ['products_without_description'] });
+      }
+      if (variables.compatible_kits !== undefined) {
+        queryClient.invalidateQueries({ queryKey: ['kits'] });
+        queryClient.invalidateQueries({ queryKey: ['audit_history'] });
+      }
       queryClient.invalidateQueries({ queryKey: ['kit_items'] });
-      queryClient.invalidateQueries({ queryKey: ['audit_history'] });
     },
   });
 }
@@ -202,6 +287,10 @@ export function useCreateProduct() {
           quantity: 1,
         }));
         await supabase.from('kit_items').insert(insertData);
+        data = {
+          ...data,
+          kit_items: uniqueKitIds.map((kit_id) => ({ kit_id })),
+        };
 
         // Fetch kit names for audit logging
         try {
@@ -234,15 +323,22 @@ export function useCreateProduct() {
         } catch (e) {
           console.warn('Error auditing kit additions on product create:', e);
         }
+      } else {
+        data = { ...data, kit_items: [] };
       }
 
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['kits'] });
-      queryClient.invalidateQueries({ queryKey: ['kit_items'] });
-      queryClient.invalidateQueries({ queryKey: ['audit_history'] });
+    onSuccess: (createdProduct, variables) => {
+      queryClient.setQueryData<Product[]>(['products'], (prev) =>
+        prev ? [...prev, toListProduct(createdProduct)] : prev
+      );
+      queryClient.invalidateQueries({ queryKey: ['products_without_description'] });
+      if (variables.compatible_kits && variables.compatible_kits.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ['kits'] });
+        queryClient.invalidateQueries({ queryKey: ['kit_items'] });
+        queryClient.invalidateQueries({ queryKey: ['audit_history'] });
+      }
     },
   });
 }
@@ -288,8 +384,12 @@ export function useDeleteProduct() {
       if (error) throw error;
       return id;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+    onSuccess: (deletedId) => {
+      queryClient.setQueryData<Product[]>(['products'], (prev) =>
+        prev ? prev.filter((p) => p.id !== deletedId) : prev
+      );
+      queryClient.removeQueries({ queryKey: ['product_detail', deletedId] });
+      queryClient.invalidateQueries({ queryKey: ['products_without_description'] });
       queryClient.invalidateQueries({ queryKey: ['kits'] });
       queryClient.invalidateQueries({ queryKey: ['kit_items'] });
       queryClient.invalidateQueries({ queryKey: ['audit_history'] });
@@ -340,11 +440,61 @@ export function useBulkDeleteProducts() {
       if (error) throw error;
       return ids;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+    onSuccess: (deletedIds) => {
+      const deletedSet = new Set(deletedIds);
+      queryClient.setQueryData<Product[]>(['products'], (prev) =>
+        prev ? prev.filter((p) => !deletedSet.has(p.id)) : prev
+      );
+      deletedIds.forEach((id) => {
+        queryClient.removeQueries({ queryKey: ['product_detail', id] });
+      });
+      queryClient.invalidateQueries({ queryKey: ['products_without_description'] });
       queryClient.invalidateQueries({ queryKey: ['kits'] });
       queryClient.invalidateQueries({ queryKey: ['kit_items'] });
       queryClient.invalidateQueries({ queryKey: ['audit_history'] });
+    },
+  });
+}
+
+export function useBulkUpdateProductsActive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      ids,
+      is_active,
+    }: {
+      ids: string[];
+      is_active: boolean;
+      kitId?: string;
+    }) => {
+      if (ids.length === 0) return [];
+      const { error } = await supabase
+        .from('products')
+        .update({ is_active, updated_at: new Date().toISOString() })
+        .in('id', ids);
+      if (error) throw error;
+      return ids;
+    },
+    onSuccess: (updatedIds, variables) => {
+      const idSet = new Set(updatedIds);
+      const nowIso = new Date().toISOString();
+      queryClient.setQueryData<Product[]>(['products'], (prev) =>
+        prev
+          ? prev.map((p) =>
+              idSet.has(p.id)
+                ? { ...p, is_active: variables.is_active, updated_at: nowIso }
+                : p
+            )
+          : prev
+      );
+      updatedIds.forEach((id) => {
+        queryClient.invalidateQueries({ queryKey: ['product_detail', id] });
+      });
+      if (variables.kitId) {
+        queryClient.invalidateQueries({ queryKey: ['kit_items', variables.kitId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['kit_items'] });
+      }
     },
   });
 }
@@ -1255,9 +1405,6 @@ export function useAuditHistory(limit = 100) {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const cutoff = thirtyDaysAgo.toISOString();
-
-      // Trigger non-blocking background cleanup of records older than 30 days
-      supabase.from('inventory_audit_log').delete().lt('created_at', cutoff).then(() => {});
 
       const { data, error } = await supabase
         .from('inventory_audit_log')

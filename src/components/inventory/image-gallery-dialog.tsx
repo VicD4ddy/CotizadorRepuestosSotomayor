@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Product } from '@/types';
+import { useProductById } from '@/hooks/use-supabase';
 import {
   Dialog,
   DialogContent,
@@ -18,11 +19,13 @@ interface ImageGalleryDialogProps {
 
 export function ImageGalleryDialog({ open, onOpenChange, product }: ImageGalleryDialogProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const { data: fullProduct } = useProductById(product?.id, open && !!product?.id);
+  const activeProduct = fullProduct ?? product;
 
   // Extract all available images
-  const images = product?.image_urls?.length 
-    ? product.image_urls 
-    : (product?.image_url ? [product.image_url] : []);
+  const images = activeProduct?.image_urls?.length
+    ? activeProduct.image_urls
+    : (activeProduct?.image_url ? [activeProduct.image_url] : []);
 
   useEffect(() => {
     if (open) {
@@ -30,17 +33,17 @@ export function ImageGalleryDialog({ open, onOpenChange, product }: ImageGallery
     }
   }, [open]);
 
-  if (!product || images.length === 0) return null;
+  if (!activeProduct || images.length === 0) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[800px] w-[95vw] p-0 overflow-hidden bg-slate-950 border-slate-800">
         <DialogHeader className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-10 pointer-events-none">
           <DialogTitle className="text-white text-[16px] font-bold drop-shadow-md">
-            {product.name}
+            {activeProduct.name}
           </DialogTitle>
           <p className="text-slate-300 text-[12px] font-mono">
-            {product.code}
+            {activeProduct.code}
           </p>
         </DialogHeader>
 
@@ -68,7 +71,7 @@ export function ImageGalleryDialog({ open, onOpenChange, product }: ImageGallery
 
           <img 
             src={images[currentIndex]} 
-            alt={`Image ${currentIndex + 1} of ${product.name}`} 
+            alt={`Image ${currentIndex + 1} of ${activeProduct.name}`} 
             className="w-full h-full object-contain pointer-events-none"
           />
 

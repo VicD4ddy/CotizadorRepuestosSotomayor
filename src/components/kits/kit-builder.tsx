@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Kit, Product, CartItem } from '@/types';
-import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useUpdateProduct, useProducts, useBcvRate, useBcvMultiplier, useKitCombos, useCreateKitCombo, useUpdateKitCombo, useDeleteKitCombo, useSaveComboItems, useDeleteKitComboItem, useUpdateKitComboItemQuantity, useKits, useUpdateKit } from '@/hooks/use-supabase';
+import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useUpdateProduct, useBulkUpdateProductsActive, useProducts, useBcvRate, useBcvMultiplier, useKitCombos, useCreateKitCombo, useUpdateKitCombo, useDeleteKitCombo, useSaveComboItems, useDeleteKitComboItem, useUpdateKitComboItemQuantity, useKits, useUpdateKit } from '@/hooks/use-supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
 import { formatUSD, cn, calculateBcvPrice } from '@/lib/utils';
@@ -34,6 +34,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const createKitItem = useCreateKitItem();
   const deleteProduct = useDeleteProduct();
   const updateProduct = useUpdateProduct();
+  const bulkUpdateProductsActive = useBulkUpdateProductsActive();
   const updateKit = useUpdateKit();
   const { data: products = [] } = useProducts();
   const { items: cartItems, addItem, updateQuantity } = useCartStore();
@@ -201,16 +202,19 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     const allActive = items.every((it: any) => it.products?.is_active !== false);
     const targetStatus = !allActive;
 
+    const idsToUpdate = items
+      .filter((item: any) => item.products && item.products.is_active !== targetStatus)
+      .map((item: any) => item.products.id as string);
+
     setTogglingLineKey(lineKey);
     try {
-      let count = 0;
-      for (const item of items) {
-        if (item.products && item.products.is_active !== targetStatus) {
-          await updateProduct.mutateAsync({ id: item.products.id, is_active: targetStatus });
-          count++;
-        }
+      if (idsToUpdate.length > 0) {
+        await bulkUpdateProductsActive.mutateAsync({
+          ids: idsToUpdate,
+          is_active: targetStatus,
+          kitId: kit.id,
+        });
       }
-      queryClient.invalidateQueries({ queryKey: ['kit_items', kit.id] });
       toast.success(
         targetStatus
           ? `✅ Los ${items.length} repuestos de ${brandName} en ${categoryName} ahora son VISIBLES en la web`

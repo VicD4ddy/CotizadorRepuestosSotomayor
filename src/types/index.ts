@@ -19,7 +19,7 @@ export interface Product {
   id: string;
   code: string;
   name: string;
-  description: string;
+  description?: string;
   category_id: string | null;
   brand_id: string | null;
   cost: number;
