@@ -1,35 +1,38 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  FileText, 
-  Plus, 
-  Trash2, 
-  Download, 
-  Save, 
-  Send, 
-  RefreshCw, 
-  DollarSign, 
-  User, 
-  Phone, 
-  FileEdit, 
-  FileSpreadsheet, 
-  CheckCircle2, 
-  Layers, 
-  ChevronRight,
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import {
+  FileText,
+  Plus,
+  Minus,
+  Trash2,
+  Download,
+  Save,
+  Send,
+  RefreshCw,
+  User,
+  Phone,
+  FileEdit,
+  CheckCircle2,
+  Layers,
   ChevronDown,
+  ChevronUp,
   Eye,
   EyeOff,
   Lock,
   Building2,
-  Sparkles,
-  RotateCcw
+  RotateCcw,
+  Copy,
+  ArrowUp,
+  ArrowDown,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useBcvRate, useBcvMultiplier, useBrands, useCreateQuote } from '@/hooks/use-supabase';
 import { generateQuotePDF } from '@/lib/generate-quote-pdf';
-import { formatUSD, calculateBcvPrice } from '@/lib/utils';
+import { copyQuoteToClipboard } from '@/lib/capture-quote';
+import { cn, formatUSD, calculateBcvPrice } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Quote, DocumentType } from '@/types';
 
@@ -39,6 +42,53 @@ interface ManualItem {
   brand: string;
   quantity: number;
   price_usd: number;
+}
+
+const DRAFT_STORAGE_KEY = 'sotomayor_manual_quote_draft_v1';
+
+const WHATSAPP_PHRASES = [
+  'La pasión por servirte es el motor que nunca se apaga.',
+  'Tu confianza es el combustible; nuestra vocación, el motor.',
+  'Encendemos cada jornada con la meta de darte el mejor rendimiento.',
+  'Más que piezas de recambio, entregamos la potencia de un servicio comprometido.',
+  'Aceleramos soluciones para que tus proyectos nunca se detengan.',
+  'Alineamos cada detalle de nuestra atención a la altura de tu camino.',
+  'La tracción que necesitas para avanzar con total seguridad.',
+  'Calidad en cada repuesto, dirección firme en cada asesoría.',
+  'Sincronizamos nuestra dedicación para mantener tu marcha perfecta.',
+  'Atención precisa y repuestos firmes: el engranaje de tu tranquilidad.',
+  'Tu satisfacción es la fuerza que mueve cada uno de nuestros engranajes.',
+  'Ajustamos cada solución con la precisión que tu trabajo merece.',
+];
+
+function createItemId(): string {
+  return `man-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function createEmptyManualItem(): ManualItem {
+  return { id: createItemId(), name: '', brand: '', quantity: 1, price_usd: 0 };
+}
+
+function createDefaultItems(): ManualItem[] {
+  return [createEmptyManualItem(), createEmptyManualItem()];
+}
+
+function pickRandomPhrase(): string {
+  return WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
+}
+
+function normalizeVePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return `58${digits.slice(1)}`;
+  }
+  return digits;
+}
+
+function formatStoredClientName(docType: DocumentType, clientName: string, clientIdNumber: string): string {
+  const baseName = clientName.trim() || 'Cliente General';
+  const idSuffix = clientIdNumber.trim() ? ` (C.I./RIF: ${clientIdNumber.trim()})` : '';
+  return docType !== 'Cotización' ? `[${docType}] ${baseName}${idSuffix}` : `${baseName}${idSuffix}`;
 }
 
 export function ManualQuoteBuilder() {
@@ -55,23 +105,136 @@ export function ManualQuoteBuilder() {
   const [clientAddress, setClientAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [currency, setCurrency] = useState<'both' | 'usd' | 'bcv'>('both');
-  
-  // Custom items list
-  const [items, setItems] = useState<ManualItem[]>([
-    { id: '1', name: '', brand: '', quantity: 1, price_usd: 0 },
-    { id: '2', name: '', brand: '', quantity: 1, price_usd: 0 },
-  ]);
+  const [items, setItems] = useState<ManualItem[]>(() => createDefaultItems());
 
-  // Live PDF preview states
+  // Layout & UX states
+  const [showExtraFields, setShowExtraFields] = useState(false);
+  const [showDesktopPreview, setShowDesktopPreview] = useState(true);
+  const [mobileView, setMobileView] = useState<'form' | 'preview'>('form');
+  const [isXlViewport, setIsXlViewport] = useState(true);
+  const [draftSaved, setDraftSaved] = useState(false);
+
+  // PDF preview & submission states
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const previousUrlRef = useRef<string | null>(null);
 
-  // Computed Totals
-  const subtotalUsd = useMemo(() => {
-    return items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price_usd) || 0), 0);
-  }, [items]);
+  const previousUrlRef = useRef<string | null>(null);
+  const hasHydratedRef = useRef(false);
+
+  // Detectar si estamos en escritorio XL (>= 1280px) para evitar generar PDF oculto innecesariamente
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const sync = () => setIsXlViewport(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  // Hidratar borrador guardado en localStorage al montar
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.documentType) setDocumentType(parsed.documentType);
+        if (typeof parsed.clientName === 'string') setClientName(parsed.clientName);
+        if (typeof parsed.clientPhone === 'string') setClientPhone(parsed.clientPhone);
+        if (typeof parsed.clientIdNumber === 'string') setClientIdNumber(parsed.clientIdNumber);
+        if (typeof parsed.clientAddress === 'string') setClientAddress(parsed.clientAddress);
+        if (typeof parsed.notes === 'string') setNotes(parsed.notes);
+        if (parsed.currency === 'both' || parsed.currency === 'usd' || parsed.currency === 'bcv') {
+          setCurrency(parsed.currency);
+        }
+        if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+          setItems(
+            parsed.items.map((it: any) => ({
+              id: typeof it.id === 'string' ? it.id : createItemId(),
+              name: typeof it.name === 'string' ? it.name : '',
+              brand: typeof it.brand === 'string' ? it.brand : '',
+              quantity: Math.max(0, Number(it.quantity) || 1),
+              price_usd: Math.max(0, Number(it.price_usd) || 0),
+            }))
+          );
+        }
+        const shouldOpenExtra =
+          Boolean(parsed.clientIdNumber?.trim()) ||
+          Boolean(parsed.clientAddress?.trim()) ||
+          Boolean(parsed.notes?.trim()) ||
+          parsed.documentType === 'Nota de Entrega' ||
+          parsed.documentType === 'Orden de Despacho';
+        if (shouldOpenExtra) {
+          setShowExtraFields(true);
+        }
+        setDraftSaved(true);
+      }
+    } catch (err) {
+      console.warn('Error leyendo borrador de cotización manual:', err);
+    } finally {
+      hasHydratedRef.current = true;
+    }
+  }, []);
+
+  // Persistir borrador automáticamente tras hidratar
+  useEffect(() => {
+    if (!hasHydratedRef.current) return;
+
+    const hasContent =
+      clientName.trim() !== '' ||
+      clientPhone.trim() !== '' ||
+      clientIdNumber.trim() !== '' ||
+      clientAddress.trim() !== '' ||
+      notes.trim() !== '' ||
+      items.some((it) => it.name.trim() !== '' || it.brand.trim() !== '' || it.price_usd > 0);
+
+    try {
+      if (!hasContent) {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        setDraftSaved(false);
+        return;
+      }
+      localStorage.setItem(
+        DRAFT_STORAGE_KEY,
+        JSON.stringify({
+          documentType,
+          clientName,
+          clientPhone,
+          clientIdNumber,
+          clientAddress,
+          notes,
+          currency,
+          items,
+        })
+      );
+      setDraftSaved(true);
+    } catch {
+      // Silenciar si localStorage está lleno o restringido
+    }
+  }, [documentType, clientName, clientPhone, clientIdNumber, clientAddress, notes, currency, items]);
+
+  // Limpiar blob URL al desmontar
+  useEffect(() => {
+    return () => {
+      if (previousUrlRef.current) {
+        URL.revokeObjectURL(previousUrlRef.current);
+      }
+    };
+  }, []);
+
+  // Abrir automáticamente datos adicionales cuando el documento suele requerir C.I./RIF o dirección
+  const handleDocumentTypeChange = (nextType: DocumentType) => {
+    setDocumentType(nextType);
+    if (nextType === 'Nota de Entrega' || nextType === 'Orden de Despacho') {
+      setShowExtraFields(true);
+    }
+  };
+
+  // Totales calculados
+  const subtotalUsd = useMemo(
+    () => items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price_usd) || 0), 0),
+    [items]
+  );
 
   const totalUsdBcv = useMemo(() => {
     if (currency === 'usd') return subtotalUsd;
@@ -81,76 +244,57 @@ export function ManualQuoteBuilder() {
     }, 0);
   }, [items, subtotalUsd, currency, bcvMultiplier]);
 
-  const totalBs = useMemo(() => {
-    return totalUsdBcv * bcvRate;
-  }, [totalUsdBcv, bcvRate]);
+  const totalBs = useMemo(() => totalUsdBcv * bcvRate, [totalUsdBcv, bcvRate]);
 
-  // Handle Items
-  const handleAddItem = () => {
-    setItems((prev) => [
-      ...prev,
-      {
-        id: Math.random().toString(36).substring(2, 9),
-        name: '',
-        brand: '',
-        quantity: 1,
-        price_usd: 0,
-      },
-    ]);
-  };
+  const extraFieldsCount = useMemo(
+    () => [clientIdNumber, clientAddress, notes].filter((v) => v.trim() !== '').length,
+    [clientIdNumber, clientAddress, notes]
+  );
 
-  const handleRemoveItem = (id: string) => {
-    if (items.length <= 1) {
-      setItems([{ id: '1', name: '', brand: '', quantity: 1, price_usd: 0 }]);
-      return;
-    }
-    setItems((prev) => prev.filter((item) => item.id !== id));
-  };
+  const validFilledItems = useMemo(
+    () => items.filter((it) => it.name.trim() !== ''),
+    [items]
+  );
 
-  const handleUpdateItem = (id: string, field: keyof ManualItem, value: any) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          return { ...item, [field]: value };
-        }
-        return item;
-      })
-    );
-  };
-
-  const handleClear = () => {
-    setDocumentType('Cotización');
-    setClientName('');
-    setClientPhone('');
-    setClientIdNumber('');
-    setClientAddress('');
-    setNotes('');
-    setItems([
-      { id: '1', name: '', brand: '', quantity: 1, price_usd: 0 },
-      { id: '2', name: '', brand: '', quantity: 1, price_usd: 0 },
-    ]);
-    toast.info('Formulario reiniciado');
-  };
-
-  // Construct quote object for generator
-  const currentQuoteObj: Quote = useMemo(() => {
-    const validItems = items
-      .filter((it) => it.name.trim() !== '' || it.price_usd > 0)
-      .map((it, idx) => {
+  // Construye los items formateados para PDF, captura o guardado en BD
+  const buildQuoteItemsPayload = useCallback(
+    (sourceItems: ManualItem[]) =>
+      sourceItems.map((it, idx) => {
         const foundBrand = brands.find(
           (b) => b.name.toLowerCase() === it.brand.trim().toLowerCase()
         );
         return {
           id: it.id,
           product_id: null,
-          product_name: it.name || `Repuesto #${idx + 1}`,
+          product_name: it.name.trim() || `Repuesto #${idx + 1}`,
           product_code: `MAN-${idx + 1}`,
-          quantity: Number(it.quantity) || 1,
+          quantity: Math.max(1, Number(it.quantity) || 1),
           unit_price_usd: Number(it.price_usd) || 0,
-          brand_name: it.brand || '',
+          brand_name: it.brand.trim(),
           brand_logo_url: foundBrand?.logo_url || '',
         };
-      });
+      }),
+    [brands]
+  );
+
+  // Objeto Quote actual para PDF y portapapeles
+  const currentQuoteObj: Quote = useMemo(() => {
+    const activeItems = items.filter((it) => it.name.trim() !== '' || it.price_usd > 0);
+    const quoteItems =
+      activeItems.length > 0
+        ? buildQuoteItemsPayload(activeItems)
+        : [
+            {
+              id: 'preview',
+              product_id: null,
+              product_name: 'Ejemplo: Repuesto Proveedor',
+              product_code: 'MAN-01',
+              quantity: 1,
+              unit_price_usd: 0,
+              brand_name: 'Original',
+              brand_logo_url: '',
+            },
+          ];
 
     return {
       id: 'MAN-' + Date.now().toString(36).toUpperCase().slice(-6),
@@ -164,21 +308,27 @@ export function ManualQuoteBuilder() {
       status: 'borrador',
       notes: notes.trim(),
       created_at: new Date().toISOString(),
-      quote_items: validItems.length > 0 ? validItems : [
-        {
-          id: 'preview',
-          product_name: 'Ejemplo: Repuesto Proveedor',
-          product_code: 'MAN-01',
-          quantity: 1,
-          unit_price_usd: 0,
-          brand_name: 'Original',
-        }
-      ],
+      quote_items: quoteItems,
     };
-  }, [clientName, clientPhone, clientIdNumber, clientAddress, documentType, notes, items, subtotalUsd, bcvRate, brands]);
+  }, [
+    clientName,
+    clientPhone,
+    clientIdNumber,
+    clientAddress,
+    documentType,
+    notes,
+    items,
+    subtotalUsd,
+    bcvRate,
+    buildQuoteItemsPayload,
+  ]);
 
-  // Generate live PDF with debounce
+  const isPreviewVisible = isXlViewport ? showDesktopPreview : mobileView === 'preview';
+
+  // Generar vista previa PDF en vivo únicamente cuando el panel preview está visible
   useEffect(() => {
+    if (!isPreviewVisible) return;
+
     let isCancelled = false;
     const timer = setTimeout(async () => {
       setIsGeneratingPdf(true);
@@ -213,342 +363,562 @@ export function ManualQuoteBuilder() {
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [currentQuoteObj, currency, bcvMultiplier, bcvRate, documentType]);
+  }, [isPreviewVisible, currentQuoteObj, currency, bcvMultiplier, bcvRate, documentType]);
 
-  // Download PDF
+  // Enfocar descripción visible por ID de fila (compatible móvil/escritorio)
+  const focusItemDescription = (targetId: string) => {
+    requestAnimationFrame(() => {
+      const candidates = document.querySelectorAll<HTMLInputElement>(
+        `[data-manual-desc="${targetId}"]`
+      );
+      candidates.forEach((input) => {
+        if (input.offsetParent !== null) {
+          input.focus();
+        }
+      });
+    });
+  };
+
+  // Acciones sobre líneas de repuestos
+  const handleAddItem = (autoFocus = false) => {
+    const nextItem = createEmptyManualItem();
+    setItems((prev) => [...prev, nextItem]);
+    if (autoFocus) {
+      focusItemDescription(nextItem.id);
+    }
+  };
+
+  const handleRemoveItem = (id: string) => {
+    if (items.length <= 1) {
+      setItems([createEmptyManualItem()]);
+      return;
+    }
+    setItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleDuplicateItem = (index: number) => {
+    setItems((prev) => {
+      const source = prev[index];
+      if (!source) return prev;
+      const clone: ManualItem = { ...source, id: createItemId() };
+      const next = [...prev];
+      next.splice(index + 1, 0, clone);
+      return next;
+    });
+  };
+
+  const handleMoveItem = (index: number, direction: -1 | 1) => {
+    setItems((prev) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(index, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  };
+
+  const handleUpdateItem = (id: string, field: keyof ManualItem, value: any) => {
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const handlePriceKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    e.preventDefault();
+    if (index === items.length - 1) {
+      handleAddItem(true);
+    } else {
+      const nextItem = items[index + 1];
+      if (nextItem) focusItemDescription(nextItem.id);
+    }
+  };
+
+  const clearDraftStorage = () => {
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch {}
+    setDraftSaved(false);
+  };
+
+  const handleClear = () => {
+    clearDraftStorage();
+    setDocumentType('Cotización');
+    setClientName('');
+    setClientPhone('');
+    setClientIdNumber('');
+    setClientAddress('');
+    setNotes('');
+    setCurrency('both');
+    setShowExtraFields(false);
+    setItems(createDefaultItems());
+    toast.info('Formulario limpiado');
+  };
+
+  const triggerPdfBlobDownload = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Descargar PDF + copiar imagen PNG al portapapeles
   const handleDownloadPDF = async () => {
-    const validItems = items.filter((it) => it.name.trim() !== '');
-    if (validItems.length === 0) {
+    if (validFilledItems.length === 0) {
       toast.error('Agrega al menos un repuesto con descripción antes de exportar el PDF');
       return;
     }
 
+    setIsExporting(true);
+    const randomPhrase = pickRandomPhrase();
     try {
-      toast.loading('Generando PDF...');
+      try {
+        await copyQuoteToClipboard(currentQuoteObj, bcvMultiplier, bcvRate, randomPhrase, currency);
+      } catch (clipErr) {
+        console.warn('No se pudo copiar la imagen al portapapeles:', clipErr);
+      }
+
       await generateQuotePDF({
         quote: currentQuoteObj,
         currency,
         bcvMultiplier,
         bcvRate,
         documentType,
+        randomPhrase,
       });
-      toast.dismiss();
-      toast.success('PDF descargado correctamente');
+
+      toast.success('PDF descargado e imagen copiada al portapapeles');
     } catch (err: any) {
-      toast.dismiss();
-      toast.error('Error al generar PDF', { description: err.message });
+      toast.error('Error al generar PDF', { description: err?.message });
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  // Save to Database
+  // Guardar en Base de Datos y limpiar borrador
   const handleSaveToDatabase = async () => {
-    const validItems = items.filter((it) => it.name.trim() !== '');
-    if (validItems.length === 0) {
+    if (validFilledItems.length === 0) {
       toast.error('Agrega al menos un repuesto para guardar la cotización');
       return;
     }
 
     setIsSaving(true);
     try {
-      const formattedClientName = documentType !== 'Cotización'
-        ? `[${documentType}] ${clientName.trim() || 'Cliente General'}${clientIdNumber.trim() ? ` (C.I./RIF: ${clientIdNumber.trim()})` : ''}`
-        : `${clientName.trim() || 'Cliente General'}${clientIdNumber.trim() ? ` (C.I./RIF: ${clientIdNumber.trim()})` : ''}`;
-
-      const quotePayload = {
-        client_name: formattedClientName,
-        client_phone: clientPhone.trim() || '',
-        total_usd: subtotalUsd,
-        bcv_rate: bcvRate,
-        status: 'enviada',
-      };
-
-      const quoteItemsPayload = validItems.map((it, idx) => {
-        const foundBrand = brands.find(
-          (b) => b.name.toLowerCase() === it.brand.trim().toLowerCase()
-        );
-        return {
-          product_id: null,
-          product_name: it.name,
-          product_code: `MAN-${idx + 1}`,
-          quantity: Number(it.quantity) || 1,
-          unit_price_usd: Number(it.price_usd) || 0,
-          brand_name: it.brand || '',
-          brand_logo_url: foundBrand?.logo_url || '',
-        };
-      });
+      const formattedClientName = formatStoredClientName(documentType, clientName, clientIdNumber);
+      const quoteItemsPayload = buildQuoteItemsPayload(validFilledItems).map(({ id: _id, ...rest }) => rest);
 
       await createQuote.mutateAsync({
-        quote: quotePayload,
-        items: quoteItemsPayload as any,
+        quote: {
+          client_name: formattedClientName,
+          client_phone: clientPhone.trim() || '',
+          total_usd: subtotalUsd,
+          bcv_rate: bcvRate,
+          status: 'Cotizada',
+        },
+        items: quoteItemsPayload,
       });
 
-      toast.success('¡Cotización manual guardada exitosamente en el sistema!');
+      clearDraftStorage();
+      toast.success(`¡${documentType} guardada en el historial!`);
     } catch (err: any) {
-      toast.error('Error al guardar cotización', { description: err.message });
+      toast.error('Error al guardar cotización', { description: err?.message });
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Send WhatsApp message
-  const handleSendWhatsApp = () => {
-    const validItems = items.filter((it) => it.name.trim() !== '');
-    if (validItems.length === 0) {
-      toast.error('Agrega repuestos antes de enviar');
+  // Flujo unificado WhatsApp: Copiar PNG -> Descargar PDF -> Abrir WhatsApp (58...) -> Registrar en historial
+  const handleSendWhatsApp = async () => {
+    if (validFilledItems.length === 0) {
+      toast.error('Agrega repuestos antes de enviar por WhatsApp');
       return;
     }
 
-    const cleanPhone = clientPhone.replace(/\D/g, '');
-    let text = `*${documentType.toUpperCase()} - REPUESTOS SOTOMAYOR*\n`;
-    if (clientName) text += `👤 *Cliente:* ${clientName}\n`;
-    if (clientIdNumber) text += `🆔 *C.I./RIF:* ${clientIdNumber}\n`;
-    if (clientPhone) text += `📞 *Teléfono:* ${clientPhone}\n`;
-    if (clientAddress) text += `📍 *Dirección:* ${clientAddress}\n`;
-    text += `📅 *Fecha:* ${new Date().toLocaleDateString('es-VE')}\n\n`;
-    text += `*DETALLE DE REPUESTOS:*\n`;
+    setIsExporting(true);
+    const randomPhrase = pickRandomPhrase();
 
-    validItems.forEach((it, i) => {
-      const itemTotalUsd = (it.quantity || 1) * (it.price_usd || 0);
-      const unitUsdBcv = calculateBcvPrice(it.price_usd || 0, bcvMultiplier, it.name);
-      const itemTotalBs = unitUsdBcv * (it.quantity || 1) * bcvRate;
-      text += `${i + 1}. *${it.name.toUpperCase()}* ${it.brand ? `(${it.brand.toUpperCase()})` : ''}\n`;
-      text += `   Cant: ${it.quantity} x ${formatUSD(it.price_usd)} = *${formatUSD(itemTotalUsd)}* (~Bs ${itemTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})\n`;
-    });
+    try {
+      // 1. Copiar imagen al portapapeles primero mientras el documento tiene foco
+      let imageCopied = false;
+      try {
+        await copyQuoteToClipboard(currentQuoteObj, bcvMultiplier, bcvRate, randomPhrase, currency);
+        imageCopied = true;
+      } catch (clipErr) {
+        console.warn('No se pudo copiar imagen al portapapeles:', clipErr);
+      }
 
-    text += `\n💵 *TOTAL USD (Divisas):* ${formatUSD(subtotalUsd)}`;
-    text += `\n💳 *TOTAL USD (Tasa BCV):* ${formatUSD(totalUsdBcv)}`;
-    text += `\n🇻🇪 *TOTAL BOLÍVARES:* Bs ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    text += `\n\n📌 *Tasa BCV:* Bs ${bcvRate.toFixed(2)}`;
+      // 2. Generar y descargar el PDF
+      const { blob, fileName } = await generateQuotePDF({
+        quote: currentQuoteObj,
+        currency,
+        bcvMultiplier,
+        bcvRate,
+        documentType,
+        randomPhrase,
+        returnBlob: true,
+      });
+      if (blob) {
+        triggerPdfBlobDownload(blob, fileName);
+      }
 
-    const url = cleanPhone
-      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`
-      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+      // 3. Armar texto de WhatsApp respetando la modalidad seleccionada
+      const modeLabel =
+        currency === 'usd'
+          ? 'DIVISAS (USD)'
+          : currency === 'bcv'
+          ? 'BOLÍVARES (TASA BCV)'
+          : 'DIVISAS Y BOLÍVARES';
 
-    window.open(url, '_blank');
+      let text = `*REPUESTOS SOTOMAYOR*\n_${documentType} en *${modeLabel}*_\n\n`;
+      if (clientName.trim()) text += `*Cliente:* ${clientName.trim()}\n`;
+      if (clientIdNumber.trim()) text += `*C.I./RIF:* ${clientIdNumber.trim()}\n`;
+      if (clientPhone.trim()) text += `*Teléfono:* ${clientPhone.trim()}\n`;
+      if (clientAddress.trim()) text += `*Dirección:* ${clientAddress.trim()}\n`;
+      text += `*Fecha:* ${new Date().toLocaleDateString('es-VE')}\n\n`;
+      text += `*Detalle:*\n`;
+
+      validFilledItems.forEach((it) => {
+        const qty = Math.max(1, Number(it.quantity) || 1);
+        const unitUsd = Number(it.price_usd) || 0;
+        const unitBcv = calculateBcvPrice(unitUsd, bcvMultiplier, it.name);
+        const lineUsd = unitUsd * qty;
+        const lineBs = unitBcv * qty * bcvRate;
+        const brandSuffix = it.brand.trim() ? ` (${it.brand.trim().toUpperCase()})` : '';
+
+        if (currency === 'usd') {
+          text += `- ${qty}x ${it.name.trim().toUpperCase()}${brandSuffix}\n  Unit: ${formatUSD(unitUsd)} | Total: ${formatUSD(lineUsd)}\n`;
+        } else if (currency === 'bcv') {
+          text += `- ${qty}x ${it.name.trim().toUpperCase()}${brandSuffix}\n  Ref BCV: ${formatUSD(unitBcv * qty)} | Bs: Bs ${lineBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+        } else {
+          text += `- ${qty}x ${it.name.trim().toUpperCase()}${brandSuffix}\n  Divisas: ${formatUSD(lineUsd)} | Bs: Bs ${lineBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+        }
+      });
+
+      if (currency !== 'bcv') {
+        text += `\n*Total Divisas ($):* ${formatUSD(subtotalUsd)}`;
+      }
+      if (currency !== 'usd') {
+        text += `\n*Ref. USD BCV:* ${formatUSD(totalUsdBcv)}`;
+        text += `\n*Total Bs:* Bs ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        text += `\n*Tasa BCV:* Bs ${bcvRate.toFixed(2)}`;
+      }
+      text += `\n\n_${randomPhrase}_`;
+
+      const normalizedPhone = normalizeVePhone(clientPhone);
+      const waUrl = normalizedPhone
+        ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(text)}`
+        : `https://wa.me/?text=${encodeURIComponent(text)}`;
+
+      window.open(waUrl, '_blank');
+
+      // 4. Registrar en historial
+      const formattedClientName = formatStoredClientName(documentType, clientName, clientIdNumber);
+      const quoteItemsPayload = buildQuoteItemsPayload(validFilledItems).map(({ id: _id, ...rest }) => rest);
+
+      await createQuote.mutateAsync({
+        quote: {
+          client_name: formattedClientName,
+          client_phone: clientPhone.trim() || '',
+          total_usd: subtotalUsd,
+          bcv_rate: bcvRate,
+          status: 'Enviada por WhatsApp',
+        },
+        items: quoteItemsPayload,
+      });
+
+      toast.success(
+        imageCopied
+          ? 'Imagen copiada, PDF descargado y cotización registrada. Pega la imagen (Ctrl+V) en WhatsApp.'
+          : 'PDF descargado y cotización registrada en el historial.'
+      );
+    } catch (err: any) {
+      toast.error('Error al enviar por WhatsApp', { description: err?.message });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
     <div className="flex flex-col h-full bg-slate-50 min-w-0">
-      {/* Top Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white border-b border-slate-200 shadow-sm rounded-t-xl shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600">
-            <FileEdit className="w-5 h-5" />
+      {/* Top Action & Document Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 py-2.5 md:px-4 md:py-3 bg-white border-b border-slate-200 rounded-t-md shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 md:w-9 md:h-9 rounded-sm bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-600 shrink-0">
+            <FileEdit className="w-4 h-4" />
           </div>
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-lg font-bold text-slate-900 leading-tight">
-                Documento:
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-[14px] md:text-[15px] font-bold text-slate-900 leading-tight">
+                Cotiz. Manual
               </h1>
               <div className="relative inline-flex items-center">
                 <select
                   value={documentType}
-                  onChange={(e) => setDocumentType(e.target.value as DocumentType)}
-                  className="h-8 pl-3 pr-8 text-xs font-bold bg-slate-900 text-white rounded-lg border border-slate-700 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-sm appearance-none transition-all"
+                  onChange={(e) => handleDocumentTypeChange(e.target.value as DocumentType)}
+                  className="h-7 pl-2.5 pr-7 text-[11.5px] font-bold bg-[#0F172A] text-white rounded-sm border border-slate-700 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer appearance-none transition-colors"
                 >
-                  <option value="Cotización">📄 Cotización</option>
-                  <option value="Nota de Entrega">📦 Nota de Entrega</option>
-                  <option value="Presupuesto">📋 Presupuesto</option>
-                  <option value="Orden de Despacho">🚚 Orden de Despacho</option>
+                  <option value="Cotización">Cotización</option>
+                  <option value="Nota de Entrega">Nota de Entrega</option>
+                  <option value="Presupuesto">Presupuesto</option>
+                  <option value="Orden de Despacho">Orden de Despacho</option>
                 </select>
-                <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 text-slate-400 pointer-events-none" />
+                <ChevronDown className="w-3.5 h-3.5 absolute right-2 text-slate-400 pointer-events-none" />
               </div>
-              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
-                PROVEEDORES / EXTERNO
-              </Badge>
+              {draftSaved && (
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono tabular-nums font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-sm">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  Borrador guardado
+                </span>
+              )}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Crea cotizaciones personalizadas de repuestos fuera del catálogo con visor PDF en vivo
+            <p className="text-[11px] text-slate-500 hidden sm:block mt-0.5">
+              Cotizaciones personalizadas fuera de catálogo · Autoguardado local activado
             </p>
           </div>
         </div>
 
-        {/* Global Controls & Actions */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto justify-end">
           <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDesktopPreview((v) => !v)}
+            className="hidden xl:inline-flex h-8 px-2.5 text-[11.5px] text-slate-700 border-slate-200 hover:bg-slate-100 rounded-sm"
+            title={showDesktopPreview ? 'Ocultar vista previa PDF para ampliar formulario' : 'Mostrar vista previa PDF'}
+          >
+            {showDesktopPreview ? (
+              <>
+                <PanelRightClose className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+                Ocultar PDF
+              </>
+            ) : (
+              <>
+                <PanelRightOpen className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+                Mostrar PDF
+              </>
+            )}
+          </Button>
+
+          <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={handleClear}
-            className="h-9 px-3 text-slate-600 hover:text-slate-900 border-slate-200"
+            className="h-8 px-2.5 text-[11.5px] text-slate-600 hover:text-slate-900 border-slate-200 rounded-sm"
           >
-            <RotateCcw className="w-4 h-4 mr-1.5" />
+            <RotateCcw className="w-3.5 h-3.5 mr-1" />
             Limpiar
           </Button>
 
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={handleSendWhatsApp}
-            className="h-9 px-3.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 font-medium"
+            disabled={isExporting}
+            className="h-8 px-2.5 text-[11.5px] text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 font-bold rounded-sm"
           >
-            <Send className="w-4 h-4 mr-1.5" />
+            <Send className="w-3.5 h-3.5 mr-1 text-emerald-600" />
             WhatsApp
           </Button>
 
           <Button
+            type="button"
             size="sm"
             onClick={handleDownloadPDF}
-            className="h-9 px-4 bg-slate-900 hover:bg-slate-800 text-white font-medium shadow-sm"
+            disabled={isExporting}
+            className="h-8 px-3 bg-[#0F172A] hover:bg-slate-800 text-white text-[11.5px] font-semibold rounded-sm"
           >
-            <Download className="w-4 h-4 mr-1.5" />
-            Descargar PDF
+            <Download className="w-3.5 h-3.5 mr-1" />
+            PDF
           </Button>
 
           <Button
+            type="button"
             size="sm"
             onClick={handleSaveToDatabase}
             disabled={isSaving}
-            className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
+            className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[11.5px] font-bold rounded-sm"
           >
-            <Save className="w-4 h-4 mr-1.5" />
-            {isSaving ? 'Guardando...' : `Guardar ${documentType}`}
+            <Save className="w-3.5 h-3.5 mr-1" />
+            {isSaving ? 'Guardando...' : 'Guardar'}
           </Button>
         </div>
       </div>
 
-      {/* Main Split Body */}
-      <div className="flex-1 grid grid-cols-1 xl:grid-cols-12 gap-5 p-4 md:p-5 overflow-auto min-w-0">
-        
-        {/* Left Column: Form & Repuestos Builder (7 cols on XL) */}
-        <div className="xl:col-span-7 flex flex-col gap-4 min-w-0">
-          
-          {/* Client & Metadata Card */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <h2 className="text-[13px] font-bold text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <User className="w-4 h-4 text-emerald-600" />
-              Datos del Cliente y Configuración
-            </h2>
+      {/* Mobile/Tablet View Mode Switch (< xl) */}
+      <div className="xl:hidden px-3 pt-2.5 pb-1 bg-slate-50 border-b border-slate-200/70 shrink-0">
+        <div className="flex p-0.5 bg-slate-200/70 rounded-sm border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setMobileView('form')}
+            className={cn(
+              'flex-1 py-1.5 text-[11.5px] font-bold rounded-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer',
+              mobileView === 'form' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+            )}
+          >
+            <FileEdit className="w-3.5 h-3.5" />
+            Formulario ({validFilledItems.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileView('preview')}
+            className={cn(
+              'flex-1 py-1.5 text-[11.5px] font-bold rounded-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer',
+              mobileView === 'preview' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+            )}
+          >
+            <Eye className="w-3.5 h-3.5 text-emerald-600" />
+            Vista Previa PDF
+          </button>
+        </div>
+      </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Nombre del Cliente
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    placeholder="Ej. Juan Pérez / Taller Hermanos"
-                    className="w-full h-9 pl-9 pr-3 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
-                  />
-                </div>
-              </div>
+      {/* Main Split Workspace */}
+      <div className="flex-1 grid grid-cols-1 xl:grid-cols-12 gap-4 p-3 md:p-4 overflow-auto min-w-0 pb-[140px] lg:pb-4">
+        {/* Left: Form Builder */}
+        <div
+          className={cn(
+            'flex flex-col gap-3 min-w-0',
+            showDesktopPreview ? 'xl:col-span-7' : 'xl:col-span-12',
+            mobileView === 'preview' && 'hidden xl:flex'
+          )}
+        >
+          {/* Compact Client & Currency Card */}
+          <div className="bg-white p-3.5 rounded-md border border-slate-200 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-[11.5px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-emerald-600" />
+                Cliente y Moneda
+              </h2>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Teléfono / WhatsApp
-                </label>
-                <div className="relative">
-                  <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={clientPhone}
-                    onChange={(e) => setClientPhone(e.target.value)}
-                    placeholder="Ej. 04141234567"
-                    className="w-full h-9 pl-9 pr-3 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  C.I. / RIF <span className="text-[10px] text-slate-400 font-normal">(Opcional)</span>
-                </label>
-                <div className="relative">
-                  <FileText className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={clientIdNumber}
-                    onChange={(e) => setClientIdNumber(e.target.value)}
-                    placeholder="Ej. V-12345678 / J-12345678-0"
-                    className="w-full h-9 pl-9 pr-3 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Dirección <span className="text-[10px] text-slate-400 font-normal">(Opcional)</span>
-                </label>
-                <div className="relative">
-                  <Building2 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={clientAddress}
-                    onChange={(e) => setClientAddress(e.target.value)}
-                    placeholder="Ej. Calle 5 con Av. Principal, Taller Sotomayor"
-                    className="w-full h-9 pl-9 pr-3 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
-                  />
-                </div>
-              </div>
-
-              <div className="sm:col-span-2">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-amber-500" />
-                    Notas Internas / Observaciones del Vendedor
-                  </label>
-                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <EyeOff className="w-3 h-3 text-amber-600" />
-                    Solo visible para ti (No sale en el PDF ni al cliente)
+              <button
+                type="button"
+                onClick={() => setShowExtraFields((v) => !v)}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-1 rounded-sm transition-colors cursor-pointer"
+              >
+                {showExtraFields ? (
+                  <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                )}
+                <span>Datos adicionales / Notas</span>
+                {extraFieldsCount > 0 && (
+                  <span className="font-mono tabular-nums text-[10px] font-bold px-1 py-0.5 rounded-sm bg-emerald-100 text-emerald-800">
+                    {extraFieldsCount}
                   </span>
-                </div>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Ej: Proveedor: El Trébol Caracas (0412-1234567) | Costo: $18 c/u | Margen estimado: 35% | Entrega en 48 horas..."
-                  rows={2}
-                  className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all font-medium resize-none"
+                )}
+              </button>
+            </div>
+
+            {/* Always visible compact 2-col row: Nombre & Teléfono */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="relative">
+                <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  placeholder="Nombre del Cliente (Ej. Taller Hermanos)"
+                  className="w-full h-8 pl-8 pr-2.5 text-[12px] bg-slate-50 border border-slate-200 rounded-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
+                />
+              </div>
+
+              <div className="relative">
+                <Phone className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(e.target.value)}
+                  placeholder="Teléfono / WhatsApp (Ej. 04141234567)"
+                  className="w-full h-8 pl-8 pr-2.5 text-[12px] font-mono tabular-nums bg-slate-50 border border-slate-200 rounded-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
                 />
               </div>
             </div>
 
-            {/* Rates & Currency Selection */}
-            <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-3 border-t border-slate-100">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-600">Formato Moneda PDF:</span>
-                <div className="flex rounded-lg bg-slate-100 p-0.5 border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setCurrency('both')}
-                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
-                      currency === 'both'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    Combinado ($ y Bs)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrency('usd')}
-                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
-                      currency === 'usd'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    Solo USD ($)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrency('bcv')}
-                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
-                      currency === 'bcv'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    Solo BCV (Bs)
-                  </button>
+            {/* Collapsible Extra Fields: C.I./RIF, Dirección & Notas Internas */}
+            {showExtraFields && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2.5 border-t border-slate-100">
+                <div className="relative">
+                  <FileText className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={clientIdNumber}
+                    onChange={(e) => setClientIdNumber(e.target.value)}
+                    placeholder="C.I. / RIF (Ej. V-12345678 / J-12345678-0)"
+                    className="w-full h-8 pl-8 pr-2.5 text-[12px] font-mono tabular-nums bg-slate-50 border border-slate-200 rounded-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
+                  />
+                </div>
+
+                <div className="relative">
+                  <Building2 className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={clientAddress}
+                    onChange={(e) => setClientAddress(e.target.value)}
+                    placeholder="Dirección (Opcional)"
+                    className="w-full h-8 pl-8 pr-2.5 text-[12px] bg-slate-50 border border-slate-200 rounded-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-amber-500" />
+                      Notas Internas del Vendedor
+                    </span>
+                    <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-sm flex items-center gap-1">
+                      <EyeOff className="w-3 h-3 text-amber-600" />
+                      No sale en el PDF
+                    </span>
+                  </div>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Ej: Proveedor: El Trébol (0412-1234567) | Costo: $18 | Entrega 48h..."
+                    rows={2}
+                    className="w-full p-2 text-[12px] bg-slate-50 border border-slate-200 rounded-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all font-medium resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Currency Format & Rate Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-100">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-semibold text-slate-600">Formato PDF:</span>
+                <div className="flex rounded-sm bg-slate-100 p-0.5 border border-slate-200">
+                  {(
+                    [
+                      { id: 'both', label: 'Combinado ($ y Bs)' },
+                      { id: 'usd', label: 'Solo USD ($)' },
+                      { id: 'bcv', label: 'Solo BCV (Bs)' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setCurrency(opt.id)}
+                      className={cn(
+                        'px-2 py-1 text-[11px] font-bold rounded-sm transition-colors cursor-pointer',
+                        currency === opt.id
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-900'
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-1.5 text-[11.5px]">
                 <span className="text-slate-500 font-medium">Tasa BCV:</span>
-                <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                <span className="font-bold font-mono tabular-nums text-slate-900 bg-slate-100 px-2 py-0.5 rounded-sm border border-slate-200">
                   Bs {bcvRate.toFixed(2)}
                 </span>
               </div>
@@ -556,40 +926,171 @@ export function ManualQuoteBuilder() {
           </div>
 
           {/* Dynamic Items Builder Card */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col min-w-0">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-[13px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-emerald-600" />
+          <div className="bg-white p-3.5 rounded-md border border-slate-200 shadow-sm flex-1 flex flex-col min-w-0">
+            <div className="flex items-center justify-between mb-2.5 gap-2">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
+                <h2 className="text-[12px] font-bold text-slate-800 uppercase tracking-wider">
                   Repuestos a Cotizar
                 </h2>
-                <span className="text-xs text-slate-400">
-                  {items.length} {items.length === 1 ? 'ítem ingresado' : 'ítems ingresados'}
+                <span className="text-[10.5px] font-mono tabular-nums font-bold px-1.5 py-0.5 rounded-sm bg-slate-100 text-slate-600 border border-slate-200">
+                  {items.length}
                 </span>
               </div>
 
               <Button
-                onClick={handleAddItem}
+                type="button"
+                onClick={() => handleAddItem(true)}
                 size="sm"
-                className="h-8 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold px-3 rounded-lg shadow-sm"
+                className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-[11.5px] font-bold px-3 rounded-sm shadow-sm cursor-pointer"
               >
-                <Plus className="w-4 h-4 mr-1" />
+                <Plus className="w-3.5 h-3.5 mr-1" />
                 Añadir Repuesto
               </Button>
             </div>
 
-            {/* Items Table */}
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-left text-xs min-w-[550px]">
+            {/* Mobile Stacked Cards (< md) */}
+            <div className="md:hidden space-y-2">
+              {items.map((item, index) => {
+                const rowTotal = (Number(item.quantity) || 0) * (Number(item.price_usd) || 0);
+                return (
+                  <div
+                    key={item.id}
+                    className="p-2.5 bg-slate-50/70 border border-slate-200 rounded-sm space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-mono tabular-nums font-bold text-slate-500">
+                        #{index + 1}
+                      </span>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleMoveItem(index, -1)}
+                          disabled={index === 0}
+                          className="w-6 h-6 rounded-sm border border-slate-200 bg-white flex items-center justify-center text-slate-500 disabled:opacity-30"
+                          title="Subir fila"
+                        >
+                          <ArrowUp className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveItem(index, 1)}
+                          disabled={index === items.length - 1}
+                          className="w-6 h-6 rounded-sm border border-slate-200 bg-white flex items-center justify-center text-slate-500 disabled:opacity-30"
+                          title="Bajar fila"
+                        >
+                          <ArrowDown className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicateItem(index)}
+                          className="w-6 h-6 rounded-sm border border-slate-200 bg-white flex items-center justify-center text-slate-600"
+                          title="Duplicar fila"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="w-6 h-6 rounded-sm border border-red-200 bg-red-50 flex items-center justify-center text-red-600"
+                          title="Eliminar fila"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <input
+                      type="text"
+                      data-manual-desc={item.id}
+                      value={item.name}
+                      onChange={(e) => handleUpdateItem(item.id, 'name', e.target.value)}
+                      placeholder="Descripción del repuesto (Ej. Correa de tiempo)"
+                      className="w-full h-8 px-2.5 text-[12px] font-medium text-slate-900 border border-slate-200 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+
+                    <div className="grid grid-cols-12 gap-1.5 items-center">
+                      <div className="col-span-5">
+                        <input
+                          type="text"
+                          list="brands-list"
+                          value={item.brand}
+                          onChange={(e) => handleUpdateItem(item.id, 'brand', e.target.value)}
+                          placeholder="Marca"
+                          className="w-full h-8 px-2 text-[11.5px] font-medium text-slate-800 border border-slate-200 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
+
+                      <div className="col-span-3 flex items-center border border-slate-200 bg-white rounded-sm overflow-hidden h-8">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleUpdateItem(item.id, 'quantity', Math.max(1, (item.quantity || 1) - 1))
+                          }
+                          className="w-6 h-full flex items-center justify-center text-slate-600 active:bg-slate-100"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity === 0 ? '' : item.quantity}
+                          onChange={(e) =>
+                            handleUpdateItem(item.id, 'quantity', parseInt(e.target.value) || 0)
+                          }
+                          className="w-full text-center text-[11.5px] font-bold font-mono tabular-nums text-slate-900 focus:outline-none bg-transparent"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleUpdateItem(item.id, 'quantity', (item.quantity || 0) + 1)
+                          }
+                          className="w-6 h-full flex items-center justify-center text-slate-600 active:bg-slate-100"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <div className="col-span-4 relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-mono font-bold">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.price_usd === 0 ? '' : item.price_usd}
+                          onChange={(e) =>
+                            handleUpdateItem(item.id, 'price_usd', parseFloat(e.target.value) || 0)
+                          }
+                          onKeyDown={(e) => handlePriceKeyDown(e, index)}
+                          placeholder="0.00"
+                          className="w-full h-8 pl-5 pr-1.5 text-right text-[12px] font-bold font-mono tabular-nums text-slate-900 border border-slate-200 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end text-[11px] font-mono tabular-nums font-bold text-slate-700 pt-0.5">
+                      Total línea: <span className="text-slate-900 ml-1">{formatUSD(rowTotal)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Wide Table (md+) */}
+            <div className="hidden md:block overflow-x-auto border border-slate-200 rounded-sm">
+              <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                   <tr>
-                    <th className="py-2.5 px-3 w-10 text-center">#</th>
-                    <th className="py-2.5 px-3 w-16 text-center">Cant.</th>
-                    <th className="py-2.5 px-3">Descripción del Repuesto</th>
-                    <th className="py-2.5 px-3 w-36">Marca</th>
-                    <th className="py-2.5 px-3 w-28 text-right">Precio ($)</th>
-                    <th className="py-2.5 px-3 w-28 text-right">Total ($)</th>
-                    <th className="py-2.5 px-2 w-10 text-center"></th>
+                    <th className="py-2 px-2 w-8 text-center">#</th>
+                    <th className="py-2 px-2 w-16 text-center">Cant.</th>
+                    <th className="py-2 px-2">Descripción del Repuesto</th>
+                    <th className="py-2 px-2 w-28">Marca</th>
+                    <th className="py-2 px-2 w-24 text-right">Precio ($)</th>
+                    <th className="py-2 px-2 w-20 text-right">Total ($)</th>
+                    <th className="py-2 px-2 w-[92px] text-center">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -597,76 +1098,106 @@ export function ManualQuoteBuilder() {
                     const rowTotal = (Number(item.quantity) || 0) * (Number(item.price_usd) || 0);
                     return (
                       <tr key={item.id} className="hover:bg-slate-50/70 transition-colors group">
-                        {/* Index */}
-                        <td className="py-2.5 px-3 text-center text-slate-400 font-bold text-[11px]">
+                        <td className="py-1.5 px-2 text-center text-slate-400 font-mono tabular-nums font-bold text-[11px]">
                           {index + 1}
                         </td>
 
-                        {/* Quantity */}
-                        <td className="py-2 px-2">
+                        <td className="py-1.5 px-1.5">
                           <input
                             type="number"
                             min="1"
                             value={item.quantity === 0 ? '' : item.quantity}
-                            onChange={(e) => handleUpdateItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
-                            className="w-full h-8 text-center text-xs font-bold border border-slate-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50"
+                            onChange={(e) =>
+                              handleUpdateItem(item.id, 'quantity', parseInt(e.target.value) || 0)
+                            }
+                            className="w-full h-8 text-center text-xs font-bold font-mono tabular-nums border border-slate-200 rounded-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50"
                           />
                         </td>
 
-                        {/* Description */}
-                        <td className="py-2 px-2">
+                        <td className="py-1.5 px-1.5">
                           <input
                             type="text"
+                            data-manual-desc={item.id}
                             value={item.name}
                             onChange={(e) => handleUpdateItem(item.id, 'name', e.target.value)}
                             placeholder="Ej. Correa de Tiempo / Amortiguador Delantero"
-                            className="w-full h-8 px-2.5 text-xs font-medium text-slate-900 border border-slate-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50 placeholder:text-slate-400"
+                            className="w-full h-8 px-2.5 text-xs font-medium text-slate-900 border border-slate-200 rounded-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50 placeholder:text-slate-400"
                           />
                         </td>
 
-                        {/* Brand */}
-                        <td className="py-2 px-2">
+                        <td className="py-1.5 px-1.5">
                           <input
                             type="text"
                             list="brands-list"
                             value={item.brand}
                             onChange={(e) => handleUpdateItem(item.id, 'brand', e.target.value)}
-                            placeholder="Marca (opcional)"
-                            className="w-full h-8 px-2.5 text-xs font-medium text-slate-800 border border-slate-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50 placeholder:text-slate-400"
+                            placeholder="Marca"
+                            className="w-full h-8 px-2 text-xs font-medium text-slate-800 border border-slate-200 rounded-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50 placeholder:text-slate-400"
                           />
                         </td>
 
-                        {/* Unit Price USD */}
-                        <td className="py-2 px-2">
+                        <td className="py-1.5 px-1.5">
                           <div className="relative">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">$</span>
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-mono font-bold">
+                              $
+                            </span>
                             <input
                               type="number"
                               step="0.01"
                               min="0"
                               value={item.price_usd === 0 ? '' : item.price_usd}
-                              onChange={(e) => handleUpdateItem(item.id, 'price_usd', parseFloat(e.target.value) || 0)}
+                              onChange={(e) =>
+                                handleUpdateItem(item.id, 'price_usd', parseFloat(e.target.value) || 0)
+                              }
+                              onKeyDown={(e) => handlePriceKeyDown(e, index)}
                               placeholder="0.00"
-                              className="w-full h-8 pl-6 pr-2 text-right text-xs font-bold text-slate-900 border border-slate-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50"
+                              title="Presiona Enter para pasar a la siguiente línea"
+                              className="w-full h-8 pl-5 pr-2 text-right text-xs font-bold font-mono tabular-nums text-slate-900 border border-slate-200 rounded-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50"
                             />
                           </div>
                         </td>
 
-                        {/* Total USD */}
-                        <td className="py-2.5 px-3 text-right font-black text-slate-900 text-xs">
+                        <td className="py-1.5 px-2 text-right font-extrabold font-mono tabular-nums text-slate-900 text-xs">
                           {formatUSD(rowTotal)}
                         </td>
 
-                        {/* Remove button */}
-                        <td className="py-2 px-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(item.id)}
-                            className="w-7 h-7 inline-flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            title="Eliminar fila"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        <td className="py-1.5 px-1.5 text-center">
+                          <div className="inline-flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveItem(index, -1)}
+                              disabled={index === 0}
+                              className="w-6 h-7 inline-flex items-center justify-center rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-25 cursor-pointer"
+                              title="Subir"
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveItem(index, 1)}
+                              disabled={index === items.length - 1}
+                              className="w-6 h-7 inline-flex items-center justify-center rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-25 cursor-pointer"
+                              title="Bajar"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDuplicateItem(index)}
+                              className="w-6 h-7 inline-flex items-center justify-center rounded-sm text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 cursor-pointer"
+                              title="Duplicar línea"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(item.id)}
+                              className="w-6 h-7 inline-flex items-center justify-center rounded-sm text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                              title="Eliminar fila"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -675,42 +1206,42 @@ export function ManualQuoteBuilder() {
               </table>
             </div>
 
-            {/* Datalist for Brand autocomplete */}
+            {/* Autocompletado de marcas */}
             <datalist id="brands-list">
               {brands.map((b) => (
                 <option key={b.id} value={b.name} />
               ))}
             </datalist>
 
-            {/* Add row bottom quick button */}
-            <div className="mt-3">
+            {/* Quick add button + keyboard hint */}
+            <div className="mt-2.5 flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleAddItem}
-                className="w-full py-2 border-2 border-dashed border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 rounded-lg text-slate-500 hover:text-emerald-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
+                onClick={() => handleAddItem(true)}
+                className="flex-1 py-2 border border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/40 rounded-sm text-slate-600 hover:text-emerald-700 text-[11.5px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
-                Añadir otra línea de repuesto
+                <Plus className="w-3.5 h-3.5" />
+                Añadir otra línea (o presiona <kbd className="font-mono text-[10px] bg-slate-100 border border-slate-200 px-1 rounded-sm">Enter</kbd> en Precio)
               </button>
             </div>
 
             {/* Totals Summary Banner */}
-            <div className="mt-5 p-4 bg-slate-900 text-white rounded-xl shadow-sm">
+            <div className="mt-4 p-3.5 bg-[#0F172A] text-white rounded-md border border-slate-800">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="text-center sm:text-left border-b sm:border-b-0 sm:border-r border-slate-800 pb-2 sm:pb-0 sm:pr-3">
                   <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
                     Subtotal Divisas ($)
                   </span>
-                  <span className="text-xl font-extrabold text-white">
+                  <span className="text-lg md:text-xl font-extrabold font-mono tabular-nums text-white">
                     {formatUSD(subtotalUsd)}
                   </span>
                 </div>
 
                 <div className="text-center sm:text-left border-b sm:border-b-0 sm:border-r border-slate-800 pb-2 sm:pb-0 sm:pr-3">
-                  <span className="text-[10px] uppercase font-bold text-emerald-400 block tracking-wider">
+                  <span className="text-[10px] uppercase font-bold text-emerald-400 block tracking-wider font-mono tabular-nums">
                     Total USD (BCV × {bcvMultiplier})
                   </span>
-                  <span className="text-xl font-extrabold text-emerald-400">
+                  <span className="text-lg md:text-xl font-extrabold font-mono tabular-nums text-emerald-400">
                     {formatUSD(totalUsdBcv)}
                   </span>
                 </div>
@@ -719,7 +1250,7 @@ export function ManualQuoteBuilder() {
                   <span className="text-[10px] uppercase font-bold text-sky-400 block tracking-wider">
                     Total en Bolívares
                   </span>
-                  <span className="text-xl font-extrabold text-sky-400">
+                  <span className="text-lg md:text-xl font-extrabold font-mono tabular-nums text-sky-400">
                     Bs {totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -728,67 +1259,70 @@ export function ManualQuoteBuilder() {
           </div>
         </div>
 
-        {/* Right Column: Interactive Live PDF Preview (5 cols on XL) */}
-        <div className="xl:col-span-5 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden min-h-[600px] min-w-0">
-          
-          {/* Preview Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-slate-900 text-white border-b border-slate-800">
-            <div className="flex items-center gap-2">
-              <Eye className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-bold tracking-wide uppercase">
-                Vista Previa del PDF en Vivo
-              </span>
+        {/* Right: Live PDF Preview (collapsible on XL, tab-switched on < XL) */}
+        {(showDesktopPreview || mobileView === 'preview') && (
+          <div
+            className={cn(
+              'xl:col-span-5 flex flex-col bg-white rounded-md border border-slate-200 shadow-sm overflow-hidden min-h-[560px] min-w-0',
+              !showDesktopPreview && 'xl:hidden',
+              mobileView === 'form' && 'hidden xl:flex'
+            )}
+          >
+            <div className="flex items-center justify-between px-3.5 py-2.5 bg-[#0F172A] text-white border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-emerald-400" />
+                <span className="text-[11.5px] font-bold tracking-wide uppercase">
+                  Vista Previa del PDF en Vivo
+                </span>
+              </div>
+
+              {isGeneratingPdf ? (
+                <span className="inline-flex items-center gap-1.5 text-[10.5px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-sm border border-emerald-800/60 font-medium">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  Actualizando...
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[10.5px] text-slate-300 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  Al día
+                </span>
+              )}
             </div>
 
-            {isGeneratingPdf ? (
-              <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800/60 animate-pulse font-medium">
-                <RefreshCw className="w-3 h-3 animate-spin" />
-                Actualizando...
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-[11px] text-slate-300 font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                Al día
-              </span>
-            )}
-          </div>
+            <div className="flex-1 bg-slate-800 relative flex items-center justify-center p-2 min-h-[500px]">
+              {pdfBlobUrl ? (
+                <iframe
+                  src={`${pdfBlobUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+                  title="Vista previa de Cotización"
+                  className="w-full h-full min-h-[560px] rounded-sm border border-slate-700 bg-white"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-slate-400 gap-2 p-8 text-center">
+                  <RefreshCw className="w-7 h-7 animate-spin text-emerald-500 opacity-60" />
+                  <p className="text-xs font-semibold text-slate-300">
+                    Generando documento...
+                  </p>
+                  <p className="text-[11px] text-slate-500 max-w-[220px]">
+                    Escribe los datos del cliente y los repuestos para visualizar el PDF
+                  </p>
+                </div>
+              )}
+            </div>
 
-          {/* PDF Frame Viewer */}
-          <div className="flex-1 bg-slate-800 relative flex items-center justify-center p-2 min-h-[500px]">
-            {pdfBlobUrl ? (
-              <iframe
-                src={`${pdfBlobUrl}#toolbar=0&navpanes=0&scrollbar=1`}
-                title="Vista previa de Cotización"
-                className="w-full h-full min-h-[600px] rounded border border-slate-700 bg-white shadow-inner"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center text-slate-400 gap-2 p-8 text-center">
-                <RefreshCw className="w-8 h-8 animate-spin text-emerald-500 opacity-60" />
-                <p className="text-xs font-semibold text-slate-300">
-                  Generando documento...
-                </p>
-                <p className="text-[11px] text-slate-500 max-w-[220px]">
-                  Escribe los datos del cliente y los repuestos a la izquierda para visualizar el PDF
-                </p>
-              </div>
-            )}
+            <div className="px-3.5 py-2 bg-slate-100 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+              <span className="text-[11px]">Formato institucional A4</span>
+              <button
+                type="button"
+                onClick={handleDownloadPDF}
+                disabled={isExporting}
+                className="text-[11px] text-emerald-700 hover:text-emerald-800 font-bold hover:underline inline-flex items-center gap-1 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Descargar este PDF
+              </button>
+            </div>
           </div>
-
-          {/* Quick Footer within Preview */}
-          <div className="px-4 py-2.5 bg-slate-100 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-            <span className="text-[11px]">
-              Formato institucional oficial A4
-            </span>
-            <button
-              onClick={handleDownloadPDF}
-              className="text-[11px] text-emerald-700 hover:text-emerald-800 font-bold hover:underline inline-flex items-center gap-1"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Descargar este PDF
-            </button>
-          </div>
-        </div>
-
+        )}
       </div>
     </div>
   );

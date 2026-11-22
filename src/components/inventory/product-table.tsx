@@ -15,7 +15,7 @@ import { useProducts, useBcvRate, useCategories, useBcvMultiplier, useUpdateProd
 import { useCartStore } from '@/store/cart-store';
 import { Badge } from '@/components/ui/badge';
 import { formatUSD, calculateBcvPrice } from '@/lib/utils';
-import { Search, SlidersHorizontal, Plus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff, AlertTriangle, PackageX, PackageMinus, Bell, Check, ClipboardCheck, Loader2, Store } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, Minus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff, AlertTriangle, PackageX, PackageMinus, Bell, Check, ClipboardCheck, Loader2, Store } from 'lucide-react';
 import UseAnimations from 'react-useanimations';
 import shoppingCart from 'react-useanimations/lib/shoppingCart';
 import rotateCcw from 'react-useanimations/lib/rotateCcw';
@@ -45,7 +45,14 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
   const { data: bcvMultiplier = 1.4 } = useBcvMultiplier();
   const { data: categories = [] } = useCategories();
   const { data: brands = [] } = useBrands();
+  const cartItems = useCartStore((s) => s.items);
   const addItem = useCartStore((s) => s.addItem);
+  const updateQuantity = useCartStore((s) => s.updateQuantity);
+
+  const cartQtyByProductId = useMemo(
+    () => new Map(cartItems.map((item) => [item.product_id, item.quantity])),
+    [cartItems]
+  );
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -1203,12 +1210,17 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
               const stockVal = p.stock ?? 0;
               const priceUsdBcv = calculateBcvPrice(p.price_usd, bcvMultiplier, p.categories?.name || p.name);
               const priceBs = priceUsdBcv * bcvRate;
+              const inCartQty = cartQtyByProductId.get(p.id) ?? 0;
 
               return (
                 <div
                   key={p.id}
                   style={{ contentVisibility: 'auto', containIntrinsicSize: '0 78px' }}
-                  className="bg-white rounded-md border border-slate-200 shadow-sm overflow-hidden flex items-center gap-2.5 p-2.5 active:bg-slate-50 transition-colors"
+                  className={`rounded-md border shadow-sm overflow-hidden flex items-center gap-2.5 p-2.5 transition-colors ${
+                    inCartQty > 0
+                      ? 'bg-emerald-50/40 border-emerald-400'
+                      : 'bg-white border-slate-200 active:bg-slate-50'
+                  }`}
                 >
                   {/* Image */}
                   <div
@@ -1283,27 +1295,54 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
                         Bs {priceBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        addItem({
-                          product_id: p.id,
-                          product_name: p.name,
-                          product_code: p.code,
-                          quantity: 1,
-                          unit_price_usd: p.price_usd,
-                          image_url: p.image_url,
-                          brand_name: p.brands?.name,
-                          brand_logo_url: p.brands?.logo_url,
-                          stock: p.stock,
-                        });
-                        toast.success('Agregado', { duration: 1500 });
-                      }}
-                      className="w-11 h-11 rounded-md bg-slate-900 flex items-center justify-center text-white hover:bg-slate-800 transition-all active:scale-90 active:bg-emerald-600 cursor-pointer shrink-0 shadow-sm"
-                      title="Agregar a cotización"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
+                    {inCartQty > 0 ? (
+                      <div
+                        className="flex items-center border border-emerald-400 bg-white rounded-md overflow-hidden shadow-sm shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(p.id, inCartQty - 1)}
+                          className="w-8 h-10 flex items-center justify-center text-emerald-700 active:bg-emerald-100 cursor-pointer"
+                          title="Disminuir cantidad"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="min-w-[24px] text-center text-[12.5px] font-bold font-mono tabular-nums text-emerald-900">
+                          {inCartQty}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(p.id, inCartQty + 1)}
+                          className="w-8 h-10 flex items-center justify-center text-emerald-700 active:bg-emerald-100 cursor-pointer"
+                          title="Aumentar cantidad"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addItem({
+                            product_id: p.id,
+                            product_name: p.name,
+                            product_code: p.code,
+                            quantity: 1,
+                            unit_price_usd: p.price_usd,
+                            image_url: p.image_url,
+                            brand_name: p.brands?.name,
+                            brand_logo_url: p.brands?.logo_url,
+                            stock: p.stock,
+                          });
+                          toast.success('Agregado', { duration: 1500 });
+                        }}
+                        className="w-10 h-10 rounded-md bg-slate-900 flex items-center justify-center text-white hover:bg-slate-800 transition-all active:scale-90 active:bg-emerald-600 cursor-pointer shrink-0 shadow-sm"
+                        title="Agregar a cotización"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

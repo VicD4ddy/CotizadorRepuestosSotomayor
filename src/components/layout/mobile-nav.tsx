@@ -56,7 +56,7 @@ export function MobileNav({
   return (
     <nav
       className={cn(
-        'fixed bottom-0 left-0 right-0 z-50 lg:hidden',
+        'fixed bottom-0 left-0 right-0 z-[35] lg:hidden',
         'bg-[#0f172a] border-t border-slate-700/50'
       )}
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}

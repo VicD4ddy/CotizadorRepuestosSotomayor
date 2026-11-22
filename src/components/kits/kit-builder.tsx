@@ -8,7 +8,7 @@ import UseAnimations from 'react-useanimations';
 import arrowLeft from 'react-useanimations/lib/arrowLeft';
 import plusCircle from 'react-useanimations/lib/plusCircle';
 import shoppingCart from 'react-useanimations/lib/shoppingCart';
-import { ArrowLeft, Plus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3, CheckCircle2, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3, CheckCircle2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
@@ -36,7 +36,11 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const updateProduct = useUpdateProduct();
   const updateKit = useUpdateKit();
   const { data: products = [] } = useProducts();
-  const { addItem } = useCartStore();
+  const { items: cartItems, addItem, updateQuantity } = useCartStore();
+  const cartQtyByProductId = useMemo(
+    () => new Map(cartItems.map((i) => [i.product_id, i.quantity])),
+    [cartItems]
+  );
   const { data: bcvRate = 36.5 } = useBcvRate();
   const { data: bcvMultiplier = 1.4 } = useBcvMultiplier();
   const queryClient = useQueryClient();
@@ -263,17 +267,6 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
       }
     }
   };
-
-  // Escape key to go back
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !galleryProduct) {
-        onBack();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onBack, galleryProduct]);
 
   // Reset search query when closing the dialog
   useEffect(() => {
@@ -667,66 +660,82 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   return (
     <div className="flex flex-col h-full bg-slate-50 pb-[80px] lg:pb-0">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-3 md:px-6 py-3 md:py-4 shrink-0 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-3 md:gap-4">
-        <div className="flex items-center gap-4 shrink-0">
-          <button 
-            onClick={onBack}
-            className="w-11 h-11 md:w-10 md:h-10 rounded-full hover:bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0"
-          >
-            <UseAnimations animation={arrowLeft} size={20} strokeColor="currentColor" />
-          </button>
-          <div>
-            <h1 className="text-lg md:text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Package className="w-5 h-5 md:w-6 md:h-6 text-emerald-600" />
-              <span className="truncate">{kit.name}</span>
-            </h1>
-            <p className="text-sm text-slate-500 hidden md:block">{kit.description || `Cotizador para ${kit.category}`}</p>
+      <div className="bg-white border-b border-slate-200 px-3 md:px-6 py-2 md:py-4 shrink-0 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-2 md:gap-4">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2 md:gap-4 min-w-0">
+            <button 
+              onClick={onBack}
+              className="w-9 h-9 md:w-10 md:h-10 rounded-full hover:bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0"
+            >
+              <UseAnimations animation={arrowLeft} size={18} strokeColor="currentColor" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-base md:text-2xl font-bold text-slate-900 flex items-center gap-1.5 md:gap-2 min-w-0">
+                <Package className="w-4 h-4 md:w-6 md:h-6 text-emerald-600 shrink-0" />
+                <span className="truncate">{kit.name}</span>
+              </h1>
+              <p className="text-sm text-slate-500 hidden md:block">{kit.description || `Cotizador para ${kit.category}`}</p>
+            </div>
           </div>
+          <Button
+            onClick={handleDownloadCatalog}
+            disabled={isGeneratingCatalog || kitItems.length === 0}
+            variant="outline"
+            className="md:hidden gap-1.5 border-slate-300 text-slate-700 font-semibold h-8 px-2.5 text-[11.5px] shrink-0"
+            title="Descargar catálogo PDF"
+          >
+            {isGeneratingCatalog ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+            ) : (
+              <FileText className="w-3.5 h-3.5 text-slate-500" />
+            )}
+            <span>Catálogo</span>
+          </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-2 md:gap-2.5 w-full md:w-auto">
-          <div className="relative w-full md:w-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <div className="flex flex-wrap items-center gap-1.5 md:gap-2.5 w-full md:w-auto">
+          <div className="relative flex-1 min-w-[130px] md:w-auto md:flex-none">
+            <Search className="absolute left-2.5 md:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 md:w-4 md:h-4 text-slate-400" />
             <input
               type="text"
               placeholder={`Buscar en ${kit.category.toLowerCase() === 'motor' ? 'el motor' : kit.category.toLowerCase()}...`}
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
-              className="w-full md:w-[200px] pl-9 pr-3 h-[44px] md:h-[36px] rounded bg-white border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
+              className="w-full md:w-[200px] pl-8 md:pl-9 pr-2.5 md:pr-3 h-9 rounded bg-white border border-slate-200 text-[12.5px] md:text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
             />
           </div>
           
           {kit.category.toLowerCase() === 'motor' && (
-            <div className="relative">
-              <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <div className="relative shrink-0">
+              <Ruler className="absolute left-2 md:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 md:w-4 md:h-4 text-slate-400 pointer-events-none" />
               <select
                 value={measureFilter}
                 onChange={(e) => setMeasureFilter(e.target.value)}
-                className={`pl-9 pr-8 h-[36px] rounded border text-[13px] font-medium appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all ${
+                className={`pl-7 md:pl-9 pr-5 md:pr-8 h-9 rounded border text-[11.5px] md:text-[13px] font-medium appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all ${
                   measureFilter !== 'all'
                     ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                     : 'bg-white border-slate-200 text-slate-700'
                 }`}
               >
                 {MEASURE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  <option key={opt.value} value={opt.value}>{opt.value === 'all' ? 'Medidas' : opt.label}</option>
                 ))}
               </select>
             </div>
           )}
           <button
             onClick={() => setHideZeroStock(!hideZeroStock)}
-            className={`flex items-center gap-2 px-3 h-[36px] rounded border text-[13px] font-medium transition-all shrink-0 select-none cursor-pointer ${
+            className={`flex items-center gap-1.5 md:gap-2 px-2 md:px-3 h-9 rounded border text-[11.5px] md:text-[13px] font-medium transition-all shrink-0 select-none cursor-pointer ${
               hideZeroStock
                 ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-semibold shadow-sm'
                 : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}
             title="Ocultar los repuestos que tengan stock igual a cero"
           >
-            <div className={`w-8 h-4 rounded-full transition-colors relative flex items-center p-0.5 shrink-0 ${
+            <div className={`w-7 md:w-8 h-3.5 md:h-4 rounded-full transition-colors relative flex items-center p-0.5 shrink-0 ${
               hideZeroStock ? 'bg-emerald-500' : 'bg-slate-300'
             }`}>
-              <div className={`w-3 h-3 rounded-full bg-white transition-transform ${
-                hideZeroStock ? 'translate-x-4' : 'translate-x-0'
+              <div className={`w-2.5 md:w-3 h-2.5 md:h-3 rounded-full bg-white transition-transform ${
+                hideZeroStock ? 'translate-x-3.5 md:translate-x-4' : 'translate-x-0'
               }`} />
             </div>
             <span className="hidden sm:inline">Ocultar los repuestos con stock 0</span><span className="sm:hidden">Stock 0</span>
@@ -744,7 +753,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             onClick={handleDownloadCatalog}
             disabled={isGeneratingCatalog || kitItems.length === 0}
             variant="outline"
-            className="gap-2 border-slate-300 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 font-semibold h-[36px] flex items-center shadow-xs"
+            className="gap-2 border-slate-300 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 font-semibold h-[36px] hidden md:flex items-center shadow-sm"
             title="Descargar catálogo en PDF con fotos, códigos y precios"
           >
             {isGeneratingCatalog ? (
@@ -752,17 +761,16 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             ) : (
               <FileText className="w-4 h-4 text-slate-500" />
             )}
-            <span className="hidden sm:inline">Catálogo PDF</span>
-            <span className="sm:hidden">Catálogo</span>
+            <span>Catálogo PDF</span>
           </Button>
           
           {kitCombos.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="hidden md:flex items-center gap-2 flex-wrap justify-end">
               {kitCombos.map((combo) => (
                 <Button
                   key={combo.id}
                   onClick={() => handleLoadCombo(combo.id)}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold h-[44px] md:h-[36px] gap-2 px-3 shadow-sm active:scale-[0.98] transition-transform"
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold h-[36px] gap-2 px-3 shadow-sm active:scale-[0.98] transition-transform"
                 >
                   <UseAnimations animation={shoppingCart} size={18} strokeColor="currentColor" />
                   Cargar {combo.name} al carrito
@@ -774,57 +782,66 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
       </div>
 
       {kit.category === 'Clutch' ? (
-        <div className="flex-1 overflow-auto p-4 md:p-6 max-w-5xl mx-auto w-full">
+        <div className="flex-1 overflow-auto p-3 md:p-6 max-w-5xl mx-auto w-full pb-[140px] md:pb-6">
           <ClutchKitView kit={kit} />
         </div>
       ) : (
         <>
-          {/* Tabs */}
-          <div className="bg-white border-b border-slate-200 px-3 md:px-6 flex items-center gap-4 md:gap-6 overflow-x-auto scrollbar-hide">
+          {/* Tabs (1 sola línea en móvil) */}
+          <div className="bg-white border-b border-slate-200 px-3 md:px-6 flex items-center gap-4 md:gap-6 overflow-x-auto scrollbar-hide shrink-0">
             <button
               onClick={() => setActiveTab('inventory')}
-              className={`py-3 text-sm font-semibold border-b-2 transition-colors ${
+              className={`py-2 md:py-3 text-[12px] md:text-sm font-semibold border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'inventory' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              {kit.category.toLowerCase() === 'motor' ? 'Inventario del Motor' : 'Inventario del Cotizador'}
+              <span className="md:hidden">Repuestos</span>
+              <span className="hidden md:inline">
+                {kit.category.toLowerCase() === 'motor' ? 'Inventario del Motor' : 'Inventario del Cotizador'}
+              </span>
             </button>
             <button
               onClick={() => setActiveTab('combos')}
-              className={`py-3 text-sm font-semibold border-b-2 transition-colors ${
+              className={`py-2 md:py-3 text-[12px] md:text-sm font-semibold border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'combos' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              Configurar Combos
+              <span className="md:hidden">
+                Combos{kitCombos.length > 0 ? ` (${kitCombos.length})` : ''}
+              </span>
+              <span className="hidden md:inline">
+                Configurar Combos{kitCombos.length > 0 ? ` (${kitCombos.length})` : ''}
+              </span>
             </button>
             {kit.category.toLowerCase() === 'motor' && (
               <button
                 onClick={() => setActiveTab('clutch')}
-                className={`py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+                className={`py-2 md:py-3 text-[12px] md:text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                   activeTab === 'clutch' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
-                <Disc3 className="w-4 h-4 text-emerald-600" />
-                Clutch / Embrague
+                <Disc3 className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-600" />
+                <span className="md:hidden">Clutch</span>
+                <span className="hidden md:inline">Clutch / Embrague</span>
               </button>
             )}
           </div>
 
           {/* Dynamic Category Pills (Quick 1-tap filter for Motor & Tren Delantero) */}
           {activeTab === 'inventory' && kitItems.length > 0 && availableCategories.length > 0 && (
-            <div className="bg-white border-b border-slate-200 px-3 md:px-6 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-hide shrink-0">
+            <div className="bg-white border-b border-slate-200 px-3 md:px-6 py-1.5 md:py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-hide shrink-0">
               <button
                 type="button"
                 onClick={() => setSelectedCategory('all')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border transition-all shrink-0 cursor-pointer active:scale-95 ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 md:px-3 md:py-1.5 rounded-full text-[11px] md:text-[12px] font-bold border transition-all shrink-0 cursor-pointer active:scale-95 ${
                   selectedCategory === 'all'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                     : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                 }`}
               >
                 <span>Todas</span>
                 <span
-                  className={`font-mono tabular-nums text-[10px] px-1.5 py-0.2 rounded-full ${
+                  className={`font-mono tabular-nums text-[10px] px-1.5 py-0.5 rounded-full ${
                     selectedCategory === 'all'
                       ? 'bg-emerald-700/80 text-white'
                       : 'bg-white text-slate-500 border border-slate-200/80'
@@ -841,15 +858,15 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                     key={cat.name}
                     type="button"
                     onClick={() => setSelectedCategory(isActive ? 'all' : cat.name)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border transition-all shrink-0 cursor-pointer active:scale-95 ${
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 md:px-3 md:py-1.5 rounded-full text-[11px] md:text-[12px] font-bold border transition-all shrink-0 cursor-pointer active:scale-95 ${
                       isActive
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                         : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                     }`}
                   >
                     <span>{cat.name}</span>
                     <span
-                      className={`font-mono tabular-nums text-[10px] px-1.5 py-0.2 rounded-full ${
+                      className={`font-mono tabular-nums text-[10px] px-1.5 py-0.5 rounded-full ${
                         isActive
                           ? 'bg-emerald-700/80 text-white'
                           : 'bg-white text-slate-500 border border-slate-200/80'
@@ -865,7 +882,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
 
       {/* Body: Inventory */}
       {activeTab === 'inventory' && (
-        <div className="flex-1 overflow-auto p-3 md:p-6">
+        <div className="flex-1 overflow-auto p-2.5 pb-[140px] md:p-6 md:pb-6">
           {kitItems.length === 0 ? (
             <div className="max-w-md mx-auto text-center py-20">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -908,7 +925,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             </Button>
           </div>
         ) : (
-          <div className="max-w-5xl mx-auto space-y-8">
+          <div className="max-w-5xl mx-auto space-y-3 md:space-y-8">
             {Object.entries(groupedItems).map(([categoryName, items]) => {
               // Sub-group items by brand within this category
               const brandGroups: Record<string, typeof items> = {};
@@ -948,9 +965,9 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
               }
 
               return (
-              <div key={categoryName} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="bg-slate-50 px-3 md:px-5 py-2.5 md:py-3 border-b border-slate-200 flex items-center justify-between">
-                  <h3 className="font-bold text-[14px] text-slate-800 uppercase tracking-wider">
+              <div key={categoryName} className="bg-white rounded-md md:rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-slate-50 px-3 md:px-5 py-2 md:py-3 border-b border-slate-200 flex items-center justify-between">
+                  <h3 className="font-bold text-[12.5px] md:text-[14px] text-slate-800 uppercase tracking-wider">
                     {categoryName}
                   </h3>
                   <div className="flex items-center gap-2">
@@ -1033,7 +1050,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                   {brandEntries.map(([brandName, brandItems]) => (
                     <div key={brandName}>
                         {hasManyBrands && (
-                          <div className="flex items-center justify-between px-5 py-2 bg-slate-50/80 border-b border-slate-100">
+                          <div className="flex items-center justify-between px-3 md:px-5 py-1.5 md:py-2 bg-slate-50/80 border-b border-slate-100">
                             <div className="flex items-center gap-2">
                               {brandItems[0]?.products?.brands?.logo_url && (
                                 <img 
@@ -1121,8 +1138,123 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                         <div className="divide-y divide-slate-100">
                           {brandItems.map((item: any) => {
                             const product = item.products;
+                            const inCartQty = product ? (cartQtyByProductId.get(product.id) ?? 0) : 0;
+                            const bcvPriceUsd = calculateBcvPrice(
+                              product?.price_usd || 0,
+                              bcvMultiplier,
+                              product?.categories?.name || product?.name
+                            );
                             return (
-                              <div key={item.id} className="p-3 md:p-4 flex flex-col md:flex-row md:items-center hover:bg-slate-50 transition-colors group gap-2 md:gap-4">
+                              <div key={item.id}>
+                                {/* Mobile Compact Horizontal Card */}
+                                <div
+                                  className={cn(
+                                    'flex md:hidden items-center gap-2.5 px-2.5 py-2 transition-colors',
+                                    inCartQty > 0
+                                      ? 'bg-emerald-50/40 border-l-2 border-l-emerald-500'
+                                      : 'hover:bg-slate-50'
+                                  )}
+                                >
+                                  <div
+                                    className={`w-11 h-11 rounded-sm border border-slate-200 bg-white overflow-hidden flex items-center justify-center shrink-0 ${
+                                      product?.image_url ? 'cursor-pointer active:scale-95' : ''
+                                    }`}
+                                    onClick={(e) => {
+                                      if (product?.image_url) {
+                                        e.stopPropagation();
+                                        setGalleryProduct(product as Product);
+                                      }
+                                    }}
+                                  >
+                                    {product?.image_url ? (
+                                      <img
+                                        src={product.image_url}
+                                        alt={product.name}
+                                        loading="lazy"
+                                        decoding="async"
+                                        className="w-full h-full object-contain"
+                                      />
+                                    ) : (
+                                      <Package className="w-4 h-4 text-slate-300" />
+                                    )}
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[12.5px] font-bold text-slate-900 leading-tight line-clamp-2">
+                                      {product?.name || 'Producto no encontrado'}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                      <span
+                                        onClick={() => product?.code && copyToClipboard(product.code)}
+                                        className="text-[10px] font-mono tabular-nums text-slate-500 bg-slate-100 px-1 py-0.5 rounded-sm cursor-pointer"
+                                        title="Copiar SKU"
+                                      >
+                                        {product?.code || '---'}
+                                      </span>
+                                      <span
+                                        className={`text-[9.5px] font-bold font-mono tabular-nums px-1.5 py-0.5 rounded-sm shrink-0 ${
+                                          (product?.stock ?? 0) > 0
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'bg-red-50 text-red-600'
+                                        }`}
+                                      >
+                                        Stock: {product?.stock ?? 0}
+                                      </span>
+                                      {!hasManyBrands && product?.brands?.name && (
+                                        <span className="text-[9.5px] font-bold text-slate-400 uppercase truncate">
+                                          {product.brands.name}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <div className="text-right">
+                                      <p className="text-[13.5px] font-extrabold font-mono tabular-nums text-slate-900 leading-none">
+                                        {formatUSD(product?.price_usd || 0)}
+                                      </p>
+                                      <p className="text-[10px] font-bold font-mono tabular-nums text-emerald-600 leading-tight mt-0.5">
+                                        {formatUSD(bcvPriceUsd)} BCV
+                                      </p>
+                                    </div>
+
+                                    {product && (inCartQty > 0 ? (
+                                      <div className="flex items-center border border-emerald-400 bg-white rounded-sm overflow-hidden shadow-sm shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateQuantity(product.id, inCartQty - 1)}
+                                          className="w-7 h-8 flex items-center justify-center text-emerald-700 active:bg-emerald-100 cursor-pointer"
+                                          title="Disminuir"
+                                        >
+                                          <Minus className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="min-w-[22px] text-center text-[11.5px] font-bold font-mono tabular-nums text-emerald-900">
+                                          {inCartQty}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateQuantity(product.id, inCartQty + 1)}
+                                          className="w-7 h-8 flex items-center justify-center text-emerald-700 active:bg-emerald-100 cursor-pointer"
+                                          title="Aumentar"
+                                        >
+                                          <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddToCart(product, item.quantity)}
+                                        className="w-9 h-9 rounded-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center active:scale-90 transition-transform shadow-sm cursor-pointer shrink-0"
+                                        title="Añadir al carrito"
+                                      >
+                                        <Plus className="w-4 h-4" />
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Desktop Row (preserved) */}
+                                <div className="hidden md:flex p-4 items-center hover:bg-slate-50 transition-colors group gap-4">
                                 <div className="relative shrink-0">
                                   <div 
                                     className={`w-12 h-12 rounded border border-slate-200 bg-white overflow-hidden flex items-center justify-center transition-colors ${product?.image_url ? 'cursor-pointer hover:border-emerald-500' : ''}`}
@@ -1249,6 +1381,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                       <Trash2 className="w-4 h-4" />
                                     </button>
                                   </div>
+                                </div>
                                 </div>
                               </div>
                             );

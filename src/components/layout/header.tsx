@@ -271,7 +271,7 @@ export function Header() {
               e.currentTarget.nextElementSibling?.classList.remove('hidden');
             }}
           />
-          <h1 className="hidden lg:block text-[12px] md:text-[13px] font-bold tracking-wider uppercase text-slate-900 whitespace-nowrap ml-2">
+          <h1 className="hidden text-[12px] md:text-[13px] font-bold tracking-wider uppercase text-slate-900 whitespace-nowrap">
             Repuestos Sotomayor
           </h1>
         </div>
