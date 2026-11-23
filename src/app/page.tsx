@@ -92,7 +92,7 @@ function applyCartGuideVisual(
 
 export default function HomePage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('inventory');
+  const [activeTab, setActiveTab] = useState<string | null>(null);
   const [selectedKit, setSelectedKit] = useState<Kit | null>(null);
   const [showRecentImports, setShowRecentImports] = useState(false);
   const [mobileSheetForceOpen, setMobileSheetForceOpen] = useState(false);
@@ -219,12 +219,23 @@ export default function HomePage() {
     window.addEventListener('blur', onWindowBlur);
   };
 
+  // Resolve initial landing tab after mount without SSR hydration mismatch
+  useEffect(() => {
+    const isMobileViewport = window.matchMedia('(max-width: 767px)').matches;
+    setActiveTab((prev) => prev ?? (isMobileViewport ? 'motor_kits' : 'inventory'));
+  }, []);
+
   // Listen for navigate-tab events from notification panel
   useEffect(() => {
     const handler = (e: Event) => {
       const tab = (e as CustomEvent).detail?.tab;
       if (tab) {
-        setActiveTab(tab);
+        const isMobileViewport = window.matchMedia('(max-width: 767px)').matches;
+        const nextTab =
+          isMobileViewport && (tab === 'inventory' || tab === 'clutch_kits')
+            ? 'motor_kits'
+            : tab;
+        setActiveTab(nextTab);
         setSelectedKit(null);
       }
     };
@@ -236,7 +247,7 @@ export default function HomePage() {
     <div className="flex h-screen overflow-hidden bg-slate-50">
       {/* Sidebar */}
       <Sidebar 
-        activeItem={activeTab}
+        activeItem={activeTab ?? 'inventory'}
         onNavigate={(id) => {
           if (id === 'settings') {
             setIsSettingsOpen(true);
@@ -253,6 +264,7 @@ export default function HomePage() {
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <Header />
           <main className="flex-1 overflow-auto p-3 md:p-5 bg-slate-50 min-w-0 pb-[80px] lg:pb-5">
+            {activeTab === null && <TabLoadingFallback />}
             {activeTab === 'inventory' && <ProductTable key={showRecentImports ? 'recents' : 'normal'} showRecentsOnMount={showRecentImports} />}
             {activeTab === 'miscellaneous' && <ProductTable key="miscellaneous" isMiscellaneous={true} />}
             {activeTab === 'min_stock_alert' && <ProductTable key="min_stock_alert" isMinStockAlert={true} />}
@@ -368,7 +380,7 @@ export default function HomePage() {
 
       {/* Mobile Bottom Tab Bar Navigation */}
       <MobileNav
-        activeTab={activeTab}
+        activeTab={activeTab ?? 'motor_kits'}
         onNavigate={(id) => {
           if (id === 'settings') {
             setIsSettingsOpen(true);
@@ -383,7 +395,7 @@ export default function HomePage() {
 
       {isSettingsOpen && (
         <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} onImportComplete={() => {
-          setActiveTab('inventory');
+          setActiveTab(window.innerWidth < 768 ? 'motor_kits' : 'inventory');
           setShowRecentImports(true);
           setTimeout(() => setShowRecentImports(false), 500);
         }} />

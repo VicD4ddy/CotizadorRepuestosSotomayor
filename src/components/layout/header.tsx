@@ -417,7 +417,9 @@ export function Header() {
 
         <div className="w-px h-5 bg-slate-200 hidden md:block" />
 
-        <NotificationPanel />
+        <div className="hidden md:block">
+          <NotificationPanel />
+        </div>
         <button
           onClick={() => setIsProfileOpen(true)}
           className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-95 flex items-center justify-center transition-all cursor-pointer ring-2 ring-transparent hover:ring-emerald-500/60 shadow-xs text-white shrink-0"

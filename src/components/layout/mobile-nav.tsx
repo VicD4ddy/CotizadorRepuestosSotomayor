@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Package, Wrench, FileText, ShoppingCart } from 'lucide-react';
+import { Settings, Wrench, FileText, ShoppingCart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MobileNavProps {
@@ -11,48 +10,12 @@ interface MobileNavProps {
   cartItemsCount: number;
 }
 
-const KITS_TAB_IDS = ['motor_kits', 'clutch_kits', 'tren_delantero_kits'] as const;
-
-const kitsSubMenu = [
-  { label: 'Motor', id: 'motor_kits' },
-  { label: 'Clutch', id: 'clutch_kits' },
-  { label: 'T. Delantero', id: 'tren_delantero_kits' },
-] as const;
-
 export function MobileNav({
   activeTab,
   onNavigate,
   onCartPress,
   cartItemsCount,
 }: MobileNavProps) {
-  const [kitsOpen, setKitsOpen] = useState(false);
-  const kitsRef = useRef<HTMLDivElement>(null);
-
-  const isKitsActive = KITS_TAB_IDS.includes(activeTab as (typeof KITS_TAB_IDS)[number]);
-
-  // Close popover on outside click
-  const handleOutsideClick = useCallback((e: MouseEvent) => {
-    if (kitsRef.current && !kitsRef.current.contains(e.target as Node)) {
-      setKitsOpen(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (kitsOpen) {
-      document.addEventListener('mousedown', handleOutsideClick);
-      return () => document.removeEventListener('mousedown', handleOutsideClick);
-    }
-  }, [kitsOpen, handleOutsideClick]);
-
-  const handleKitsToggle = () => {
-    setKitsOpen((prev) => !prev);
-  };
-
-  const handleKitsSelect = (id: string) => {
-    setKitsOpen(false);
-    onNavigate(id);
-  };
-
   return (
     <nav
       className={cn(
@@ -62,52 +25,21 @@ export function MobileNav({
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       <div className="flex items-center justify-around h-[68px] px-2">
-        {/* Catálogo */}
+        {/* Motor */}
         <TabButton
-          icon={<Package size={22} strokeWidth={1.8} />}
-          label="Catálogo"
-          isActive={activeTab === 'inventory'}
-          onPress={() => onNavigate('inventory')}
+          icon={<Settings size={22} strokeWidth={1.8} />}
+          label="Motor"
+          isActive={activeTab === 'motor_kits'}
+          onPress={() => onNavigate('motor_kits')}
         />
 
-        {/* Kits — with popover */}
-        <div ref={kitsRef} className="relative flex items-center justify-center">
-          {/* Sub-menu popover */}
-          {kitsOpen && (
-            <div
-              className={cn(
-                'absolute bottom-full mb-2.5 left-1/2 -translate-x-1/2',
-                'bg-[#1e293b] rounded-md shadow-2xl border border-slate-700',
-                'min-w-[140px] py-1',
-                'animate-in fade-in slide-in-from-bottom-2 duration-200'
-              )}
-            >
-              {kitsSubMenu.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleKitsSelect(item.id)}
-                  className={cn(
-                    'w-full text-left px-3.5 py-2 text-[13px] font-medium',
-                    'transition-colors duration-150',
-                    activeTab === item.id
-                      ? 'text-emerald-400 bg-emerald-500/10'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-700/50',
-                    'active:scale-95'
-                  )}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <TabButton
-            icon={<Wrench size={22} strokeWidth={1.8} />}
-            label="Kits"
-            isActive={isKitsActive}
-            onPress={handleKitsToggle}
-          />
-        </div>
+        {/* Tren Delantero */}
+        <TabButton
+          icon={<Wrench size={22} strokeWidth={1.8} />}
+          label="T. Delantero"
+          isActive={activeTab === 'tren_delantero_kits'}
+          onPress={() => onNavigate('tren_delantero_kits')}
+        />
 
         {/* Cotizaciones */}
         <TabButton
@@ -161,6 +93,7 @@ interface TabButtonProps {
 function TabButton({ icon, label, isActive, onPress }: TabButtonProps) {
   return (
     <button
+      type="button"
       onClick={onPress}
       className={cn(
         'flex flex-col items-center justify-center gap-0.5',
