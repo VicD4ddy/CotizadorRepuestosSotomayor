@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { Download, SlidersHorizontal, FileText, Save } from 'lucide-react';
+import { Download, SlidersHorizontal, FileText, Save, Lock, Unlock, X } from 'lucide-react';
+
+const IMPORT_PRODUCTS_PIN = '1234';
 
 const ImportExcelDialog = dynamic(
   () => import('@/components/settings/import-excel-dialog').then((m) => m.ImportExcelDialog),
@@ -57,6 +59,9 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
   const [localMultiplier, setLocalMultiplier] = useState('');
   const [localMinStock, setLocalMinStock] = useState('');
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isUnlockingImport, setIsUnlockingImport] = useState(false);
+  const [importPin, setImportPin] = useState('');
+  const [pinError, setPinError] = useState(false);
   const [isImportStockOpen, setIsImportStockOpen] = useState(false);
   const [isBulkMinStockOpen, setIsBulkMinStockOpen] = useState(false);
 
@@ -67,7 +72,24 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
       if (bcvMultiplier) setLocalMultiplier(bcvMultiplier.toString());
       setLocalMinStock(defaultMinStock > 0 ? defaultMinStock.toString() : '2');
     }
+    setIsUnlockingImport(false);
+    setImportPin('');
+    setPinError(false);
   }, [open, bcvRate, marginPercentage, bcvMultiplier, defaultMinStock]);
+
+  const handleUnlockImport = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (importPin.trim() === IMPORT_PRODUCTS_PIN) {
+      setImportPin('');
+      setPinError(false);
+      setIsUnlockingImport(false);
+      setIsImportOpen(true);
+    } else {
+      setPinError(true);
+      setImportPin('');
+      toast.error('Clave incorrecta');
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -184,11 +206,17 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
             <label className="text-sm font-medium text-slate-700 mb-2.5 block">Gestión de Datos</label>
             <div className="grid grid-cols-2 gap-2">
               <Button
+                type="button"
                 variant="outline"
-                onClick={() => setIsImportOpen(true)}
-                className="gap-2 border-slate-300 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 justify-center h-10 text-[13px]"
+                onClick={() => {
+                  setIsUnlockingImport((prev) => !prev);
+                  setImportPin('');
+                  setPinError(false);
+                }}
+                title="Bloqueado para evitar importaciones accidentales. Haz clic para desbloquear con clave."
+                className="gap-1.5 border-dashed border-slate-300 bg-slate-50 text-slate-500 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 focus-visible:ring-2 focus-visible:ring-emerald-500 active:scale-[0.98] justify-center h-10 text-[13px] cursor-pointer transition-colors"
               >
-                <FileText className="w-4 h-4 text-emerald-600" />
+                <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                 Importar Productos
               </Button>
               <Button
@@ -259,6 +287,59 @@ export function SettingsDialog({ open, onOpenChange, onImportComplete }: Setting
                 Descargar Plantilla de Productos
               </Button>
             </div>
+            {isUnlockingImport && (
+              <div className="mt-2.5 p-2.5 rounded-sm border border-amber-200 bg-amber-50/70 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-[11.5px] font-semibold text-amber-900">
+                    <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span>Clave requerida para Importar Productos</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUnlockingImport(false);
+                      setImportPin('');
+                      setPinError(false);
+                    }}
+                    className="p-0.5 rounded-sm text-amber-700 hover:text-amber-900 hover:bg-amber-100 focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer transition-colors"
+                    title="Cancelar desbloqueo"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <form onSubmit={handleUnlockImport} className="flex items-center gap-1.5">
+                  <Input
+                    type="password"
+                    inputMode="numeric"
+                    autoFocus
+                    placeholder="Clave..."
+                    value={importPin}
+                    onChange={(e) => {
+                      setImportPin(e.target.value);
+                      if (pinError) setPinError(false);
+                    }}
+                    className={`h-8 text-[12.5px] font-mono tabular-nums tracking-widest bg-white rounded-sm ${
+                      pinError
+                        ? 'border-red-400 focus-visible:ring-red-500'
+                        : 'border-amber-300 focus-visible:ring-emerald-500'
+                    }`}
+                  />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="h-8 px-3 gap-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-sm text-[12px] font-semibold shrink-0 cursor-pointer focus-visible:ring-2 focus-visible:ring-emerald-500 active:scale-[0.98] transition-all"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    Abrir
+                  </Button>
+                </form>
+                {pinError && (
+                  <p className="text-[11px] text-red-600 font-medium">
+                    Clave incorrecta. Intenta nuevamente.
+                  </p>
+                )}
+              </div>
+            )}
             <p className="text-xs text-slate-500 mt-1.5">
               Carga masiva de catálogo de productos o actualización rápida de existencias.
             </p>

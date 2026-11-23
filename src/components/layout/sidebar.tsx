@@ -58,13 +58,12 @@ export function Sidebar({ activeItem: controlledActive, onNavigate }: SidebarPro
     <aside className="hidden md:flex fixed left-0 top-0 z-40 h-screen w-[96px] flex-col items-center bg-[#0f172a] py-3">
       {/* Logo */}
       <div className="flex flex-col items-center justify-center mb-3">
-        <div className="w-8 h-8 rounded bg-white flex items-center justify-center text-[#0f172a] font-bold text-[13px] shadow-sm mb-1">
-          S
-        </div>
-        <span className="text-[9px] font-bold text-white tracking-wide">
-          Sotomayor
-        </span>
-        <span className="text-[7px] text-slate-400">
+        <img
+          src="/logo-sotomayor-icon.png"
+          alt="Repuestos Sotomayor"
+          className="w-14 h-14 object-contain drop-shadow-sm mb-1 select-none"
+        />
+        <span className="text-[8px] font-medium text-slate-400 tracking-wide">
           Admin Panel
         </span>
       </div>
