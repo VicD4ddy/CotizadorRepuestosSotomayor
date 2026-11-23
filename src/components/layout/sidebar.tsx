@@ -63,7 +63,10 @@ export function Sidebar({ activeItem: controlledActive, onNavigate }: SidebarPro
           alt="Repuestos Sotomayor"
           className="w-14 h-14 object-contain drop-shadow-sm mb-1 select-none"
         />
-        <span className="text-[8px] font-medium text-slate-400 tracking-wide">
+        <span className="text-[10px] font-bold text-white tracking-wide leading-tight">
+          Cotizador
+        </span>
+        <span className="text-[7.5px] font-medium text-slate-400 tracking-wide">
           Admin Panel
         </span>
       </div>
