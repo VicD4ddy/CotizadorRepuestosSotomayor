@@ -145,8 +145,8 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 space-y-2.5 md:space-y-6 pb-[140px] lg:pb-0">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden md:h-auto md:overflow-visible bg-slate-50 gap-2.5 md:gap-6 md:pb-6">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-[15px] md:text-2xl font-bold text-slate-900">Cotizadores de {category}</h2>
           <p className="text-xs md:text-sm text-slate-500 mt-1 hidden sm:block">Gestiona las plantillas de repuestos para agilizar cotizaciones.</p>
@@ -164,7 +164,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
       </div>
 
       {/* Search and Brand Filters */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-3 shrink-0">
         <div className="relative max-w-md flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
@@ -217,7 +217,8 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
 
       {/* Mobile Compact List (Opción A) */}
       {filteredKits.length > 0 && (
-        <div className="md:hidden bg-white border border-slate-200 rounded-md divide-y divide-slate-100 overflow-hidden shadow-sm">
+        <div className="md:hidden flex-1 min-h-0 overflow-y-auto overscroll-contain bg-white border border-slate-200 rounded-md shadow-sm">
+          <div className="divide-y divide-slate-100 pb-16">
           {filteredKits.map((kit) => {
             const { associatedMotors, cleanDescription } = parseKitDescription(kit.description);
             const subtitle =
@@ -283,6 +284,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
               </div>
             );
           })}
+          </div>
         </div>
       )}
 

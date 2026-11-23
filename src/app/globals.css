@@ -78,6 +78,15 @@
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
+/* Hide scrollbar while keeping horizontal/vertical touch scroll */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Table row hover transition */
 .table-row-hover {
   @apply transition-colors duration-150 cursor-pointer;
