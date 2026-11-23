@@ -4,13 +4,8 @@ import { Quote, QuoteItem } from '@/types';
 import { useUpdateQuote, useBcvMultiplier, useBcvRate } from '@/hooks/use-supabase';
 import { formatUSD, formatBs, calculateBcvPrice } from '@/lib/utils';
 import { toast } from 'sonner';
-import UseAnimations from 'react-useanimations';
-import shoppingCart from 'react-useanimations/lib/shoppingCart';
-import download from 'react-useanimations/lib/download';
-import checkmark from 'react-useanimations/lib/checkmark';
-import trash2 from 'react-useanimations/lib/trash2';
-import messageCircle from 'react-useanimations/lib/messageCircle';
-import { Calendar, User, Phone } from 'lucide-react';
+import { Calendar, User, Phone, ShoppingCart, Download, Check, Trash2, MessageCircle } from 'lucide-react';
+import { getRandomWhatsAppPhrase } from '@/lib/whatsapp-phrases';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { generateQuotePDF } from '@/lib/generate-quote-pdf';
@@ -61,21 +56,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
 
     setIsGeneratingPDF(true);
     try {
-      const WHATSAPP_PHRASES = [
-        "La pasión por servirte es el motor que nunca se apaga.",
-        "Tu confianza es el combustible; nuestra vocación, el motor.",
-        "Encendemos cada jornada con la meta de darte el mejor rendimiento.",
-        "Más que piezas de recambio, entregamos la potencia de un servicio comprometido.",
-        "Aceleramos soluciones para que tus proyectos nunca se detengan.",
-        "Alineamos cada detalle de nuestra atención a la altura de tu camino.",
-        "La tracción que necesitas para avanzar con total seguridad.",
-        "Calidad en cada repuesto, dirección firme en cada asesoría.",
-        "Sincronizamos nuestra dedicación para mantener tu marcha perfecta.",
-        "Atención precisa y repuestos firmes: el engranaje de tu tranquilidad.",
-        "Tu satisfacción es la fuerza que mueve cada uno de nuestros engranajes.",
-        "Ajustamos cada solución con la precisión que tu trabajo merece."
-      ];
-      const randomPhrase = WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
+      const randomPhrase = getRandomWhatsAppPhrase();
       const bcvRate = quote.bcv_rate || currentBcvRate;
 
       // Generate and download PDF first
@@ -147,21 +128,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
     setIsGeneratingPDF(true);
     
     try {
-      const WHATSAPP_PHRASES = [
-        "La pasión por servirte es el motor que nunca se apaga.",
-        "Tu confianza es el combustible; nuestra vocación, el motor.",
-        "Encendemos cada jornada con la meta de darte el mejor rendimiento.",
-        "Más que piezas de recambio, entregamos la potencia de un servicio comprometido.",
-        "Aceleramos soluciones para que tus proyectos nunca se detengan.",
-        "Alineamos cada detalle de nuestra atención a la altura de tu camino.",
-        "La tracción que necesitas para avanzar con total seguridad.",
-        "Calidad en cada repuesto, dirección firme en cada asesoría.",
-        "Sincronizamos nuestra dedicación para mantener tu marcha perfecta.",
-        "Atención precisa y repuestos firmes: el engranaje de tu tranquilidad.",
-        "Tu satisfacción es la fuerza que mueve cada uno de nuestros engranajes.",
-        "Ajustamos cada solución con la precisión que tu trabajo merece."
-      ];
-      const randomPhrase = WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
+      const randomPhrase = getRandomWhatsAppPhrase();
 
       try {
         await copyQuoteToClipboard(quote, bcvMultiplier, currentBcvRate, randomPhrase, currency);
@@ -328,7 +295,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
                 onClick={handleSendToCart}
                 className="bg-indigo-600 text-white hover:bg-indigo-700 gap-2"
               >
-                <UseAnimations animation={shoppingCart} size={18} strokeColor="currentColor" />
+                <ShoppingCart className="w-4 h-4" />
                 Al Carrito
               </Button>
               <Button
@@ -337,7 +304,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
                 disabled={isGeneratingPDF}
                 className="bg-emerald-700 text-white hover:bg-emerald-800 gap-2"
               >
-                <UseAnimations animation={download} size={18} strokeColor="currentColor" />
+                <Download className="w-4 h-4" />
                 {isGeneratingPDF ? '...' : 'PDF USD'}
               </Button>
               <Button
@@ -346,7 +313,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
                 disabled={isGeneratingPDF}
                 className="bg-blue-700 text-white hover:bg-blue-800 gap-2"
               >
-                <UseAnimations animation={download} size={18} strokeColor="currentColor" />
+                <Download className="w-4 h-4" />
                 {isGeneratingPDF ? '...' : 'PDF Bs'}
               </Button>
               <Button
@@ -355,7 +322,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
                 disabled={isGeneratingPDF}
                 className="bg-slate-700 text-white hover:bg-slate-800 gap-2"
               >
-                <UseAnimations animation={download} size={18} strokeColor="currentColor" />
+                <Download className="w-4 h-4" />
                 {isGeneratingPDF ? '...' : 'Ambos PDF'}
               </Button>
               <Button
@@ -363,7 +330,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
                 onClick={handleWhatsApp}
                 className="bg-[#25D366] text-white hover:bg-[#128C7E] gap-2"
               >
-                <UseAnimations animation={messageCircle} size={18} strokeColor="currentColor" />
+                <MessageCircle className="w-4 h-4" />
                 WhatsApp
               </Button>
               <div className="w-px h-full bg-slate-200 mx-1"></div>
@@ -375,7 +342,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
                   className="bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-700 border-none gap-2"
                   variant="outline"
                 >
-                  <UseAnimations animation={trash2} size={18} strokeColor="currentColor" />
+                  <Trash2 className="w-4 h-4" />
                   Anular
                 </Button>
               )}
@@ -386,7 +353,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
                   className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border-none gap-2"
                   variant="outline"
                 >
-                  <UseAnimations animation={trash2} size={18} strokeColor="currentColor" />
+                  <Trash2 className="w-4 h-4" />
                   Rechazar
                 </Button>
               )}
@@ -396,7 +363,7 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote }: QuoteDetailsDi
                   onClick={() => handleUpdateStatus('Aprobada')}
                   className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2"
                 >
-                  <UseAnimations animation={checkmark} size={18} strokeColor="currentColor" />
+                  <Check className="w-4 h-4" />
                   Aprobar
                 </Button>
               )}

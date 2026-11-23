@@ -2,11 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useKits, useDeleteKit, useUpdateKit, useBcvRate, useBcvMultiplier } from '@/hooks/use-supabase';
 import { supabase } from '@/lib/supabase';
 import { Kit } from '@/types';
-import UseAnimations from 'react-useanimations';
-import plusCircle from 'react-useanimations/lib/plusCircle';
-import edit from 'react-useanimations/lib/edit';
-import trash2 from 'react-useanimations/lib/trash2';
-import { Search, Package, ShoppingCart, X, ChevronLeft, ChevronRight, CheckCircle2, Circle, Disc3, Wrench, FileText, Loader2 } from 'lucide-react';
+import { Search, Package, ShoppingCart, X, ChevronLeft, ChevronRight, CheckCircle2, Circle, Disc3, Wrench, FileText, Loader2, PlusCircle, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { KitFormDialog } from './kit-form-dialog';
@@ -162,7 +158,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
           }}
           className="hidden md:inline-flex bg-emerald-500 hover:bg-emerald-600 text-white gap-2"
         >
-          <UseAnimations animation={plusCircle} size={18} strokeColor="currentColor" />
+          <PlusCircle className="w-4 h-4" />
           Nuevo Cotizador
         </Button>
       </div>
@@ -301,7 +297,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
             <div className="flex justify-between items-start mb-3">
               {kit.vehicle_brands?.logo_url ? (
                 <div className="p-2 bg-slate-50 text-slate-700 rounded-lg group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors h-11 min-w-[44px] max-w-[120px] flex items-center justify-center shrink-0">
-                  <img src={kit.vehicle_brands.logo_url} alt={kit.vehicle_brands.name} className="max-w-full h-full object-contain mix-blend-multiply" />
+                  <img src={kit.vehicle_brands.logo_url} alt={kit.vehicle_brands.name} loading="lazy" decoding="async" className="max-w-full h-full object-contain mix-blend-multiply" />
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 text-slate-600 text-[11px] font-bold">
@@ -315,14 +311,14 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
                   className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded flex items-center justify-center"
                   title="Editar"
                 >
-                  <UseAnimations animation={edit} size={18} strokeColor="currentColor" />
+                  <Pencil className="w-4 h-4" />
                 </button>
                 <button
                   onClick={(e) => handleDelete(e, kit)}
                   className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded flex items-center justify-center"
                   title="Eliminar"
                 >
-                  <UseAnimations animation={trash2} size={18} strokeColor="currentColor" />
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -497,7 +493,7 @@ export function KitTable({ category, onSelectKit }: KitTableProps) {
             }}
             className="bg-emerald-500 hover:bg-emerald-600 text-white"
           >
-            <UseAnimations animation={plusCircle} size={18} strokeColor="currentColor" className="mr-2" />
+            <PlusCircle className="w-4 h-4 mr-2" />
             Crear Cotizador
           </Button>
         </div>

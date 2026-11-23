@@ -16,14 +16,7 @@ import { useProducts, useBcvRate, useCategories, useBcvMultiplier, useUpdateProd
 import { useCartStore } from '@/store/cart-store';
 import { Badge } from '@/components/ui/badge';
 import { formatUSD, calculateBcvPrice } from '@/lib/utils';
-import { Search, SlidersHorizontal, Plus, Minus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff, AlertTriangle, PackageX, PackageMinus, Bell, Check, ClipboardCheck, Loader2, Store } from 'lucide-react';
-import UseAnimations from 'react-useanimations';
-import shoppingCart from 'react-useanimations/lib/shoppingCart';
-import rotateCcw from 'react-useanimations/lib/rotateCcw';
-import trash2 from 'react-useanimations/lib/trash2';
-import filter from 'react-useanimations/lib/filter';
-import clock from 'react-useanimations/lib/clock';
-import plusCircle from 'react-useanimations/lib/plusCircle';
+import { Search, SlidersHorizontal, Plus, Minus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff, AlertTriangle, PackageX, PackageMinus, Bell, Check, ClipboardCheck, Loader2, Store, RotateCcw, PlusCircle, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -537,7 +530,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
               }}
             >
               {row.original.image_url ? (
-                <img src={row.original.image_url} alt={row.original.name} className="w-full h-full object-contain p-1" />
+                <img src={row.original.image_url} alt={row.original.name} loading="lazy" decoding="async" className="w-full h-full object-contain p-1" />
               ) : (
                 <ImageIcon className={isMiscellaneous ? "w-7 h-7 text-slate-400" : "w-4 h-4 text-slate-400"} />
               )}
@@ -602,6 +595,8 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
             <img 
               src={brand.logo_url} 
               alt={brand.name} 
+              loading="lazy"
+              decoding="async"
               className={`${isMiscellaneous ? 'h-7 max-w-[85px]' : 'h-5 max-w-[70px]'} object-contain`} 
               title={brand.name}
               onError={(e) => {
@@ -745,7 +740,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
                 setIsHistoryOpen(true);
               }}
             >
-              <UseAnimations animation={rotateCcw} size={15} strokeColor="currentColor" interaction="hover-replay" />
+              <RotateCcw className="w-3.5 h-3.5" />
             </button>
             <button
               className="w-7 h-7 rounded bg-slate-800 flex items-center justify-center text-white hover:bg-slate-700 transition-all active:scale-95 cursor-pointer"
@@ -766,7 +761,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
                 });
               }}
             >
-              <UseAnimations animation={plusCircle} size={15} strokeColor="#ffffff" interaction="hover-replay" />
+              <PlusCircle className="w-3.5 h-3.5 text-white" />
             </button>
           </div>
         ),
@@ -920,7 +915,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
             </>
           )}
           <Button onClick={handleAddProduct} className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2 h-[36px] text-[13px] px-3 md:px-4 rounded-md hidden md:flex cursor-pointer">
-            <UseAnimations animation={plusCircle} size={16} strokeColor="#ffffff" interaction="hover-replay" />
+            <PlusCircle className="w-4 h-4 text-white" />
             Añadir Producto
           </Button>
         </div>
@@ -1028,7 +1023,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
             disabled={isDeleting}
             className="gap-1.5 h-8 text-[12px] bg-red-500 hover:bg-red-600 cursor-pointer"
           >
-            <UseAnimations animation={trash2} size={14} strokeColor="#ffffff" interaction="hover-replay" />
+            <Trash2 className="w-3.5 h-3.5 text-white" />
             {isDeleting ? 'Eliminando...' : `Eliminar ${selectedIds.size}`}
           </Button>
         </div>
@@ -1069,7 +1064,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
             >
-            <UseAnimations animation={filter} size={16} strokeColor="currentColor" interaction="hover-replay" />
+            <Filter className="w-4 h-4" />
             <span className="hidden sm:inline">Filtros</span>
             </button>
             <button
@@ -1080,7 +1075,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <UseAnimations animation={clock} size={15} strokeColor="currentColor" interaction="hover-replay" />
+              <Clock className="w-3.5 h-3.5" />
               Últimos Subidos
             </button>
         </div>

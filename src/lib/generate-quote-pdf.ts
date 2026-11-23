@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { Quote } from '@/types';
 import { formatUSD, calculateBcvPrice } from '@/lib/utils';
 import { sortQuoteItems } from '@/lib/tren-delantero';
+import { getRandomWhatsAppPhrase } from '@/lib/whatsapp-phrases';
 
 interface GenerateQuotePDFOptions {
   quote: Quote;
@@ -663,21 +664,6 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
   doc.setLineWidth(0.5);
   doc.line(margin, y, pageWidth - margin, y);
   y += 14;
-
-  const WHATSAPP_PHRASES = [
-    "La pasión por servirte es el motor que nunca se apaga.",
-    "Tu confianza es el combustible; nuestra vocación, el motor.",
-    "Encendemos cada jornada con la meta de darte el mejor rendimiento.",
-    "Más que piezas de recambio, entregamos la potencia de un servicio comprometido.",
-    "Aceleramos soluciones para que tus proyectos nunca se detengan.",
-    "Alineamos cada detalle de nuestra atención a la altura de tu camino.",
-    "La tracción que necesitas para avanzar con total seguridad.",
-    "Calidad en cada repuesto, dirección firme en cada asesoría.",
-    "Sincronizamos nuestra dedicación para mantener tu marcha perfecta.",
-    "Atención precisa y repuestos firmes: el engranaje de tu tranquilidad.",
-    "Tu satisfacción es la fuerza que mueve cada uno de nuestros engranajes.",
-    "Ajustamos cada solución con la precisión que tu trabajo merece."
-  ];
   // If delivery note or dispatch order, show delivery receipt signature fields
   const isDeliveryDoc = (documentType || quote.document_type || '').toUpperCase().includes('ENTREGA') || (documentType || quote.document_type || '').toUpperCase().includes('DESPACHO');
   
@@ -697,7 +683,7 @@ export async function generateQuotePDF({ quote, currency, bcvMultiplier = 1, ret
     doc.text('RECIBIDO CONFORME (FIRMA Y C.I.)', rightSigX + sigColW / 2, y + 34, { align: 'center' });
     y += 42;
   } else {
-    const footerPhrase = randomPhrase || WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
+    const footerPhrase = randomPhrase || getRandomWhatsAppPhrase();
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);

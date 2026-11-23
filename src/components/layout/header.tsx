@@ -1,9 +1,6 @@
 'use client';
 
-import { Search, RefreshCw, Check, Landmark, Coins, TrendingUp, Calendar } from 'lucide-react';
-import UseAnimations from 'react-useanimations';
-import refresh from 'react-useanimations/lib/refresh';
-import user from 'react-useanimations/lib/user';
+import { Search, RefreshCw, Check, Landmark, Coins, TrendingUp, Calendar, User } from 'lucide-react';
 import { NotificationPanel } from './notification-panel';
 import { DailyBcvDialog } from './daily-bcv-dialog';
 import { ProfileDialog } from './profile-dialog';
@@ -382,12 +379,8 @@ export function Header() {
           className="hidden md:flex w-[28px] h-[28px] items-center justify-center rounded-md border border-amber-300/90 bg-amber-50/70 hover:bg-amber-100 hover:border-amber-400 text-amber-700 hover:text-amber-800 transition-all shadow-2xs disabled:opacity-50 active:scale-95 cursor-pointer shrink-0"
           title="Refrescar exclusivamente la tasa Binance (USDT/VES en tiempo real)"
         >
-          <UseAnimations
-            animation={refresh}
-            size={15}
-            strokeColor="#b45309"
-            interaction="hover-replay"
-            className={isRefreshingBinance ? 'animate-spin' : ''}
+          <RefreshCw
+            className={`w-3.5 h-3.5 text-amber-700 ${isRefreshingBinance ? 'animate-spin' : ''}`}
           />
         </button>
 
@@ -415,12 +408,8 @@ export function Header() {
           className="hidden md:flex items-center gap-1.5 h-[28px] px-2.5 rounded-md border border-emerald-300/90 bg-emerald-50/60 hover:bg-emerald-100 hover:border-emerald-400 text-emerald-700 hover:text-emerald-800 text-[11.5px] font-semibold transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
           title="Consultar y actualizar tasa oficial desde el BCV"
         >
-          <UseAnimations
-            animation={refresh}
-            size={15}
-            strokeColor="#059669"
-            interaction="hover-replay"
-            className={isSyncingBcv ? 'animate-spin' : ''}
+          <RefreshCw
+            className={`w-3.5 h-3.5 text-emerald-600 ${isSyncingBcv ? 'animate-spin' : ''}`}
           />
           <span className="hidden xl:inline">Actualizar BCV</span>
           <span className="xl:hidden">Auto BCV</span>
@@ -434,7 +423,7 @@ export function Header() {
           className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-95 flex items-center justify-center transition-all cursor-pointer ring-2 ring-transparent hover:ring-emerald-500/60 shadow-xs text-white shrink-0"
           title="Perfil y Actualizaciones del Sistema"
         >
-          <UseAnimations animation={user} size={16} strokeColor="#ffffff" interaction="hover-replay" />
+          <User className="w-4 h-4 text-white" />
         </button>
       </div>
 

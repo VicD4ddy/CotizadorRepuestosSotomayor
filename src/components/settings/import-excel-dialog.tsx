@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, ArrowLeft, Loader2, AlertCircle, Pencil, X, RotateCcw } from 'lucide-react';
 import { useBulkInsertProducts, useProducts, useCategories, useBrands } from '@/hooks/use-supabase';
 import { supabase } from '@/lib/supabase';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { AiProgressBanner } from '@/components/inventory/ai-progress-banner';
 
 interface ImportExcelDialogProps {

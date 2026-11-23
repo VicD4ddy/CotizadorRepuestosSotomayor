@@ -29,10 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Upload, X, Plus, Image as ImageIcon, Save, RefreshCw, Sparkles, Search as SearchIcon, ListPlus, ChevronDown, Check, Eye, EyeOff, Bell, Store } from 'lucide-react';
-import UseAnimations from 'react-useanimations';
-import save from 'react-useanimations/lib/save';
-import trash2 from 'react-useanimations/lib/trash2';
+import { Upload, X, Plus, Image as ImageIcon, Save, Trash2, RefreshCw, Sparkles, Search as SearchIcon, ListPlus, ChevronDown, Check, Eye, EyeOff, Bell, Store } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useAiQueueStore } from '@/store/ai-queue-store';
 
@@ -744,7 +741,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
                 disabled={deleteProduct.isPending || isLoading}
                 className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 font-medium px-3 text-[12px] gap-1.5 cursor-pointer"
               >
-                <UseAnimations animation={trash2} size={14} strokeColor="currentColor" interaction="hover-replay" />
+                <Trash2 className="w-3.5 h-3.5" />
                 {deleteProduct.isPending ? 'Eliminando...' : 'Eliminar'}
               </Button>
             )}
@@ -752,7 +749,7 @@ export function ProductFormDialog({ open, onOpenChange, product, initialCompatib
               Cancelar
             </Button>
             <Button size="sm" onClick={handleSubmit(onSubmit)} disabled={isLoading || isWaitingForDetail} className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 gap-1.5 text-[12px] cursor-pointer">
-              <UseAnimations animation={save} size={15} strokeColor="#ffffff" interaction="hover-replay" />
+              <Save className="w-4 h-4 text-white" />
               {isLoading ? 'Guardando...' : isWaitingForDetail ? 'Cargando...' : 'Guardar'}
             </Button>
           </div>

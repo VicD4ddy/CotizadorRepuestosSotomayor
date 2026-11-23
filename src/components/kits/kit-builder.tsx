@@ -4,11 +4,7 @@ import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useU
 import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
 import { formatUSD, cn, calculateBcvPrice } from '@/lib/utils';
-import UseAnimations from 'react-useanimations';
-import arrowLeft from 'react-useanimations/lib/arrowLeft';
-import plusCircle from 'react-useanimations/lib/plusCircle';
-import shoppingCart from 'react-useanimations/lib/shoppingCart';
-import { ArrowLeft, Plus, Minus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3, CheckCircle2, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, PlusCircle, Minus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3, CheckCircle2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
@@ -671,7 +667,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
               onClick={onBack}
               className="w-9 h-9 md:w-10 md:h-10 rounded-full hover:bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0"
             >
-              <UseAnimations animation={arrowLeft} size={18} strokeColor="currentColor" />
+              <ArrowLeft className="w-[18px] h-[18px]" />
             </button>
             <div className="min-w-0">
               <h1 className="text-base md:text-2xl font-bold text-slate-900 flex items-center gap-1.5 md:gap-2 min-w-0">
@@ -749,7 +745,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             variant="outline"
             className="gap-2 border-slate-300 text-slate-700 font-semibold h-[36px] hidden md:flex"
           >
-            <UseAnimations animation={plusCircle} size={18} strokeColor="currentColor" />
+            <PlusCircle className="w-4 h-4" />
             Vincular Repuesto
           </Button>
 
@@ -776,7 +772,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                   onClick={() => handleLoadCombo(combo.id)}
                   className="bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold h-[36px] gap-2 px-3 shadow-sm active:scale-[0.98] transition-transform"
                 >
-                  <UseAnimations animation={shoppingCart} size={18} strokeColor="currentColor" />
+                  <ShoppingCart className="w-4 h-4" />
                   Cargar {combo.name} al carrito
                 </Button>
               ))}

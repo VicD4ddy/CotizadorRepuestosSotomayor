@@ -10,16 +10,15 @@ import {
   X,
   Save,
   PanelRightClose,
+  ShoppingCart,
+  Trash2,
+  Plus,
+  Minus,
+  Check,
+  Download,
+  User,
+  Phone,
 } from 'lucide-react';
-import UseAnimations from 'react-useanimations';
-import shoppingCart from 'react-useanimations/lib/shoppingCart';
-import trash2 from 'react-useanimations/lib/trash2';
-import plusCircle from 'react-useanimations/lib/plusCircle';
-import minusCircle from 'react-useanimations/lib/minusCircle';
-import checkmark from 'react-useanimations/lib/checkmark';
-import download from 'react-useanimations/lib/download';
-import user from 'react-useanimations/lib/user';
-import phone from 'react-useanimations/lib/phone';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
@@ -27,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Quote } from '@/types';
 import { sortQuoteItems } from '@/lib/tren-delantero';
+import { getRandomWhatsAppPhrase } from '@/lib/whatsapp-phrases';
 
 const QuoteSaveDialog = dynamic(
   () => import('./quote-save-dialog').then((m) => m.QuoteSaveDialog),
@@ -126,21 +126,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
       const tempQuote = buildTempQuote();
       const currency = customCurrency || (paymentMethod === 'bs' ? 'bcv' : 'usd');
       
-      const WHATSAPP_PHRASES = [
-        "La pasión por servirte es el motor que nunca se apaga.",
-        "Tu confianza es el combustible; nuestra vocación, el motor.",
-        "Encendemos cada jornada con la meta de darte el mejor rendimiento.",
-        "Más que piezas de recambio, entregamos la potencia de un servicio comprometido.",
-        "Aceleramos soluciones para que tus proyectos nunca se detengan.",
-        "Alineamos cada detalle de nuestra atención a la altura de tu camino.",
-        "La tracción que necesitas para avanzar con total seguridad.",
-        "Calidad en cada repuesto, dirección firme en cada asesoría.",
-        "Sincronizamos nuestra dedicación para mantener tu marcha perfecta.",
-        "Atención precisa y repuestos firmes: el engranaje de tu tranquilidad.",
-        "Tu satisfacción es la fuerza que mueve cada uno de nuestros engranajes.",
-        "Ajustamos cada solución con la precisión que tu trabajo merece."
-      ];
-      const randomPhrase = WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
+      const randomPhrase = getRandomWhatsAppPhrase();
 
       const [{ generateQuotePDF }, { copyQuoteToClipboard }] = await Promise.all([
         import('@/lib/generate-quote-pdf'),
@@ -187,21 +173,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
     try {
       const tempQuote = buildTempQuote();
       
-      const WHATSAPP_PHRASES = [
-        "La pasión por servirte es el motor que nunca se apaga.",
-        "Tu confianza es el combustible; nuestra vocación, el motor.",
-        "Encendemos cada jornada con la meta de darte el mejor rendimiento.",
-        "Más que piezas de recambio, entregamos la potencia de un servicio comprometido.",
-        "Aceleramos soluciones para que tus proyectos nunca se detengan.",
-        "Alineamos cada detalle de nuestra atención a la altura de tu camino.",
-        "La tracción que necesitas para avanzar con total seguridad.",
-        "Calidad en cada repuesto, dirección firme en cada asesoría.",
-        "Sincronizamos nuestra dedicación para mantener tu marcha perfecta.",
-        "Atención precisa y repuestos firmes: el engranaje de tu tranquilidad.",
-        "Tu satisfacción es la fuerza que mueve cada uno de nuestros engranajes.",
-        "Ajustamos cada solución con la precisión que tu trabajo merece."
-      ];
-      const randomPhrase = WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
+      const randomPhrase = getRandomWhatsAppPhrase();
 
       const [{ generateQuotePDF }, { copyQuoteToClipboard }] = await Promise.all([
         import('@/lib/generate-quote-pdf'),
@@ -287,7 +259,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
       <div className="flex flex-col px-3.5 py-2.5 border-b border-slate-200">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
-            <UseAnimations animation={shoppingCart} size={16} strokeColor="currentColor" interaction="hover-replay" className="text-slate-800" />
+            <ShoppingCart className="w-4 h-4 text-slate-800 shrink-0" />
             <h3 className="font-bold text-[13px] text-slate-900">Cotización Actual</h3>
           </div>
           <div className="flex items-center gap-1">
@@ -306,7 +278,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
                   onClick={clearCart}
                   className="flex items-center gap-1 text-[10.5px] font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer mr-0.5"
                 >
-                  <UseAnimations animation={trash2} size={14} strokeColor="currentColor" interaction="hover-replay" />
+                  <Trash2 className="w-3.5 h-3.5" />
                   Limpiar
                 </button>
               </>
@@ -367,7 +339,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
         <div className="mt-2 space-y-1.5">
           <div className="relative">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center justify-center">
-              <UseAnimations animation={user} size={13} strokeColor="currentColor" />
+              <User className="w-3.5 h-3.5" />
             </span>
             <Input
               placeholder="Nombre del Cliente"
@@ -378,7 +350,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
           </div>
           <div className="relative">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center justify-center">
-              <UseAnimations animation={phone} size={13} strokeColor="currentColor" />
+              <Phone className="w-3.5 h-3.5" />
             </span>
             <Input
               placeholder="Teléfono (Opcional)"
@@ -416,7 +388,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
       <div data-cart-scroll="true" className="flex-1 overflow-y-auto overscroll-contain touch-pan-y">
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
-            <UseAnimations animation={shoppingCart} size={42} strokeColor="#94a3b8" interaction="hover-loop" className="mb-3 opacity-40" />
+            <ShoppingCart className="w-10 h-10 mb-3 text-slate-400 opacity-40" />
             <p className="text-[13px] text-slate-600 font-medium">Sin productos</p>
             <p className="text-[11px]">Usa el botón + en la tabla</p>
           </div>
@@ -529,7 +501,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
                         className="w-6 h-6 rounded-sm border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
                         title="Disminuir"
                       >
-                        <UseAnimations animation={minusCircle} size={13} strokeColor="currentColor" interaction="hover-replay" />
+                        <Minus className="w-3.5 h-3.5" />
                       </button>
                       <span className="w-7 text-center text-[11.5px] font-bold font-mono tabular-nums text-slate-900">{item.quantity}</span>
                       <button
@@ -537,7 +509,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
                         className="w-6 h-6 rounded-sm border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
                         title="Aumentar"
                       >
-                        <UseAnimations animation={plusCircle} size={13} strokeColor="currentColor" interaction="hover-replay" />
+                        <Plus className="w-3.5 h-3.5" />
                       </button>
                     </div>
                     <span className="text-[11.5px] font-bold font-mono tabular-nums text-slate-900">
@@ -573,7 +545,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
               onClick={handleOpenSaveDialog}
               className="flex-1 min-w-0 h-[34px] px-2 rounded-sm border border-slate-900 bg-[#0f172a] hover:bg-[#1e293b] text-white font-semibold text-[11.5px] flex items-center justify-center gap-1.5 transition-colors active:scale-[0.98] disabled:opacity-50 truncate cursor-pointer"
             >
-              <UseAnimations animation={checkmark} size={15} strokeColor="#ffffff" interaction="hover-replay" className="shrink-0" />
+              <Check className="w-3.5 h-3.5 text-white shrink-0" />
               <span className="truncate">Guardar</span>
             </button>
             <button
@@ -593,7 +565,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
               title="Descargar PDF en Divisas (USD)"
               className="flex-1 min-w-0 h-[30px] px-1.5 rounded-sm border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[10.5px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50 cursor-pointer"
             >
-              <UseAnimations animation={download} size={13} strokeColor="#059669" interaction="hover-replay" className="shrink-0" />
+              <Download className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span className="truncate">PDF USD</span>
             </button>
             <button
@@ -602,7 +574,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
               title="Descargar PDF en Bolívares (BCV)"
               className="flex-1 min-w-0 h-[30px] px-1.5 rounded-sm border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-[10.5px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50 cursor-pointer"
             >
-              <UseAnimations animation={download} size={13} strokeColor="#2563eb" interaction="hover-replay" className="shrink-0" />
+              <Download className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span className="truncate">PDF Bs</span>
             </button>
             <button
@@ -611,7 +583,7 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
               title="Descargar ambos formatos (USD y Bolívares)"
               className="flex-1 min-w-0 h-[30px] px-1.5 rounded-sm border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10.5px] flex items-center justify-center gap-1 transition-colors shadow-sm truncate disabled:opacity-50 cursor-pointer"
             >
-              <UseAnimations animation={download} size={13} strokeColor="#475569" interaction="hover-replay" className="shrink-0" />
+              <Download className="w-3.5 h-3.5 text-slate-600 shrink-0" />
               <span className="truncate">Ambos</span>
             </button>
           </div>

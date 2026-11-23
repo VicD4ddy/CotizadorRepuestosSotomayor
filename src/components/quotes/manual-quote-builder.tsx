@@ -33,6 +33,7 @@ import { useBcvRate, useBcvMultiplier, useBrands, useCreateQuote } from '@/hooks
 import { generateQuotePDF } from '@/lib/generate-quote-pdf';
 import { copyQuoteToClipboard } from '@/lib/capture-quote';
 import { cn, formatUSD, calculateBcvPrice } from '@/lib/utils';
+import { getRandomWhatsAppPhrase } from '@/lib/whatsapp-phrases';
 import { toast } from 'sonner';
 import { Quote, DocumentType } from '@/types';
 
@@ -45,21 +46,6 @@ interface ManualItem {
 }
 
 const DRAFT_STORAGE_KEY = 'sotomayor_manual_quote_draft_v1';
-
-const WHATSAPP_PHRASES = [
-  'La pasión por servirte es el motor que nunca se apaga.',
-  'Tu confianza es el combustible; nuestra vocación, el motor.',
-  'Encendemos cada jornada con la meta de darte el mejor rendimiento.',
-  'Más que piezas de recambio, entregamos la potencia de un servicio comprometido.',
-  'Aceleramos soluciones para que tus proyectos nunca se detengan.',
-  'Alineamos cada detalle de nuestra atención a la altura de tu camino.',
-  'La tracción que necesitas para avanzar con total seguridad.',
-  'Calidad en cada repuesto, dirección firme en cada asesoría.',
-  'Sincronizamos nuestra dedicación para mantener tu marcha perfecta.',
-  'Atención precisa y repuestos firmes: el engranaje de tu tranquilidad.',
-  'Tu satisfacción es la fuerza que mueve cada uno de nuestros engranajes.',
-  'Ajustamos cada solución con la precisión que tu trabajo merece.',
-];
 
 function createItemId(): string {
   return `man-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -74,7 +60,7 @@ function createDefaultItems(): ManualItem[] {
 }
 
 function pickRandomPhrase(): string {
-  return WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
+  return getRandomWhatsAppPhrase();
 }
 
 function normalizeVePhone(raw: string): string {

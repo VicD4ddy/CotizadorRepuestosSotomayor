@@ -54,31 +54,3 @@ export async function generateWithFallback(
 ): Promise<string> {
   return runGenerationChain(prompt, config);
 }
-
-export interface MultimodalImageInput {
-  base64Data: string;
-  mimeType: string;
-}
-
-/**
- * Ejecuta generación multimodal (texto + imagen opcional) usando la cadena de modelos configurada.
- */
-export async function generateMultimodalWithFallback(
-  prompt: string,
-  image?: MultimodalImageInput,
-  config?: { temperature?: number; maxOutputTokens?: number }
-): Promise<string> {
-  const contents: ContentListUnion = image
-    ? [
-        {
-          role: 'user',
-          parts: [
-            { inlineData: { data: image.base64Data, mimeType: image.mimeType } },
-            { text: prompt },
-          ],
-        },
-      ]
-    : prompt;
-
-  return runGenerationChain(contents, config);
-}
