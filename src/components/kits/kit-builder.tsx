@@ -658,7 +658,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 pb-[80px] lg:pb-0">
+    <div className="flex flex-col h-full min-h-0 bg-slate-50">
       {/* Header */}
       <div className="bg-white border-b border-slate-200 px-3 md:px-6 py-2 md:py-4 shrink-0 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-2 md:gap-4">
         <div className="flex items-center justify-between gap-2 min-w-0">
