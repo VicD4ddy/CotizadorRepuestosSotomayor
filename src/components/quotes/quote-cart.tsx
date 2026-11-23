@@ -26,7 +26,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Quote } from '@/types';
 import { sortQuoteItems } from '@/lib/tren-delantero';
-import { getRandomWhatsAppPhrase } from '@/lib/whatsapp-phrases';
+import { getRandomWhatsAppPhrase, buildWhatsAppQuoteMessage } from '@/lib/whatsapp-phrases';
 
 const QuoteSaveDialog = dynamic(
   () => import('./quote-save-dialog').then((m) => m.QuoteSaveDialog),
@@ -200,23 +200,14 @@ export function QuoteCart({ onCollapse }: QuoteCartProps = {}) {
         URL.revokeObjectURL(url);
       }
 
-      // Build WhatsApp message
-      let msg = `*REPUESTOS SOTOMAYOR*\n_Cotización en *DIVISAS Y BOLÍVARES*_\n\n`;
-      if (clientName) msg += `*Cliente:* ${clientName}\n`;
-      msg += `*Fecha:* ${new Date().toLocaleDateString('es-VE')}\n\n`;
-      msg += `*Detalle:*\n`;
-      sortedItems.forEach((item) => {
-        const priceUSD = item.unit_price_usd;
-        const priceBs = item.unit_price_usd * bcvMultiplier * bcvRate;
-        const brandSuffix = item.brand_name ? ` (${item.brand_name})` : '';
-        msg += `- ${item.quantity}x ${item.product_name}${brandSuffix}\n  USD: ${formatUSD(priceUSD)} | Bs: ${formatBs(priceBs)}\n`;
+      const baseTotal = items.reduce(
+        (sum, item) => sum + (item.unit_price_usd || 0) * (item.quantity || 1),
+        0
+      );
+      const msg = buildWhatsAppQuoteMessage({
+        clientName,
+        phrase: randomPhrase,
       });
-      
-      const baseTotal = items.reduce((sum, item) => sum + (item.unit_price_usd || 0) * (item.quantity || 1), 0);
-      const calcTotalBs = baseTotal * bcvMultiplier * bcvRate;
-      msg += `\n*Total USD:* ${formatUSD(baseTotal)}\n`;
-      msg += `*Total Bs:* ${formatBs(calcTotalBs)}\n`;
-      msg += `\n_${randomPhrase}_`;
 
       const encoded = encodeURIComponent(msg);
       // Open WhatsApp directly with the client's phone number

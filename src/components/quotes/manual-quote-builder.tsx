@@ -33,7 +33,7 @@ import { useBcvRate, useBcvMultiplier, useBrands, useCreateQuote } from '@/hooks
 import { generateQuotePDF } from '@/lib/generate-quote-pdf';
 import { copyQuoteToClipboard } from '@/lib/capture-quote';
 import { cn, formatUSD, calculateBcvPrice } from '@/lib/utils';
-import { getRandomWhatsAppPhrase } from '@/lib/whatsapp-phrases';
+import { getRandomWhatsAppPhrase, buildWhatsAppQuoteMessage } from '@/lib/whatsapp-phrases';
 import { toast } from 'sonner';
 import { Quote, DocumentType } from '@/types';
 
@@ -550,48 +550,12 @@ export function ManualQuoteBuilder() {
         triggerPdfBlobDownload(blob, fileName);
       }
 
-      // 3. Armar texto de WhatsApp respetando la modalidad seleccionada
-      const modeLabel =
-        currency === 'usd'
-          ? 'DIVISAS (USD)'
-          : currency === 'bcv'
-          ? 'BOLÍVARES (TASA BCV)'
-          : 'DIVISAS Y BOLÍVARES';
-
-      let text = `*REPUESTOS SOTOMAYOR*\n_${documentType} en *${modeLabel}*_\n\n`;
-      if (clientName.trim()) text += `*Cliente:* ${clientName.trim()}\n`;
-      if (clientIdNumber.trim()) text += `*C.I./RIF:* ${clientIdNumber.trim()}\n`;
-      if (clientPhone.trim()) text += `*Teléfono:* ${clientPhone.trim()}\n`;
-      if (clientAddress.trim()) text += `*Dirección:* ${clientAddress.trim()}\n`;
-      text += `*Fecha:* ${new Date().toLocaleDateString('es-VE')}\n\n`;
-      text += `*Detalle:*\n`;
-
-      validFilledItems.forEach((it) => {
-        const qty = Math.max(1, Number(it.quantity) || 1);
-        const unitUsd = Number(it.price_usd) || 0;
-        const unitBcv = calculateBcvPrice(unitUsd, bcvMultiplier, it.name);
-        const lineUsd = unitUsd * qty;
-        const lineBs = unitBcv * qty * bcvRate;
-        const brandSuffix = it.brand.trim() ? ` (${it.brand.trim().toUpperCase()})` : '';
-
-        if (currency === 'usd') {
-          text += `- ${qty}x ${it.name.trim().toUpperCase()}${brandSuffix}\n  Unit: ${formatUSD(unitUsd)} | Total: ${formatUSD(lineUsd)}\n`;
-        } else if (currency === 'bcv') {
-          text += `- ${qty}x ${it.name.trim().toUpperCase()}${brandSuffix}\n  Ref BCV: ${formatUSD(unitBcv * qty)} | Bs: Bs ${lineBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
-        } else {
-          text += `- ${qty}x ${it.name.trim().toUpperCase()}${brandSuffix}\n  Divisas: ${formatUSD(lineUsd)} | Bs: Bs ${lineBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
-        }
+      // 3. Armar texto conciso de WhatsApp
+      const text = buildWhatsAppQuoteMessage({
+        clientName,
+        documentType,
+        phrase: randomPhrase,
       });
-
-      if (currency !== 'bcv') {
-        text += `\n*Total Divisas ($):* ${formatUSD(subtotalUsd)}`;
-      }
-      if (currency !== 'usd') {
-        text += `\n*Ref. USD BCV:* ${formatUSD(totalUsdBcv)}`;
-        text += `\n*Total Bs:* Bs ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        text += `\n*Tasa BCV:* Bs ${bcvRate.toFixed(2)}`;
-      }
-      text += `\n\n_${randomPhrase}_`;
 
       const normalizedPhone = normalizeVePhone(clientPhone);
       const waUrl = normalizedPhone

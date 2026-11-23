@@ -16,3 +16,29 @@ export const WHATSAPP_PHRASES = [
 export function getRandomWhatsAppPhrase(): string {
   return WHATSAPP_PHRASES[Math.floor(Math.random() * WHATSAPP_PHRASES.length)];
 }
+
+export interface WhatsAppMessageOptions {
+  clientName?: string | null;
+  documentType?: string | null;
+  phrase?: string;
+}
+
+/**
+ * Builds a concise WhatsApp caption containing only greeting, document type,
+ * and closing phrase, leaving full line items and pricing for the attached image/PDF.
+ */
+export function buildWhatsAppQuoteMessage({
+  clientName,
+  documentType,
+  phrase,
+}: WhatsAppMessageOptions = {}): string {
+  const rawName = clientName?.trim() || '';
+  const bracketMatch = rawName.match(/^\[(.*?)\]\s*(.*)$/);
+  const cleanName = (bracketMatch ? bracketMatch[2] : rawName).trim();
+  const resolvedDoc = (documentType || bracketMatch?.[1] || 'cotización').trim().toLowerCase();
+
+  const greeting = cleanName ? `Hola *${cleanName}*,` : 'Hola,';
+  const closingPhrase = phrase || getRandomWhatsAppPhrase();
+
+  return `${greeting} adjunto tu ${resolvedDoc} de *Repuestos Sotomayor*.\n\n_${closingPhrase}_`;
+}

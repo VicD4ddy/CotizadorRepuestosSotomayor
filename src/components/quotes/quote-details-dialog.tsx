@@ -2,10 +2,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Quote, QuoteItem } from '@/types';
 import { useUpdateQuote, useBcvMultiplier, useBcvRate } from '@/hooks/use-supabase';
-import { formatUSD, formatBs, calculateBcvPrice, cn } from '@/lib/utils';
+import { formatUSD, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Calendar, User, Phone, ShoppingCart, Download, Check, Trash2, MessageCircle, XCircle, Ban } from 'lucide-react';
-import { getRandomWhatsAppPhrase } from '@/lib/whatsapp-phrases';
+import { getRandomWhatsAppPhrase, buildWhatsAppQuoteMessage } from '@/lib/whatsapp-phrases';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { generateQuotePDF } from '@/lib/generate-quote-pdf';
@@ -181,28 +181,11 @@ export function QuoteDetailsDialog({ open, onOpenChange, quote, onDelete }: Quot
         console.error('Failed to copy image to clipboard', err);
       }
 
-      const baseSubtotal = getQuoteBaseSubtotal(quote);
-      const subtotalBcv =
-        quote.quote_items?.reduce(
-          (sum, item) =>
-            sum + calculateBcvPrice(item.unit_price_usd || 0, bcvMultiplier, item.product_name) * (item.quantity || 1),
-          0
-        ) || baseSubtotal * bcvMultiplier;
-      const totalBs = subtotalBcv * bcvRate;
-      let msg = `*REPUESTOS SOTOMAYOR*\n_Cotización en *DIVISAS Y BOLÍVARES*_\n\n`;
-      if (quote.client_name) msg += `*Cliente:* ${quote.client_name}\n`;
-      msg += `*Fecha:* ${date}\n\n`;
-      msg += `*Detalle:*\n`;
-      quote.quote_items?.forEach((item) => {
-        const priceUSD = item.unit_price_usd || 0;
-        const priceUsdBcv = calculateBcvPrice(priceUSD, bcvMultiplier, item.product_name);
-        const priceBs = priceUsdBcv * bcvRate;
-        const brandSuffix = item.brand_name ? ` (${item.brand_name})` : '';
-        msg += `- ${item.quantity}x ${item.product_name}${brandSuffix}\n  USD: ${formatUSD(priceUSD)} | Bs: ${formatBs(priceBs)}\n`;
+      const msg = buildWhatsAppQuoteMessage({
+        clientName: quote.client_name,
+        documentType: resolvedDocType,
+        phrase: randomPhrase,
       });
-      msg += `\n*Total USD:* ${formatUSD(baseSubtotal)}\n`;
-      msg += `*Total Bs:* ${formatBs(totalBs)}\n`;
-      msg += `\n_${randomPhrase}_`;
 
       const encoded = encodeURIComponent(msg);
       window.open(`https://wa.me/${phone}?text=${encoded}`, '_blank');
