@@ -27,6 +27,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return () => mq.removeEventListener('change', update);
   }, []);
 
+  useEffect(() => {
+    if (
+      typeof window !== 'undefined' &&
+      'serviceWorker' in navigator &&
+      process.env.NODE_ENV === 'production'
+    ) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {
+        // Silencioso si el navegador restringe Service Workers
+      });
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {children}

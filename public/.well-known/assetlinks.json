@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.repuestossotomayor.cotizador",
+      "sha256_cert_fingerprints": [
+        "1C:DD:39:A3:2B:E1:62:BA:15:E3:90:F2:D5:F8:31:F6:7D:BB:B4:2D:F5:4B:3A:EA:3B:49:3F:53:E7:3C:07:5B"
+      ]
+    }
+  }
+]

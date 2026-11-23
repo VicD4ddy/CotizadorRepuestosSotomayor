@@ -34,3 +34,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# android TWA local secrets and build artifacts
+android-twa/*.keystore
+android-twa/*.jks
+android-twa/keystore.properties
+android-twa/local.properties
+android-twa/.gradle/
+android-twa/build/
+android-twa/app/build/
+android-twa/release/
+*.apk

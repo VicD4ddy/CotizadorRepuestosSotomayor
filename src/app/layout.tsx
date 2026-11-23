@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -8,11 +8,24 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Repuestos Sotomayor - Sistema de Inventario y Cotización",
   description: "Dashboard de gestión de inventario y generador de cotizaciones para Repuestos Sotomayor.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Cotizador Sotomayor",
+  },
   icons: {
     icon: "/logo-sotomayor-icon.png",
     shortcut: "/logo-sotomayor-icon.png",
     apple: "/logo-sotomayor-icon.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0F172A",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
