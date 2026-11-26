@@ -3,8 +3,8 @@ import { Kit, Product, CartItem } from '@/types';
 import { useKitItems, useCreateKitItem, useDeleteKitItem, useDeleteProduct, useUpdateProduct, useBulkUpdateProductsActive, useProducts, useBcvRate, useBcvMultiplier, useKitCombos, useCreateKitCombo, useUpdateKitCombo, useDeleteKitCombo, useSaveComboItems, useDeleteKitComboItem, useUpdateKitComboItemQuantity, useKits, useUpdateKit } from '@/hooks/use-supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cart-store';
-import { formatUSD, cn, calculateBcvPrice } from '@/lib/utils';
-import { ArrowLeft, Plus, PlusCircle, Minus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3, CheckCircle2, FileText } from 'lucide-react';
+import { formatUSD, cn, calculateBcvPrice, isMiscellaneousProduct } from '@/lib/utils';
+import { ArrowLeft, Plus, PlusCircle, Minus, Search, Trash2, Package, ShoppingCart, Ruler, Pencil, Unlink, DollarSign, Loader2, Eye, EyeOff, X, Disc3, CheckCircle2, FileText, Droplet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ImageGalleryDialog } from '@/components/inventory/image-gallery-dialog';
@@ -18,6 +18,8 @@ import {
   getBrandRank,
 } from '@/lib/tren-delantero';
 import { generateKitCatalogPDF } from '@/lib/generate-kit-catalog-pdf';
+
+const MISC_CATEGORY_KEY = '__miscelaneos__';
 
 interface KitBuilderProps {
   kit: Kit;
@@ -299,6 +301,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   const MEASURE_SORTED_CATEGORIES = ['anillo', 'biela', 'bancada', 'piston', 'concha'];
 
   const isTrenDelantero = kit.category?.toLowerCase() === 'tren delantero';
+  const isMiscSelected = selectedCategory === MISC_CATEGORY_KEY;
 
   const getItemCategoryName = useCallback(
     (product: Product) => {
@@ -309,6 +312,38 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     },
     [isTrenDelantero]
   );
+
+  const allMiscProducts = useMemo(() => {
+    return products.filter((p) => isMiscellaneousProduct(p));
+  }, [products]);
+
+  const filteredMiscItems = useMemo(() => {
+    const lowerQuery = filterQuery.trim().toLowerCase();
+    return allMiscProducts
+      .filter((product) => {
+        if (hideZeroStock && (product.stock ?? 0) <= 0) {
+          return false;
+        }
+        if (lowerQuery) {
+          const matchName = product.name.toLowerCase().includes(lowerQuery);
+          const matchCode = product.code.toLowerCase().includes(lowerQuery);
+          const matchBrand = (product.brands?.name || '').toLowerCase().includes(lowerQuery);
+          const matchCategory = (product.categories?.name || '').toLowerCase().includes(lowerQuery);
+          if (!matchName && !matchCode && !matchBrand && !matchCategory) {
+            return false;
+          }
+        }
+        return true;
+      })
+      .map((product) => ({
+        id: `misc-${product.id}`,
+        kit_id: kit.id,
+        product_id: product.id,
+        quantity: 1,
+        products: product,
+        isMiscVirtual: true as const,
+      }));
+  }, [allMiscProducts, filterQuery, hideZeroStock, kit.id]);
 
   // Filter items by query, measurement, and stock (before category pill filter)
   const baseFilteredItems = useMemo(() => {
@@ -381,13 +416,14 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
   }, [baseFilteredItems, kitItems, selectedCategory, isTrenDelantero, getItemCategoryName]);
 
   const filteredItems = useMemo(() => {
+    if (isMiscSelected) return filteredMiscItems;
     if (selectedCategory === 'all') return baseFilteredItems;
     return baseFilteredItems.filter((item) => {
       const product = item.products;
       if (!product) return false;
       return getItemCategoryName(product) === selectedCategory;
     });
-  }, [baseFilteredItems, selectedCategory, getItemCategoryName]);
+  }, [isMiscSelected, filteredMiscItems, baseFilteredItems, selectedCategory, getItemCategoryName]);
 
   // Extract numeric measurement value taking SKU (productCode) as primary reference first, then product name
   // STD = 0, .010 = 10, .020 = 20, .030 = 30, etc.
@@ -431,7 +467,9 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     filteredItems.forEach((item) => {
       const product = item.products;
       if (!product) return;
-      const categoryName = getItemCategoryName(product);
+      const categoryName = isMiscSelected
+        ? (product.categories?.name || 'Misceláneos')
+        : getItemCategoryName(product);
       if (!groups[categoryName]) {
         groups[categoryName] = [];
       }
@@ -442,6 +480,9 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     const sorted: Record<string, any[]> = {};
     const keys = Object.keys(groups);
     keys.sort((a, b) => {
+      if (isMiscSelected) {
+        return a.localeCompare(b);
+      }
       if (isTrenDelantero) {
         const aRank = getTrenDelanteroCategoryRank(a);
         const bRank = getTrenDelanteroCategoryRank(b);
@@ -457,7 +498,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     });
     keys.forEach(k => { sorted[k] = groups[k]; });
     return sorted;
-  }, [filteredItems, isTrenDelantero, getItemCategoryName]);
+  }, [filteredItems, isMiscSelected, isTrenDelantero, getItemCategoryName]);
 
   const handleRemoveItem = async (itemId: string, productName: string) => {
     if (confirm(`¿Desvincular "${productName}" de este cotizador?\n\n(El repuesto seguirá existiendo en tu inventario general).`)) {
@@ -941,30 +982,32 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
           </div>
 
           {/* Dynamic Category Pills (mobile: swipeable 1 row; desktop: compact wrap, all visible) */}
-          {activeTab === 'inventory' && kitItems.length > 0 && availableCategories.length > 0 && (
+          {activeTab === 'inventory' && (availableCategories.length > 0 || allMiscProducts.length > 0) && (
             <div className="bg-white border-b border-slate-200 px-3 md:px-4 lg:px-5 py-1.5 flex items-center gap-1.5 flex-nowrap overflow-x-auto scrollbar-hide md:flex-wrap md:overflow-visible shrink-0">
-              <button
-                type="button"
-                onClick={() => setSelectedCategory('all')}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-2.5 py-1 md:px-2 md:py-0.5 rounded-full md:rounded-sm text-[11px] font-semibold border transition-all shrink-0 cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
-                  selectedCategory === 'all'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                )}
-              >
-                <span>Todas</span>
-                <span
+              {kitItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('all')}
                   className={cn(
-                    'font-mono tabular-nums text-[10px] px-1.5 py-0.5 md:px-1 md:py-0 rounded-full md:rounded-sm',
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 md:px-2 md:py-0.5 rounded-full md:rounded-sm text-[11px] font-semibold border transition-all shrink-0 cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
                     selectedCategory === 'all'
-                      ? 'bg-emerald-700/80 text-white'
-                      : 'bg-white text-slate-500 border border-slate-200/80'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                   )}
                 >
-                  {baseFilteredItems.length}
-                </span>
-              </button>
+                  <span>Todas</span>
+                  <span
+                    className={cn(
+                      'font-mono tabular-nums text-[10px] px-1.5 py-0.5 md:px-1 md:py-0 rounded-full md:rounded-sm',
+                      selectedCategory === 'all'
+                        ? 'bg-emerald-700/80 text-white'
+                        : 'bg-white text-slate-500 border border-slate-200/80'
+                    )}
+                  >
+                    {baseFilteredItems.length}
+                  </span>
+                </button>
+              )}
 
               {availableCategories.map((cat) => {
                 const isActive = selectedCategory === cat.name;
@@ -994,13 +1037,39 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                   </button>
                 );
               })}
+
+              {allMiscProducts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory(isMiscSelected ? 'all' : MISC_CATEGORY_KEY)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 md:px-2 md:py-0.5 rounded-full md:rounded-sm text-[11px] font-semibold border transition-all shrink-0 cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+                    isMiscSelected
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-blue-50/70 hover:bg-blue-100/70 text-blue-700 border-blue-200/90'
+                  )}
+                >
+                  <Droplet className="w-3 h-3 shrink-0" />
+                  <span>Misceláneos</span>
+                  <span
+                    className={cn(
+                      'font-mono tabular-nums text-[10px] px-1.5 py-0.5 md:px-1 md:py-0 rounded-full md:rounded-sm',
+                      isMiscSelected
+                        ? 'bg-emerald-700/80 text-white'
+                        : 'bg-white/90 text-blue-600 border border-blue-200/80'
+                    )}
+                  >
+                    {filteredMiscItems.length}
+                  </span>
+                </button>
+              )}
             </div>
           )}
 
       {/* Body: Inventory */}
       {activeTab === 'inventory' && (
         <div className="flex-1 overflow-auto p-2.5 pb-[140px] md:p-6 md:pb-6">
-          {kitItems.length === 0 ? (
+          {!isMiscSelected && kitItems.length === 0 ? (
             <div className="max-w-md mx-auto text-center py-20">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Package className="w-8 h-8 text-slate-400" />
@@ -1088,7 +1157,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                     {categoryName}
                   </h3>
                   <div className="flex items-center gap-2">
-                    {!hasManyBrands && brandEntries.length === 1 && (
+                    {!isMiscSelected && !hasManyBrands && brandEntries.length === 1 && (
                       <div className="hidden md:flex items-center gap-2">
                         {isBulkCategory && (
                           <button
@@ -1183,6 +1252,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                 ({brandItems.length})
                               </span>
                             </div>
+                            {!isMiscSelected && (
                             <div className="hidden md:flex items-center gap-2">
                               {BULK_PRICE_CATEGORIES.some(c => categoryName.toLowerCase().includes(c)) && (
                                 <button
@@ -1250,6 +1320,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                 );
                               })()}
                             </div>
+                            )}
                           </div>
                         )}
                         <div className="divide-y divide-slate-100">
@@ -1397,30 +1468,34 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                   )}
                                 </div>
                                 <div className="flex-1 min-w-0 pr-4">
-                                  <p 
-                                    className="text-[14px] font-bold text-slate-900 truncate cursor-pointer hover:text-emerald-700 transition-colors"
+                                  <p
+                                    className={cn(
+                                      'text-[14px] font-bold text-slate-900 truncate',
+                                      !item.isMiscVirtual && 'cursor-pointer hover:text-emerald-700 transition-colors'
+                                    )}
                                     onClick={(e) => {
+                                      if (item.isMiscVirtual) return;
                                       e.stopPropagation();
                                       if (product) setEditProduct(product as Product);
                                     }}
-                                    title="Editar producto"
+                                    title={item.isMiscVirtual ? (product?.name || '') : 'Editar producto'}
                                   >
                                     {product?.name || 'Producto no encontrado'}
                                   </p>
                                   <div className="flex items-center gap-2 mt-1">
                                     <span 
                                       onClick={() => product?.code && copyToClipboard(product.code)}
-                                      className="text-[11px] font-mono text-slate-500 bg-slate-100 hover:bg-slate-200 cursor-pointer px-1.5 py-0.5 rounded transition-colors"
+                                      className="text-[11px] font-mono tabular-nums text-slate-500 bg-slate-100 hover:bg-slate-200 cursor-pointer px-1.5 py-0.5 rounded transition-colors"
                                       title="Copiar SKU"
                                     >
                                       {product?.code || '---'}
                                     </span>
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                    <span className={`text-[10px] font-bold font-mono tabular-nums px-1.5 py-0.5 rounded shrink-0 ${
                                       (product?.stock ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                                     }`}>
                                       Stock: {product?.stock ?? 0}
                                     </span>
-                                    {product?.is_active === false ? (
+                                    {!item.isMiscVirtual && (product?.is_active === false ? (
                                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-amber-100 text-amber-800 hidden md:flex items-center gap-1 border border-amber-300">
                                         <EyeOff className="w-3 h-3" /> WEB: OCULTO
                                       </span>
@@ -1428,7 +1503,7 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-blue-50 text-blue-700 hidden md:flex items-center gap-1 border border-blue-200">
                                         <Eye className="w-3 h-3" /> WEB: ACTIVO
                                       </span>
-                                    )}
+                                    ))}
                                     {product?.brands?.name && (
                                       <span className="text-[10px] font-bold text-slate-400 uppercase">
                                         {product.brands.name}
@@ -1440,10 +1515,10 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                 <div className="flex items-center justify-between md:justify-end gap-3 md:gap-6 pl-[56px] md:pl-0">
                                   <div className="text-right">
                                     <p className="text-[11px] text-slate-500 font-medium mb-0.5">PRECIO</p>
-                                    <p className="text-[15px] font-bold text-slate-900">
+                                    <p className="text-[15px] font-bold font-mono tabular-nums text-slate-900">
                                       {formatUSD(product?.price_usd || 0)}
                                     </p>
-                                    <p className="text-[11px] text-emerald-600 font-semibold">
+                                    <p className="text-[11px] font-mono tabular-nums text-emerald-600 font-semibold">
                                       {formatUSD(calculateBcvPrice(product?.price_usd || 0, bcvMultiplier, product?.categories?.name || product?.name))} BCV
                                     </p>
                                   </div>
@@ -1455,48 +1530,52 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                                     >
                                       <Plus className="w-5 h-5 md:w-3 md:h-3 md:mr-1" /><span className="hidden md:inline"> AÑADIR</span>
                                     </Button>
-                                    <button
-                                      onClick={async () => {
-                                        if (!product) return;
-                                        const newStatus = !(product.is_active !== false);
-                                        // mobile-hidden below
-                                        try {
-                                          await updateProduct.mutateAsync({ id: product.id, is_active: newStatus });
-                                          toast.success(newStatus ? 'Repuesto activado y visible en la página web' : 'Repuesto oculto de la página web');
-                                        } catch (err: any) {
-                                          toast.error('Error al cambiar estado web', { description: err.message });
-                                        }
-                                      }}
-                                      className={`w-8 h-8 hidden md:flex items-center justify-center rounded transition-colors ${
-                                        product?.is_active === false 
-                                          ? 'text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-300' 
-                                          : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
-                                      }`}
-                                      title={product?.is_active === false ? 'Pausado de la página web. Clic para activar y mostrar en la web' : 'Visible en la página web. Clic para ocultar/desactivar en la web'}
-                                    >
-                                      {product?.is_active === false ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                    </button>
-                                    <button
-                                      onClick={() => product && setEditProduct(product as Product)}
-                                      className="w-8 h-8 hidden md:flex items-center justify-center rounded text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-                                      title="Editar repuesto"
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleRemoveItem(item.id, product?.name)}
-                                      className="w-8 h-8 hidden md:flex items-center justify-center rounded text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
-                                      title="Desvincular repuesto de esta cotización (se mantiene en el inventario)"
-                                    >
-                                      <Unlink className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => product && handleDeleteProduct(product as Product)}
-                                      className="w-8 h-8 hidden md:flex items-center justify-center rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                      title="Eliminar repuesto definitivamente del sistema"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    {!item.isMiscVirtual && (
+                                      <>
+                                        <button
+                                          onClick={async () => {
+                                            if (!product) return;
+                                            const newStatus = !(product.is_active !== false);
+                                            // mobile-hidden below
+                                            try {
+                                              await updateProduct.mutateAsync({ id: product.id, is_active: newStatus });
+                                              toast.success(newStatus ? 'Repuesto activado y visible en la página web' : 'Repuesto oculto de la página web');
+                                            } catch (err: any) {
+                                              toast.error('Error al cambiar estado web', { description: err.message });
+                                            }
+                                          }}
+                                          className={`w-8 h-8 hidden md:flex items-center justify-center rounded transition-colors ${
+                                            product?.is_active === false 
+                                              ? 'text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-300' 
+                                              : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                                          }`}
+                                          title={product?.is_active === false ? 'Pausado de la página web. Clic para activar y mostrar en la web' : 'Visible en la página web. Clic para ocultar/desactivar en la web'}
+                                        >
+                                          {product?.is_active === false ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                        </button>
+                                        <button
+                                          onClick={() => product && setEditProduct(product as Product)}
+                                          className="w-8 h-8 hidden md:flex items-center justify-center rounded text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                                          title="Editar repuesto"
+                                        >
+                                          <Pencil className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleRemoveItem(item.id, product?.name)}
+                                          className="w-8 h-8 hidden md:flex items-center justify-center rounded text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+                                          title="Desvincular repuesto de esta cotización (se mantiene en el inventario)"
+                                        >
+                                          <Unlink className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => product && handleDeleteProduct(product as Product)}
+                                          className="w-8 h-8 hidden md:flex items-center justify-center rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                          title="Eliminar repuesto definitivamente del sistema"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                                 </div>

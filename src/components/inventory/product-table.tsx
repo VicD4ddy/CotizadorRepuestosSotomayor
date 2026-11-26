@@ -15,7 +15,7 @@ import { Product } from '@/types';
 import { useProducts, useBcvRate, useCategories, useBcvMultiplier, useUpdateProduct, useBrands, useBulkDeleteProducts, useDefaultMinStock } from '@/hooks/use-supabase';
 import { useCartStore } from '@/store/cart-store';
 import { Badge } from '@/components/ui/badge';
-import { formatUSD, calculateBcvPrice } from '@/lib/utils';
+import { formatUSD, calculateBcvPrice, isMiscellaneousCategory, isMiscellaneousProduct } from '@/lib/utils';
 import { Search, SlidersHorizontal, Plus, Minus, Image as ImageIcon, ArrowUpDown, Pencil, History, Clock, Save, X, Trash2, CheckSquare, Eye, EyeOff, AlertTriangle, PackageX, PackageMinus, Bell, Check, ClipboardCheck, Loader2, Store, RotateCcw, PlusCircle, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -95,16 +95,7 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
 
   // Identify categories for Misceláneos (Aceites y Lubricantes)
   const miscCategoryIds = useMemo(() => {
-    return categories
-      .filter((c) =>
-        (c.name.toLowerCase().includes('aceite') && !c.name.toLowerCase().includes('bomba')) ||
-        c.name.toLowerCase().includes('lubricante') ||
-        c.name.toLowerCase().includes('miscel') ||
-        c.section === 'Misceláneos' ||
-        c.section === 'Miscelaneos' ||
-        c.id === 'd5ee462b-e3a2-4f6c-94f1-529ac9686fa6'
-      )
-      .map((c) => c.id);
+    return categories.filter((c) => isMiscellaneousCategory(c)).map((c) => c.id);
   }, [categories]);
 
   // Helper to determine effective min stock (individual rule overrides global default)
@@ -187,13 +178,9 @@ export function ProductTable({ showRecentsOnMount, isMiscellaneous, isMinStockAl
       });
     }
     if (!isMiscellaneous) return products;
-    return products.filter((p) => {
-      if (p.category_id && miscCategoryIds.includes(p.category_id)) return true;
-      const catName = p.categories?.name?.toLowerCase() || '';
-      if (catName.includes('aceite') && !catName.includes('bomba')) return true;
-      if (catName.includes('lubricante') || catName.includes('miscel')) return true;
-      return false;
-    });
+    return products.filter(
+      (p) => (p.category_id && miscCategoryIds.includes(p.category_id)) || isMiscellaneousProduct(p)
+    );
   }, [products, isMiscellaneous, isMinStockAlert, minStockSubFilter, miscCategoryIds, getEffectiveMinStock]);
 
   // Listen for open-product events from notification panel

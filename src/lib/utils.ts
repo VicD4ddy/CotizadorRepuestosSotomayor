@@ -64,3 +64,32 @@ export function calculateBcvPrice(
   return Math.ceil(raw);
 }
 
+export const MISC_CATEGORY_FALLBACK_ID = 'd5ee462b-e3a2-4f6c-94f1-529ac9686fa6';
+
+export function isMiscellaneousCategory(category?: {
+  id?: string | null;
+  name?: string | null;
+  section?: string | null;
+} | null): boolean {
+  if (!category) return false;
+  if (category.id === MISC_CATEGORY_FALLBACK_ID) return true;
+  if (category.section === 'Misceláneos' || category.section === 'Miscelaneos') return true;
+  const catName = (category.name || '').toLowerCase();
+  if (catName.includes('aceite') && !catName.includes('bomba')) return true;
+  if (catName.includes('lubricante') || catName.includes('miscel')) return true;
+  return false;
+}
+
+export function isMiscellaneousProduct(product?: {
+  category_id?: string | null;
+  categories?: {
+    id?: string | null;
+    name?: string | null;
+    section?: string | null;
+  } | null;
+} | null): boolean {
+  if (!product) return false;
+  if (product.category_id === MISC_CATEGORY_FALLBACK_ID) return true;
+  return isMiscellaneousCategory(product.categories);
+}
+
