@@ -657,31 +657,186 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
     );
   }
 
+  const isMotorKit = kit.category.toLowerCase() === 'motor';
+
+  const renderTabButtons = (desktop: boolean) => {
+    const baseBtnClass = desktop
+      ? 'py-2 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-t-sm'
+      : 'py-2 text-[12px] font-semibold border-b-2 transition-colors whitespace-nowrap shrink-0';
+
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setActiveTab('inventory')}
+          className={cn(
+            baseBtnClass,
+            activeTab === 'inventory'
+              ? 'border-emerald-500 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          )}
+        >
+          {desktop ? 'Inventario' : 'Repuestos'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('combos')}
+          className={cn(
+            baseBtnClass,
+            activeTab === 'combos'
+              ? 'border-emerald-500 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          )}
+        >
+          Combos
+          {kitCombos.length > 0 && (
+            <span className="font-mono tabular-nums ml-1">({kitCombos.length})</span>
+          )}
+        </button>
+        {isMotorKit && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('clutch')}
+            className={cn(
+              baseBtnClass,
+              'flex items-center gap-1.5',
+              activeTab === 'clutch'
+                ? 'border-emerald-500 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            )}
+          >
+            <Disc3 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Clutch</span>
+          </button>
+        )}
+      </>
+    );
+  };
+
+  const renderFilterControls = (desktop: boolean) => (
+    <div
+      className={cn(
+        'flex items-center gap-1.5',
+        desktop ? 'min-w-0 flex-wrap justify-end' : 'flex-wrap w-full'
+      )}
+    >
+      <div className={cn('relative', desktop ? 'w-[175px] lg:w-[210px] shrink-0' : 'flex-1 min-w-[130px]')}>
+        <Search
+          className={cn(
+            'absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none',
+            desktop ? 'left-2.5' : 'left-2.5'
+          )}
+        />
+        <input
+          type="text"
+          placeholder={`Buscar en ${isMotorKit ? 'el motor' : kit.category.toLowerCase()}...`}
+          value={filterQuery}
+          onChange={(e) => setFilterQuery(e.target.value)}
+          className={cn(
+            'w-full bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all',
+            desktop
+              ? 'pl-7 pr-6 h-8 rounded-sm text-xs'
+              : 'pl-8 pr-7 h-9 rounded text-[12.5px]'
+          )}
+        />
+        {filterQuery && (
+          <button
+            type="button"
+            onClick={() => setFilterQuery('')}
+            aria-label="Limpiar búsqueda"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      {isMotorKit && (
+        <div className="relative shrink-0">
+          <Ruler className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+          <select
+            value={measureFilter}
+            onChange={(e) => setMeasureFilter(e.target.value)}
+            className={cn(
+              'pl-7 pr-5 border font-medium appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all',
+              desktop ? 'h-8 rounded-sm text-xs' : 'h-9 rounded text-[11.5px]',
+              measureFilter !== 'all'
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                : 'bg-white border-slate-200 text-slate-700'
+            )}
+          >
+            {MEASURE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.value === 'all' ? 'Medidas' : opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setHideZeroStock(!hideZeroStock)}
+        className={cn(
+          'flex items-center gap-1.5 border font-medium transition-all shrink-0 select-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+          desktop ? 'h-8 px-2.5 rounded-sm text-xs' : 'h-9 px-2 rounded text-[11.5px]',
+          hideZeroStock
+            ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-semibold shadow-sm'
+            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+        )}
+        title="Ocultar los repuestos que tengan stock igual a cero"
+      >
+        <div
+          className={cn(
+            'rounded-full transition-colors relative flex items-center p-0.5 shrink-0',
+            desktop ? 'w-6 h-3.5' : 'w-7 h-3.5',
+            hideZeroStock ? 'bg-emerald-500' : 'bg-slate-300'
+          )}
+        >
+          <div
+            className={cn(
+              'w-2.5 h-2.5 rounded-full bg-white transition-transform',
+              hideZeroStock ? (desktop ? 'translate-x-2.5' : 'translate-x-3.5') : 'translate-x-0'
+            )}
+          />
+        </div>
+        {desktop ? (
+          <>
+            <span className="xl:hidden">Stock 0</span>
+            <span className="hidden xl:inline">Ocultar stock 0</span>
+          </>
+        ) : (
+          <span>Stock 0</span>
+        )}
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex flex-col h-full min-h-0 bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-3 md:px-6 py-2 md:py-4 shrink-0 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-2 md:gap-4">
+      {/* Mobile Header (< md, preserved) */}
+      <div className="md:hidden bg-white border-b border-slate-200 px-3 py-2 shrink-0 shadow-sm flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2 min-w-0">
-          <div className="flex items-center gap-2 md:gap-4 min-w-0">
-            <button 
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
               onClick={onBack}
-              className="w-9 h-9 md:w-10 md:h-10 rounded-full hover:bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0"
+              className="w-9 h-9 rounded-full hover:bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0"
             >
               <ArrowLeft className="w-[18px] h-[18px]" />
             </button>
             <div className="min-w-0">
-              <h1 className="text-base md:text-2xl font-bold text-slate-900 flex items-center gap-1.5 md:gap-2 min-w-0">
-                <Package className="w-4 h-4 md:w-6 md:h-6 text-emerald-600 shrink-0" />
+              <h1 className="text-base font-bold text-slate-900 flex items-center gap-1.5 min-w-0">
+                <Package className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span className="truncate">{kit.name}</span>
               </h1>
-              <p className="text-sm text-slate-500 hidden md:block">{kit.description || `Cotizador para ${kit.category}`}</p>
             </div>
           </div>
           <Button
             onClick={handleDownloadCatalog}
             disabled={isGeneratingCatalog || kitItems.length === 0}
             variant="outline"
-            className="md:hidden gap-1.5 border-slate-300 text-slate-700 font-semibold h-8 px-2.5 text-[11.5px] shrink-0"
+            className="gap-1.5 border-slate-300 text-slate-700 font-semibold h-8 px-2.5 text-[11.5px] shrink-0"
             title="Descargar catálogo PDF"
           >
             {isGeneratingCatalog ? (
@@ -692,92 +847,73 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
             <span>Catálogo</span>
           </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 md:gap-2.5 w-full md:w-auto">
-          <div className="relative flex-1 min-w-[130px] md:w-auto md:flex-none">
-            <Search className="absolute left-2.5 md:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 md:w-4 md:h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder={`Buscar en ${kit.category.toLowerCase() === 'motor' ? 'el motor' : kit.category.toLowerCase()}...`}
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              className="w-full md:w-[200px] pl-8 md:pl-9 pr-2.5 md:pr-3 h-9 rounded bg-white border border-slate-200 text-[12.5px] md:text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
-            />
-          </div>
-          
-          {kit.category.toLowerCase() === 'motor' && (
-            <div className="relative shrink-0">
-              <Ruler className="absolute left-2 md:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 md:w-4 md:h-4 text-slate-400 pointer-events-none" />
-              <select
-                value={measureFilter}
-                onChange={(e) => setMeasureFilter(e.target.value)}
-                className={`pl-7 md:pl-9 pr-5 md:pr-8 h-9 rounded border text-[11.5px] md:text-[13px] font-medium appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all ${
-                  measureFilter !== 'all'
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                    : 'bg-white border-slate-200 text-slate-700'
-                }`}
-              >
-                {MEASURE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.value === 'all' ? 'Medidas' : opt.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
+        {renderFilterControls(false)}
+      </div>
+
+      {/* Desktop Header — Franja 1: Full title + compact action buttons */}
+      <div className="hidden md:flex items-center justify-between gap-3 bg-white border-b border-slate-200 px-4 lg:px-5 py-2 shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <button
-            onClick={() => setHideZeroStock(!hideZeroStock)}
-            className={`flex items-center gap-1.5 md:gap-2 px-2 md:px-3 h-9 rounded border text-[11.5px] md:text-[13px] font-medium transition-all shrink-0 select-none cursor-pointer ${
-              hideZeroStock
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-semibold shadow-sm'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-            }`}
-            title="Ocultar los repuestos que tengan stock igual a cero"
+            type="button"
+            onClick={onBack}
+            className="w-8 h-8 rounded-md hover:bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            title="Volver"
           >
-            <div className={`w-7 md:w-8 h-3.5 md:h-4 rounded-full transition-colors relative flex items-center p-0.5 shrink-0 ${
-              hideZeroStock ? 'bg-emerald-500' : 'bg-slate-300'
-            }`}>
-              <div className={`w-2.5 md:w-3 h-2.5 md:h-3 rounded-full bg-white transition-transform ${
-                hideZeroStock ? 'translate-x-3.5 md:translate-x-4' : 'translate-x-0'
-              }`} />
-            </div>
-            <span className="hidden sm:inline">Ocultar los repuestos con stock 0</span><span className="sm:hidden">Stock 0</span>
+            <ArrowLeft className="w-4 h-4" />
           </button>
-          <Button 
+          <div className="flex items-baseline gap-2 flex-wrap min-w-0">
+            <h1 className="text-[17px] lg:text-[19px] font-bold text-slate-900 flex items-center gap-1.5 leading-tight">
+              <Package className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{kit.name}</span>
+            </h1>
+            {kit.description && (
+              <span
+                className="text-xs text-slate-500 font-medium truncate max-w-[300px] xl:max-w-[420px]"
+                title={kit.description}
+              >
+                · {kit.description}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          {kitCombos.map((combo) => (
+            <Button
+              key={combo.id}
+              onClick={() => handleLoadCombo(combo.id)}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold h-8 px-2.5 gap-1.5 rounded-sm shadow-sm active:scale-[0.98] transition-transform"
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              <span>{combo.name}</span>
+            </Button>
+          ))}
+
+          <Button
             onClick={() => setIsLinkDialogOpen(true)}
             variant="outline"
-            className="gap-2 border-slate-300 text-slate-700 font-semibold h-[36px] hidden md:flex"
+            className="gap-1.5 border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold h-8 px-2.5 text-xs rounded-sm"
+            title="Vincular Repuesto"
           >
-            <PlusCircle className="w-4 h-4" />
-            Vincular Repuesto
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>Vincular</span>
           </Button>
 
-          <Button 
+          <Button
             onClick={handleDownloadCatalog}
             disabled={isGeneratingCatalog || kitItems.length === 0}
             variant="outline"
-            className="gap-2 border-slate-300 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 font-semibold h-[36px] hidden md:flex items-center shadow-sm"
+            className="gap-1.5 border-slate-300 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 font-semibold h-8 px-2.5 text-xs rounded-sm shadow-xs"
             title="Descargar catálogo en PDF con fotos, códigos y precios"
           >
             {isGeneratingCatalog ? (
-              <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
             ) : (
-              <FileText className="w-4 h-4 text-slate-500" />
+              <FileText className="w-3.5 h-3.5 text-slate-500" />
             )}
-            <span>Catálogo PDF</span>
+            <span className="xl:hidden">PDF</span>
+            <span className="hidden xl:inline">Catálogo PDF</span>
           </Button>
-          
-          {kitCombos.length > 0 && (
-            <div className="hidden md:flex items-center gap-2 flex-wrap justify-end">
-              {kitCombos.map((combo) => (
-                <Button
-                  key={combo.id}
-                  onClick={() => handleLoadCombo(combo.id)}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold h-[36px] gap-2 px-3 shadow-sm active:scale-[0.98] transition-transform"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  Cargar {combo.name} al carrito
-                </Button>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -787,65 +923,44 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
         </div>
       ) : (
         <>
-          {/* Tabs (1 sola línea en móvil) */}
-          <div className="bg-white border-b border-slate-200 px-3 md:px-6 flex items-center gap-4 md:gap-6 overflow-x-auto scrollbar-hide shrink-0">
-            <button
-              onClick={() => setActiveTab('inventory')}
-              className={`py-2 md:py-3 text-[12px] md:text-sm font-semibold border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                activeTab === 'inventory' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <span className="md:hidden">Repuestos</span>
-              <span className="hidden md:inline">
-                {kit.category.toLowerCase() === 'motor' ? 'Inventario del Motor' : 'Inventario del Cotizador'}
-              </span>
-            </button>
-            <button
-              onClick={() => setActiveTab('combos')}
-              className={`py-2 md:py-3 text-[12px] md:text-sm font-semibold border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                activeTab === 'combos' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <span className="md:hidden">
-                Combos{kitCombos.length > 0 ? ` (${kitCombos.length})` : ''}
-              </span>
-              <span className="hidden md:inline">
-                Configurar Combos{kitCombos.length > 0 ? ` (${kitCombos.length})` : ''}
-              </span>
-            </button>
-            {kit.category.toLowerCase() === 'motor' && (
-              <button
-                onClick={() => setActiveTab('clutch')}
-                className={`py-2 md:py-3 text-[12px] md:text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                  activeTab === 'clutch' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <Disc3 className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-600" />
-                <span className="md:hidden">Clutch</span>
-                <span className="hidden md:inline">Clutch / Embrague</span>
-              </button>
+          {/* Mobile Tabs Bar */}
+          <div className="md:hidden bg-white border-b border-slate-200 px-3 flex items-center gap-4 overflow-x-auto scrollbar-hide shrink-0">
+            {renderTabButtons(false)}
+          </div>
+
+          {/* Desktop Integrated Bar — Franja 2: Tabs (left) + Filters (right) */}
+          <div className="hidden md:flex items-center justify-between gap-3 bg-white border-b border-slate-200 px-4 lg:px-5 shrink-0">
+            <div className="flex items-center gap-4 shrink-0">
+              {renderTabButtons(true)}
+            </div>
+            {activeTab === 'inventory' && (
+              <div className="py-1.5 min-w-0">
+                {renderFilterControls(true)}
+              </div>
             )}
           </div>
 
-          {/* Dynamic Category Pills (Quick 1-tap filter for Motor & Tren Delantero) */}
+          {/* Dynamic Category Pills (mobile: swipeable 1 row; desktop: compact wrap, all visible) */}
           {activeTab === 'inventory' && kitItems.length > 0 && availableCategories.length > 0 && (
-            <div className="bg-white border-b border-slate-200 px-3 md:px-6 py-1.5 md:py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-hide shrink-0">
+            <div className="bg-white border-b border-slate-200 px-3 md:px-4 lg:px-5 py-1.5 flex items-center gap-1.5 flex-nowrap overflow-x-auto scrollbar-hide md:flex-wrap md:overflow-visible shrink-0">
               <button
                 type="button"
                 onClick={() => setSelectedCategory('all')}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 md:px-3 md:py-1.5 rounded-full text-[11px] md:text-[12px] font-bold border transition-all shrink-0 cursor-pointer active:scale-95 ${
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-2.5 py-1 md:px-2 md:py-0.5 rounded-full md:rounded-sm text-[11px] font-semibold border transition-all shrink-0 cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
                   selectedCategory === 'all'
                     ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                     : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                }`}
+                )}
               >
                 <span>Todas</span>
                 <span
-                  className={`font-mono tabular-nums text-[10px] px-1.5 py-0.5 rounded-full ${
+                  className={cn(
+                    'font-mono tabular-nums text-[10px] px-1.5 py-0.5 md:px-1 md:py-0 rounded-full md:rounded-sm',
                     selectedCategory === 'all'
                       ? 'bg-emerald-700/80 text-white'
                       : 'bg-white text-slate-500 border border-slate-200/80'
-                  }`}
+                  )}
                 >
                   {baseFilteredItems.length}
                 </span>
@@ -858,19 +973,21 @@ export function KitBuilder({ kit, onBack }: KitBuilderProps) {
                     key={cat.name}
                     type="button"
                     onClick={() => setSelectedCategory(isActive ? 'all' : cat.name)}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 md:px-3 md:py-1.5 rounded-full text-[11px] md:text-[12px] font-bold border transition-all shrink-0 cursor-pointer active:scale-95 ${
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-2.5 py-1 md:px-2 md:py-0.5 rounded-full md:rounded-sm text-[11px] font-semibold border transition-all shrink-0 cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
                       isActive
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                         : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                    }`}
+                    )}
                   >
                     <span>{cat.name}</span>
                     <span
-                      className={`font-mono tabular-nums text-[10px] px-1.5 py-0.5 rounded-full ${
+                      className={cn(
+                        'font-mono tabular-nums text-[10px] px-1.5 py-0.5 md:px-1 md:py-0 rounded-full md:rounded-sm',
                         isActive
                           ? 'bg-emerald-700/80 text-white'
                           : 'bg-white text-slate-500 border border-slate-200/80'
-                      }`}
+                      )}
                     >
                       {cat.count}
                     </span>
